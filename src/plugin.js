@@ -2035,37 +2035,6 @@
       );
   }
 
-  function removeMic() {
-    function ensureInputFocus() {
-      document
-        .querySelectorAll(
-          '.hg-button[data-skbtn="{MIC}"], .simple-keyboard-mic',
-        )
-        .forEach((el) => el.remove());
-      const input = document.querySelector(".simple-keyboard-input");
-      if (input && input !== document.activeElement) {
-        input.focus();
-      }
-    }
-
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        mutation.addedNodes.forEach((node) => {
-          if (
-            node.nodeType === 1 &&
-            (node.matches(".simple-keyboard") ||
-              node.querySelector(".simple-keyboard"))
-          ) {
-            setTimeout(ensureInputFocus, 0);
-          }
-        });
-      });
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    ensureInputFocus();
-  }
-
   function overwriteToggleFullscreen() {
     Lampa.Utils.toggleFullscreen = function () {
       window.electronAPI.toggleFullscreen();
@@ -2077,7 +2046,6 @@
     addQuitButton(); // Кнопка выхода в шапке
     addAppSettings(); // Настройки приложения внутри лампы
     initInputManager();
-    removeMic();
   }
 
   if (!window.plugin_app_ready) {
