@@ -441,14 +441,14 @@
 
       // Плееры
       app_settings_player_find: {
-        ru: "Поиск плеера",
-        en: "Player search",
-        uk: "Пошук плеєра",
+        ru: "Поиск и выбор плеера",
+        en: "Player search and selection",
+        uk: "Пошук і вибір плеєра",
       },
       app_settings_player_find_description: {
-        ru: "Нажмите, чтобы найти установленный плеер VLC в вашей системе автоматически",
-        en: "Click to find the installed VLC player in your system automatically.",
-        uk: "Натисніть, щоб автоматично знайти встановлений програвач VLC у вашій системі",
+        ru: "Нажмите, чтобы выбрать из найденных плееров в вашей системе.",
+        en: "Click to select from the found players in your system.",
+        uk: "Натисніть, щоб вибрати зі знайдених плеєрів у вашій системі.",
       },
 
       // О приложении
@@ -546,17 +546,53 @@
       onChange: async () => {
         Lampa.Loading.start(
           () => {},
-          `${Lampa.Lang.translate("app_settings_player_find")}...`,
+          Lampa.Lang.translate("app_settings_player_find"),
         );
-        const result = await window.electronAPI.findPlayer();
+
+        const result = await window.electronAPI.player.getAllWithDetails();
         Lampa.Loading.stop();
-        // Lampa.Settings.create("player", {});
-        Lampa.Settings.update();
-        Lampa.Noty.show(
-          result.success
-            ? result.message
-            : `${Lampa.Lang.translate("app_error")}: ${result.message}`,
-        );
+
+        if (!result.success || result.players.length === 0) {
+          Lampa.Noty.show("Медиа плееры не найдены!", "error", 5000);
+          return;
+        }
+
+        // Используем встроенный Lampa.Select вместо кастомного модального окна
+        const items = [];
+        for (let i = 0; i < result.players.length; i++) {
+          const player = result.players[i];
+          items.push({
+            title: player.name,
+            subtitle: player.path,
+            value: player.id,
+            selected: player.isDefault,
+          });
+        }
+
+        Lampa.Select.show({
+          title: "Выберите плеер по умолчанию",
+          items: items,
+          onSelect: async (item) => {
+            Lampa.Loading.start(() => {}, `Выбор ${item.title}...`);
+
+            const saveResult =
+              await window.electronAPI.player.setDefaultAndSave(item.value);
+
+            Lampa.Loading.stop();
+
+            if (saveResult.success) {
+              Lampa.Noty.show(`Выбран плеер: ${item.title}`, "success", 3000);
+              Lampa.Settings.update();
+            } else {
+              Lampa.Noty.show("Ошибка при выборе плеера", "error", 3000);
+            }
+
+            Lampa.Controller.toggle("settings_component");
+          },
+          onBack: () => {
+            Lampa.Controller.toggle("settings_component");
+          },
+        });
       },
       onRender: function (element) {
         setTimeout(function () {
@@ -776,15 +812,57 @@
           onChange: async () => {
             Lampa.Loading.start(
               () => {},
-              `${Lampa.Lang.translate("app_settings_player_find")}...`,
+              Lampa.Lang.translate("app_settings_player_find"),
             );
-            const result = await window.electronAPI.findPlayer();
+
+            const result = await window.electronAPI.player.getAllWithDetails();
             Lampa.Loading.stop();
-            Lampa.Noty.show(
-              result.success
-                ? result.message
-                : `${Lampa.Lang.translate("app_error")}: ${result.message}`,
-            );
+
+            if (!result.success || result.players.length === 0) {
+              Lampa.Noty.show("Медиа плееры не найдены!", "error", 5000);
+              return;
+            }
+
+            // Используем встроенный Lampa.Select вместо кастомного модального окна
+            const items = [];
+            for (let i = 0; i < result.players.length; i++) {
+              const player = result.players[i];
+              items.push({
+                title: player.name,
+                subtitle: player.path,
+                value: player.id,
+                selected: player.isDefault,
+              });
+            }
+
+            Lampa.Select.show({
+              title: "Выберите плеер по умолчанию",
+              items: items,
+              onSelect: async (item) => {
+                Lampa.Loading.start(() => {}, `Выбор ${item.title}...`);
+
+                const saveResult =
+                  await window.electronAPI.player.setDefaultAndSave(item.value);
+
+                Lampa.Loading.stop();
+
+                if (saveResult.success) {
+                  Lampa.Noty.show(
+                    `Выбран плеер: ${item.title}`,
+                    "success",
+                    3000,
+                  );
+                  Lampa.Settings.update();
+                } else {
+                  Lampa.Noty.show("Ошибка при выборе плеера", "error", 3000);
+                }
+
+                Lampa.Controller.toggle("settings_component");
+              },
+              onBack: () => {
+                Lampa.Controller.toggle("settings_component");
+              },
+            });
           },
         })
         .addToQueue({

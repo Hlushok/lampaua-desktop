@@ -10,6 +10,7 @@ const { registerSettingsHandlers } = require("./settingsHandlers");
 const registerCloudHandlers = require("./cloudHandlers");
 const registerTorrServerHandlers = require("./torrServerHandlers");
 const registerFolderHandlers = require("./folderHandlers");
+const registerPlayerHandlers = require("./playerHandlers");
 const registerOtherHandlers = require("./otherHandlers");
 
 function registerIpcHandlers() {
@@ -34,8 +35,11 @@ function registerIpcHandlers() {
   // Обработчики для работы с папками
   registerFolderHandlers();
 
+  // Плееры
+  registerPlayerHandlers();
+
   // Дополнительные обработчики
-  registerOtherHandlers(getMainWindow);
+  registerOtherHandlers();
 }
 
 module.exports = {

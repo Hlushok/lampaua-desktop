@@ -137,8 +137,21 @@ contextBridge.exposeInMainWorld("electronAPI", {
   folder: {
     open: (path) => ipcRenderer.invoke("folder-open", path),
   },
-  // Поиск плеера
-  findPlayer: (args) => ipcRenderer.invoke("find-player", args),
+
+  player: {
+    getAll: () => ipcRenderer.invoke("player-get-all"),
+    getDefault: () => ipcRenderer.invoke("player-get-default"),
+    setDefault: (playerId) =>
+      ipcRenderer.invoke("player-set-default", playerId),
+    find: (playerId) => ipcRenderer.invoke("player-find", playerId),
+    findAll: () => ipcRenderer.invoke("player-find-all"),
+    selectManual: () => ipcRenderer.invoke("player-select-manual"),
+    savePath: (path) => ipcRenderer.invoke("player-save-path", path),
+    getAvailable: () => ipcRenderer.invoke("player-get-available"),
+    getAllWithDetails: () => ipcRenderer.invoke("player-get-all-with-details"),
+    setDefaultAndSave: (playerId) =>
+      ipcRenderer.invoke("player-set-default-and-save", playerId),
+  },
 });
 
 console.log("Preload script loaded successfully");
