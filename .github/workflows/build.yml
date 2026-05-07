@@ -1,4 +1,4 @@
-name: Build and Release AppImage, macOS, Windows builds
+name: Build and Release Linux, macOS, Windows builds
 
 permissions:
   contents: write
@@ -27,7 +27,7 @@ jobs:
           node-version: "24"
 #          cache: "yarn"
 
-      - name: Install Yarn 4
+      - name: Install Yarn 4 latest
         run: |
           corepack enable
           corepack prepare yarn@4 --activate
