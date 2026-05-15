@@ -472,6 +472,11 @@
         en: "Support the project 🫶",
         uk: "Підтримати проект 🫶",
       },
+      donate_modal_description: {
+        ru: "Внимание! Это поддержка именно разработчика приложения под Десктоп, а не самой Lampa.",
+        en: "Attention! This is the support of the Desktop application developer, not Lampa itself.",
+        uk: "Увага! Це підтримка саме розробника програми під Десктоп, а не самої Lampa.",
+      },
 
       // О приложении
       app_about_title: {
@@ -715,7 +720,7 @@
 
             Lampa.Template.add(
               "donate_modal",
-              `<div class="app-modal-donate" style="padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 200px;">
+              `<div class="app-modal-donate" style="padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 200px; flex-direction: column;">
           <div class="donate-qr-container" style="display: flex; gap: 20px; justify-content: center;">
 
             <!-- 100₽ -->
@@ -772,6 +777,11 @@
               </div>
             </div>
 
+          </div>
+          <div class="donate-bottom-text" style="margin-top: 25px; text-align: center; color: #999; font-size: 14px; line-height: 1.5; max-width: 600px; padding: 0 10px;">
+            ` +
+                Lampa.Lang.translate("donate_modal_description") +
+                `
           </div>
         </div>`,
             );
