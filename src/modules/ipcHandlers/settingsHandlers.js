@@ -131,9 +131,7 @@ function registerSettingsHandlers(store, getMainWindow, injectPlugin) {
       if (canceled || !filePaths.length) return;
 
       if (filePaths.length > 1) {
-        console.warn(
-          "Вибрано кілька файлів, буде використано лише перший",
-        );
+        console.warn("Вибрано кілька файлів, буде використано лише перший");
       }
 
       const data = readFileSync(filePaths[0], "utf-8");
@@ -151,7 +149,8 @@ function registerSettingsHandlers(store, getMainWindow, injectPlugin) {
       console.log("Settings imported successfully");
       return {
         success: true,
-        message: "Налаштування успішно імпортовано, перезапускаємо застосунок...",
+        message:
+          "Налаштування успішно імпортовано, перезапускаємо застосунок...",
       };
     } catch (err) {
       console.log(`Error importing settings: ${err.message}`);
