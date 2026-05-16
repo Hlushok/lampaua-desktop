@@ -5,6 +5,7 @@ const store = require("./storeManager");
 function setupAutoUpdater() {
   autoUpdater.logger = console;
   autoUpdater.autoDownload = true;
+  autoUpdater.disableDifferentialDownload = true;
 
   autoUpdater.on("checking-for-update", () => {
     console.log("Checking for updates...");

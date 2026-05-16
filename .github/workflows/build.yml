@@ -106,7 +106,6 @@ jobs:
           name: lampa-macos
           path: |
             dist/*.dmg
-            dist/*.blockmap
             dist/latest-mac.yml
 
   build-windows:
@@ -139,7 +138,6 @@ jobs:
           name: lampa-windows
           path: |
             dist/*.exe
-            dist/*.blockmap
             dist/latest.yml
 
   generate-downloads-table:
@@ -155,132 +153,93 @@ jobs:
         id: generate
         run: |
           VERSION="${{ needs.build-linux.outputs.version }}"
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/download/v$VERSION"
+
+          file_size() {
+            du -h "$1" | cut -f1
+          }
+
+          asset_url() {
+            echo "$RELEASE_URL/$(basename "$1")"
+          }
+
+          badge_button() {
+            local file="$1"
+            local label="$2"
+            local color="$3"
+            local logo="$4"
+
+            if [ -f "$file" ]; then
+              local filename
+              local size
+              local url
+
+              filename=$(basename "$file")
+              size=$(file_size "$file")
+              url=$(asset_url "$file")
+
+              echo "<a href=\"$url\"><img alt=\"$label\" src=\"https://img.shields.io/badge/$label-Download-$color?style=for-the-badge&logo=$logo\"></a><br><sub><code>$filename</code> - $size</sub>"
+            else
+              echo "Not available"
+            fi
+          }
 
           cat > downloads.md << 'EOF'
-          ### Downloads
+          ## Download
 
-          <details>
-          <summary><b>Windows</b></summary>
-
-          | Architecture | Installer |
-          |-------------|------------|
+          | Recommended | Other Windows |
+          |-------------|---------------|
           EOF
 
-          for file in lampa-windows/*.exe; do
+          windows_x64=$(find lampa-windows -maxdepth 1 -type f -name '*-x64-*.exe' | sort | head -n 1)
+          windows_arm64=$(find lampa-windows -maxdepth 1 -type f -name '*-arm64-*.exe' | sort | head -n 1)
+          windows_ia32=$(find lampa-windows -maxdepth 1 -type f -name '*-ia32-*.exe' | sort | head -n 1)
+
+          win_recommended=$(badge_button "$windows_x64" "Windows_x64" "238636" "windows")
+          win_arm=$(badge_button "$windows_arm64" "Windows_ARM64" "0969da" "windows")
+          win_32=$(badge_button "$windows_ia32" "Windows_32--bit" "6e7781" "windows")
+
+          echo "| $win_recommended | $win_arm<br><br>$win_32 |" >> downloads.md
+
+          cat >> downloads.md << 'EOF'
+
+          | macOS | Linux |
+          |-------|-------|
+          EOF
+
+          mac_arm64=$(find lampa-macos -maxdepth 1 -type f -name '*-arm64-*.dmg' | sort | head -n 1)
+          mac_x64=$(find lampa-macos -maxdepth 1 -type f -name '*-x64-*.dmg' | sort | head -n 1)
+          linux_deb_x64=$(find lampa-linux -maxdepth 1 -type f \( -name '*-amd64-*.deb' -o -name '*-x64-*.deb' \) | sort | head -n 1)
+          linux_rpm_x64=$(find lampa-linux -maxdepth 1 -type f \( -name '*-x86_64-*.rpm' -o -name '*-amd64-*.rpm' -o -name '*-x64-*.rpm' \) | sort | head -n 1)
+          linux_appimage=$(find lampa-linux -maxdepth 1 -type f -name '*.AppImage' | sort | head -n 1)
+
+          mac_buttons="$(badge_button "$mac_arm64" "macOS_Apple_Silicon" "0969da" "apple")<br><br>$(badge_button "$mac_x64" "macOS_Intel" "6e7781" "apple")"
+          linux_buttons="$(badge_button "$linux_deb_x64" "Ubuntu_DEB" "e95420" "ubuntu")<br><br>$(badge_button "$linux_rpm_x64" "Fedora_RPM" "51a2da" "fedora")<br><br>$(badge_button "$linux_appimage" "Linux_AppImage" "238636" "linux")"
+
+          echo "| $mac_buttons | $linux_buttons |" >> downloads.md
+
+          linux_arm_assets=""
+          for file in lampa-linux/*arm64* lampa-linux/*aarch64*; do
             if [ -f "$file" ]; then
               filename=$(basename "$file")
-              size=$(du -h "$file" | cut -f1)
-
-              if [[ "$filename" == *"x64"* ]]; then
-                arch="**64-bit**"
-              elif [[ "$filename" == *"ia32"* ]]; then
-                arch="**32-bit**"
-              elif [[ "$filename" == *"arm64"* ]]; then
-                arch="**ARM64**"
-              elif [[ "$filename" == *"x86"* ]]; then
-                arch="**32-bit**"
-              else
-                arch="**Any**"
-              fi
-
-              echo "| $arch | [\`$filename\`](https://github.com/${{ github.repository }}/releases/download/v$VERSION/$filename) <br> <sup>$size</sup> |" >> downloads.md
+              size=$(file_size "$file")
+              url=$(asset_url "$file")
+              linux_arm_assets="$linux_arm_assets- [$filename]($url) - $size"$'\n'
             fi
           done
 
           cat >> downloads.md << 'EOF'
-          </details>
 
           <details>
-          <summary><b>macOS</b></summary>
+          <summary>Linux ARM packages</summary>
 
-          | Architecture | Installer |
-          |-------------|------------|
           EOF
 
-          for file in lampa-macos/*.dmg; do
-            if [ -f "$file" ]; then
-              filename=$(basename "$file")
-              size=$(du -h "$file" | cut -f1)
-
-              if [[ "$filename" == *"x64"* ]] || [[ "$filename" == *"x86_64"* ]]; then
-                arch="**Intel (64-bit)**"
-              elif [[ "$filename" == *"arm64"* ]]; then
-                arch="**Apple Silicon (ARM64)**"
-              else
-                arch="**Universal**"
-              fi
-
-              echo "| $arch | [\`$filename\`](https://github.com/${{ github.repository }}/releases/download/v$VERSION/$filename) <br> <sup>$size</sup> |" >> downloads.md
-            fi
-          done
-
-          cat >> downloads.md << 'EOF'
-          </details>
-
-          <details>
-          <summary><b>Linux</b></summary>
-
-          | Architecture | Format | Installer |
-          |-------------|--------|------------|
-          EOF
-
-          for file in lampa-linux/*.deb; do
-            if [ -f "$file" ]; then
-              filename=$(basename "$file")
-              size=$(du -h "$file" | cut -f1)
-              format="DEB"
-
-              if [[ "$filename" == *"amd64"* ]]; then
-                arch="**64-bit**"
-              elif [[ "$filename" == *"arm64"* ]]; then
-                arch="**ARM64**"
-              elif [[ "$filename" == *"armhf"* ]]; then
-                arch="**ARMv7**"
-              else
-                arch="**Any**"
-              fi
-
-              echo "| $arch | $format | [\`$filename\`](https://github.com/${{ github.repository }}/releases/download/v$VERSION/$filename) <br> <sup>$size</sup> |" >> downloads.md
-            fi
-          done
-
-          for file in lampa-linux/*.rpm; do
-            if [ -f "$file" ]; then
-              filename=$(basename "$file")
-              size=$(du -h "$file" | cut -f1)
-              format="RPM"
-
-              if [[ "$filename" == *"x86_64"* ]]; then
-                arch="**64-bit**"
-              elif [[ "$filename" == *"aarch64"* ]]; then
-                arch="**ARM64**"
-              elif [[ "$filename" == *"armv7"* ]]; then
-                arch="**ARMv7**"
-              else
-                arch="**Any**"
-              fi
-
-              echo "| $arch | $format | [\`$filename\`](https://github.com/${{ github.repository }}/releases/download/v$VERSION/$filename) <br> <sup>$size</sup> |" >> downloads.md
-            fi
-          done
-
-          for file in lampa-linux/*.AppImage; do
-            if [ -f "$file" ]; then
-              filename=$(basename "$file")
-              size=$(du -h "$file" | cut -f1)
-              format="AppImage"
-
-              if [[ "$filename" == *"x86_64"* ]]; then
-                arch="**64-bit**"
-              elif [[ "$filename" == *"arm64"* ]]; then
-                arch="**ARM64**"
-              else
-                arch="**Any**"
-              fi
-
-              echo "| $arch | $format | [\`$filename\`](https://github.com/${{ github.repository }}/releases/download/v$VERSION/$filename) <br> <sup>$size</sup> |" >> downloads.md
-            fi
-          done
+          if [ -n "$linux_arm_assets" ]; then
+            printf "%s" "$linux_arm_assets" >> downloads.md
+          else
+            echo "No Linux ARM packages in this release." >> downloads.md
+          fi
 
           cat >> downloads.md << 'EOF'
           </details>
@@ -301,13 +260,13 @@ jobs:
       - name: Combine release body
         run: |
           cat > release_body.md << 'EOF'
-          ${{ needs.build-linux.outputs.changelog_body }}
+          ${{ needs.generate-downloads-table.outputs.downloads_section }}
           EOF
 
           echo "" >> release_body.md
 
           cat >> release_body.md << 'EOF'
-          ${{ needs.generate-downloads-table.outputs.downloads_section }}
+          ${{ needs.build-linux.outputs.changelog_body }}
           EOF
 
           cat release_body.md
@@ -323,10 +282,8 @@ jobs:
             lampa-linux/*.rpm
             lampa-linux/latest-linux.yml
             lampa-macos/*.dmg
-            lampa-macos/*.blockmap
             lampa-macos/latest-mac.yml
             lampa-windows/*.exe
-            lampa-windows/*.blockmap
             lampa-windows/latest.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
