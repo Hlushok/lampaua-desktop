@@ -28,6 +28,26 @@ corepack yarn build-linux
 corepack yarn build-mac
 ```
 
+## Реліз
+
+GitHub Actions автоматично збирає та публікує `.exe`, `.dmg`, `.deb`, `.rpm` і `.AppImage`, коли в GitHub потрапляє тег `v*`.
+
+Для звичайного bugfix-релізу:
+
+```bash
+corepack yarn release
+```
+
+Для явного типу версії:
+
+```bash
+corepack yarn release:patch
+corepack yarn release:minor
+corepack yarn release:major
+```
+
+Ці команди оновлюють версію, CHANGELOG, створюють git-тег і пушать зміни на GitHub. Після пушу тега GitHub сам запускає збірку релізу.
+
 ## Перший запуск
 
 Після запуску застосунок відкриває:

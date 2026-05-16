@@ -23,8 +23,12 @@
     "lint:eslint": "eslint .",
     "lint:prettier": "prettier . --check",
     "lintfix": "eslint . --fix && prettier --write --list-different .",
+    "release": "yarn release:patch",
     "release:changelog": "commit-and-tag-version",
-    "release": "yarn release:changelog && git push --follow-tags origin $CI_COMMIT_REF_NAME"
+    "release:dry": "commit-and-tag-version --dry-run",
+    "release:patch": "yarn release:changelog --release-as patch && git push --follow-tags origin HEAD",
+    "release:minor": "yarn release:changelog --release-as minor && git push --follow-tags origin HEAD",
+    "release:major": "yarn release:changelog --release-as major && git push --follow-tags origin HEAD"
   },
   "commit-and-tag-version": {
     "scripts": {
