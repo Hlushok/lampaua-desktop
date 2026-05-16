@@ -25,7 +25,6 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "24"
-      #          cache: "yarn"
 
       - name: Install Yarn 4
         run: |
@@ -35,22 +34,22 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
-      - name: Install dependencies
+      - name: Install Linux packaging dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libfuse2 rpm
 
       - name: Build linux packages
-        run: |
-          yarn run build-linux
+        run: yarn run build-linux
 
       - name: Extract version
         id: get_version
         run: |
           if [[ "${{ github.ref }}" =~ ^refs/tags/v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
-            echo "version=${BASH_REMATCH[1]}" >> $GITHUB_OUTPUT
+            echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
           else
-            echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+            version=$(node -p "require('./package.json').version")
+            echo "version=$version" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Extract changelog for version
@@ -60,11 +59,11 @@ jobs:
           sed -n "/^## \\[${VERSION}\\]/,/^## /p" CHANGELOG.md | sed '$d' > changelog.txt
           if [ ! -s changelog.txt ]; then
             echo "No changelog entries found for version $VERSION"
-            echo "body=No changelog entries found for version $VERSION" >> $GITHUB_OUTPUT
+            echo "body=No changelog entries found for version $VERSION" >> "$GITHUB_OUTPUT"
           else
-            echo "body<<EOF" >> $GITHUB_OUTPUT
-            cat changelog.txt >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
+            echo "body<<EOF" >> "$GITHUB_OUTPUT"
+            cat changelog.txt >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Upload Linux Artifact
@@ -89,7 +88,6 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "24"
-      #          cache: "yarn"
 
       - name: Install Yarn 4
         run: |
@@ -100,8 +98,7 @@ jobs:
         run: yarn install --immutable
 
       - name: Build for macOS
-        run: |
-          yarn run build-mac
+        run: yarn run build-mac
 
       - name: Upload macOS Artifact
         uses: actions/upload-artifact@v6
@@ -124,7 +121,6 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "24"
-      #          cache: "yarn"
 
       - name: Install Yarn 4
         run: |
@@ -135,8 +131,7 @@ jobs:
         run: yarn install --immutable
 
       - name: Build for Windows
-        run: |
-          yarn run build-win
+        run: yarn run build-win
 
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v6
@@ -162,22 +157,20 @@ jobs:
           VERSION="${{ needs.build-linux.outputs.version }}"
 
           cat > downloads.md << 'EOF'
-          ### ⬇️ Скачать
+          ### Downloads
 
           <details>
-          <summary><b>🪟 Windows</b></summary>
+          <summary><b>Windows</b></summary>
 
-          | Архитектура | Установщик |
+          | Architecture | Installer |
           |-------------|------------|
           EOF
 
-          # Windows файлы
           for file in lampa-windows/*.exe; do
             if [ -f "$file" ]; then
               filename=$(basename "$file")
               size=$(du -h "$file" | cut -f1)
 
-              # Determine architecture from filename
               if [[ "$filename" == *"x64"* ]]; then
                 arch="**64-bit**"
               elif [[ "$filename" == *"ia32"* ]]; then
@@ -187,7 +180,7 @@ jobs:
               elif [[ "$filename" == *"x86"* ]]; then
                 arch="**32-bit**"
               else
-                arch="**Любая**"
+                arch="**Any**"
               fi
 
               echo "| $arch | [\`$filename\`](https://github.com/${{ github.repository }}/releases/download/v$VERSION/$filename) <br> <sup>$size</sup> |" >> downloads.md
@@ -198,13 +191,12 @@ jobs:
           </details>
 
           <details>
-          <summary><b>🍏 macOS</b></summary>
+          <summary><b>macOS</b></summary>
 
-          | Архитектура | Установщик |
+          | Architecture | Installer |
           |-------------|------------|
           EOF
 
-          # macOS файлы
           for file in lampa-macos/*.dmg; do
             if [ -f "$file" ]; then
               filename=$(basename "$file")
@@ -226,27 +218,26 @@ jobs:
           </details>
 
           <details>
-          <summary><b>🐧 Linux</b></summary>
+          <summary><b>Linux</b></summary>
 
-          | Архитектура | Формат | Установщик |
+          | Architecture | Format | Installer |
           |-------------|--------|------------|
           EOF
 
-          # Linux файлы
           for file in lampa-linux/*.deb; do
             if [ -f "$file" ]; then
               filename=$(basename "$file")
               size=$(du -h "$file" | cut -f1)
+              format="DEB"
 
               if [[ "$filename" == *"amd64"* ]]; then
                 arch="**64-bit**"
-                format="DEB"
               elif [[ "$filename" == *"arm64"* ]]; then
                 arch="**ARM64**"
-                format="DEB"
               elif [[ "$filename" == *"armhf"* ]]; then
                 arch="**ARMv7**"
-                format="DEB"
+              else
+                arch="**Any**"
               fi
 
               echo "| $arch | $format | [\`$filename\`](https://github.com/${{ github.repository }}/releases/download/v$VERSION/$filename) <br> <sup>$size</sup> |" >> downloads.md
@@ -257,16 +248,16 @@ jobs:
             if [ -f "$file" ]; then
               filename=$(basename "$file")
               size=$(du -h "$file" | cut -f1)
+              format="RPM"
 
               if [[ "$filename" == *"x86_64"* ]]; then
                 arch="**64-bit**"
-                format="RPM"
               elif [[ "$filename" == *"aarch64"* ]]; then
                 arch="**ARM64**"
-                format="RPM"
               elif [[ "$filename" == *"armv7"* ]]; then
                 arch="**ARMv7**"
-                format="RPM"
+              else
+                arch="**Any**"
               fi
 
               echo "| $arch | $format | [\`$filename\`](https://github.com/${{ github.repository }}/releases/download/v$VERSION/$filename) <br> <sup>$size</sup> |" >> downloads.md
@@ -277,13 +268,14 @@ jobs:
             if [ -f "$file" ]; then
               filename=$(basename "$file")
               size=$(du -h "$file" | cut -f1)
+              format="AppImage"
 
               if [[ "$filename" == *"x86_64"* ]]; then
                 arch="**64-bit**"
-                format="AppImage"
               elif [[ "$filename" == *"arm64"* ]]; then
                 arch="**ARM64**"
-                format="AppImage"
+              else
+                arch="**Any**"
               fi
 
               echo "| $arch | $format | [\`$filename\`](https://github.com/${{ github.repository }}/releases/download/v$VERSION/$filename) <br> <sup>$size</sup> |" >> downloads.md
@@ -295,9 +287,9 @@ jobs:
           EOF
 
           downloads_section=$(cat downloads.md)
-          echo "downloads_section<<EOF" >> $GITHUB_OUTPUT
-          echo "$downloads_section" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "downloads_section<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$downloads_section" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
 
   release:
     runs-on: ubuntu-latest
@@ -308,12 +300,16 @@ jobs:
 
       - name: Combine release body
         run: |
-          # Combine changelog with downloads section
-          echo "${{ needs.build-linux.outputs.changelog_body }}" > release_body.md
-          echo "" >> release_body.md
-          echo "${{ needs.generate-downloads-table.outputs.downloads_section }}" >> release_body.md
+          cat > release_body.md << 'EOF'
+          ${{ needs.build-linux.outputs.changelog_body }}
+          EOF
 
-          # Show the combined body for debugging
+          echo "" >> release_body.md
+
+          cat >> release_body.md << 'EOF'
+          ${{ needs.generate-downloads-table.outputs.downloads_section }}
+          EOF
+
           cat release_body.md
 
       - name: Publish to GitHub Release
