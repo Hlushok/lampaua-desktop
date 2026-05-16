@@ -13,7 +13,7 @@ module.exports = async function afterPack(context) {
     `${context.packager.appInfo.productFilename}.exe`,
   );
   const iconPath = path.join(context.packager.projectDir, "assets", "win.ico");
-  const rceditPath = findRcedit();
+  const rceditPath = findRcedit(context.packager.projectDir);
 
   if (!rceditPath) {
     throw new Error("Could not find rcedit to apply the Windows app icon.");
@@ -24,18 +24,46 @@ module.exports = async function afterPack(context) {
   });
 };
 
-function findRcedit() {
+function findRcedit(projectDir) {
   const explicitPath = process.env.RCEDIT_PATH;
   if (explicitPath && fs.existsSync(explicitPath)) {
     return explicitPath;
   }
 
-  const cacheRoot =
+  const localRceditPaths = [
+    path.join(projectDir, "node_modules", "rcedit", "bin", "rcedit-x64.exe"),
+    path.join(projectDir, "node_modules", "rcedit", "bin", "rcedit.exe"),
+  ];
+
+  for (const localPath of localRceditPaths) {
+    if (fs.existsSync(localPath)) {
+      return localPath;
+    }
+  }
+
+  const defaultCacheRoot =
     process.env.ELECTRON_BUILDER_CACHE ||
     path.join(os.homedir(), "AppData", "Local", "electron-builder", "Cache");
-  const winCodeSignRoot = path.join(cacheRoot, "winCodeSign");
+  const cacheRoots = [
+    path.join(defaultCacheRoot, "winCodeSign"),
+    path.join(
+      os.homedir(),
+      "AppData",
+      "Local",
+      "electron-builder",
+      "Cache",
+      "winCodeSign",
+    ),
+  ];
 
-  return findFile(winCodeSignRoot, "rcedit-x64.exe");
+  for (const cacheRoot of cacheRoots) {
+    const found = findFile(cacheRoot, "rcedit-x64.exe");
+    if (found) {
+      return found;
+    }
+  }
+
+  return null;
 }
 
 function findFile(root, filename) {
