@@ -2,7 +2,9 @@
 
 Десктопний клієнт LampaUa на базі Electron.
 
-Проєкт зроблено на основі `Kolovatoff/lampa-desktop` і адаптовано під сервер LampaUa:
+Проєкт зроблено на основі `Kolovatoff/lampa-desktop` і адаптовано під сервер LampaUa.
+
+LampaUa Desktop is an unofficial fork/adaptation of `Kolovatoff/lampa-desktop` and is not affiliated with the original Lampa project.
 
 - стартова адреса за замовчуванням: `http://lampaua.mooo.com`;
 - назва застосунку: `LampaUa`;
