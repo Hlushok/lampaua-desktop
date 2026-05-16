@@ -118,7 +118,8 @@
       "provider": "github",
       "owner": "Hlushok",
       "repo": "lampaua-desktop"
-    }
+    },
+    "afterPack": "scripts/afterPack.js"
   },
   "files": [
     "assets/**/*",

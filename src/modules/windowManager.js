@@ -41,6 +41,7 @@ function createWindow() {
   let windowOptions = {
     minWidth: 800,
     minHeight: 600,
+    icon: path.join(__dirname, "..", "..", "assets", "win.ico"),
     webPreferences: {
       preload: path.join(__dirname, "..", "preload.js"),
       nodeIntegration: false,
