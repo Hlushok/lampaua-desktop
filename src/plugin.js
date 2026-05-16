@@ -104,7 +104,7 @@
         uk: "Збережено, очікуйте переходу...",
       },
       app_settings_lampa_url_error: {
-        ru: "Неверный URL",
+        ru: "Невірний URL",
         en: "Invalid URL",
         uk: "Невірний URL",
       },
@@ -325,62 +325,82 @@
 
       // Импорт/Экспорт
       app_settings_ie_field_name: {
-        ru: "Экспорт/Импорт настроек",
+        ru: "Резервна копія / перенесення",
         en: "Export/Import settings",
-        uk: "Експорт/Імпорт налаштувань",
+        uk: "Резервна копія / перенесення",
       },
       app_settings_ie_field_description: {
-        ru: "Резервная копия данных или перенос из другого приложения",
+        ru: "Збереження налаштувань або перенесення на інший пристрій",
         en: "Backup data or transfer from another application",
-        uk: "Резервна копія даних або перенесення з іншого додатку",
+        uk: "Збереження налаштувань або перенесення на інший пристрій",
       },
       app_settings_ie_btn_export_title: {
-        ru: "Экспорт",
+        ru: "Експорт",
         en: "Export",
         uk: "Експорт",
       },
+      app_settings_ie_btn_export_cloud_title: {
+        ru: "Створити ID і PIN",
+        en: "Create ID and PIN",
+        uk: "Створити ID і PIN",
+      },
+      app_settings_ie_btn_import_cloud_title: {
+        ru: "Ввести ID і PIN",
+        en: "Enter ID and PIN",
+        uk: "Ввести ID і PIN",
+      },
+      app_settings_ie_btn_export_file_title: {
+        ru: "Зберегти файл",
+        en: "Save file",
+        uk: "Зберегти файл",
+      },
+      app_settings_ie_btn_import_file_title: {
+        ru: "Відновити з файлу",
+        en: "Restore from file",
+        uk: "Відновити з файлу",
+      },
       app_settings_ie_btn_export_subtitle: {
-        ru: "Сохранить настройки в файл",
+        ru: "Створити файл резервної копії на цьому комп'ютері",
         en: "Save settings to file",
-        uk: "Зберегти налаштування у файл",
+        uk: "Створити файл резервної копії на цьому комп'ютері",
       },
       app_settings_ie_btn_export_cloud_subtitle: {
-        ru: "Сохранить настройки в облако. Ваши данные будут зашифрованы перед отправкой с помощью пин-кода и хранятся 1 час.",
+        ru: "Покаже ID експорту та PIN. Їх треба ввести на іншому пристрої протягом 1 години.",
         en: "Save settings to the cloud. Your data will be encrypted before sending using a PIN code and stored for 1 hour.",
-        uk: "Зберегти налаштування в хмару. Ваші дані будуть зашифровані перед відправкою за допомогою пін-коду та зберігаються 1 годину.",
+        uk: "Покаже ID експорту та PIN. Їх треба ввести на іншому пристрої протягом 1 години.",
       },
       app_settings_ie_btn_import_title: {
-        ru: "Импорт",
+        ru: "Імпорт",
         en: "Import",
         uk: "Імпорт",
       },
       app_settings_ie_btn_import_subtitle: {
-        ru: "Импортировать настройки из файла",
+        ru: "Вибрати файл резервної копії з комп'ютера",
         en: "Import settings from file",
-        uk: "Імпортувати налаштування з файлу",
+        uk: "Вибрати файл резервної копії з комп'ютера",
       },
       app_settings_ie_btn_import_cloud_subtitle: {
-        ru: "Импортировать настройки из облака",
+        ru: "Ввести ID експорту та PIN, які були показані під час експорту.",
         en: "Import settings from cloud",
-        uk: "Імпортувати налаштування з хмари",
+        uk: "Ввести ID експорту та PIN, які були показані під час експорту.",
       },
       app_settings_noty_waiting: {
-        ru: "Ожидайте...",
+        ru: "Зачекайте...",
         en: "Please wait...",
         uk: "Зачекайте...",
       },
       app_settings_ie_import_success: {
-        ru: "Импорт выполнен успешно",
+        ru: "Імпорт виконано успішно",
         en: "Import completed successfully",
         uk: "Імпорт виконано успішно",
       },
       app_settings_ie_import_error: {
-        ru: "Ошибка импорта",
+        ru: "Помилка імпорту",
         en: "Import error",
         uk: "Помилка імпорту",
       },
       app_settings_ie_invalid_pin: {
-        ru: "Неверный PIN-код",
+        ru: "Невірний PIN-код",
         en: "Invalid PIN",
         uk: "Невірний PIN-код",
       },
@@ -414,27 +434,27 @@
 
       // Облачный импорт/экспорт
       app_settings_ie_separator_cloud_title: {
-        ru: "Облако",
+        ru: "Через ID і PIN",
         en: "Cloud",
-        uk: "Хмара",
+        uk: "Через ID і PIN",
       },
       app_settings_ie_separator_local_title: {
-        ru: "Локально",
+        ru: "Через файл",
         en: "Local",
-        uk: "Локально",
+        uk: "Через файл",
       },
       app_settings_ie_modal_import_cloud: {
-        ru: "Импорт настроек из облака",
+        ru: "Імпорт через ID і PIN",
         en: "Import settings from cloud",
-        uk: "Імпорт налаштувань з хмари",
+        uk: "Імпорт через ID і PIN",
       },
       app_settings_ie_modal_enter_id: {
-        ru: "Введите ID",
+        ru: "Введіть ID експорту (10 цифр)",
         en: "Enter ID",
-        uk: "Введіть ID",
+        uk: "Введіть ID експорту (10 цифр)",
       },
       app_settings_ie_modal_enter_pin_title: {
-        ru: "Введите PIN-код",
+        ru: "Введіть PIN-код",
         en: "Enter PIN code",
         uk: "Введіть PIN-код",
       },
@@ -726,16 +746,28 @@
                 `</div>
                 <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
                   <div class="simple-button selector donate-link" data-amount="100" style="margin-right: unset; font-size: unset;"><span>` +
-                Lampa.Lang.translate("donate_support").replace("{amount}", "100") +
+                Lampa.Lang.translate("donate_support").replace(
+                  "{amount}",
+                  "100",
+                ) +
                 `</span></div>
                   <div class="simple-button selector donate-link" data-amount="200" style="margin-right: unset; font-size: unset;"><span>` +
-                Lampa.Lang.translate("donate_support").replace("{amount}", "200") +
+                Lampa.Lang.translate("donate_support").replace(
+                  "{amount}",
+                  "200",
+                ) +
                 `</span></div>
                   <div class="simple-button selector donate-link" data-amount="300" style="margin-right: unset; font-size: unset;"><span>` +
-                Lampa.Lang.translate("donate_support").replace("{amount}", "300") +
+                Lampa.Lang.translate("donate_support").replace(
+                  "{amount}",
+                  "300",
+                ) +
                 `</span></div>
                   <div class="simple-button selector donate-link" data-amount="500" style="margin-right: unset; font-size: unset;"><span>` +
-                Lampa.Lang.translate("donate_support").replace("{amount}", "500") +
+                Lampa.Lang.translate("donate_support").replace(
+                  "{amount}",
+                  "500",
+                ) +
                 `</span></div>
                 </div>
               </div>`,
@@ -1014,7 +1046,7 @@
                 },
                 {
                   title: Lampa.Lang.translate(
-                    "app_settings_ie_btn_export_title",
+                    "app_settings_ie_btn_export_cloud_title",
                   ),
                   subtitle: Lampa.Lang.translate(
                     "app_settings_ie_btn_export_cloud_subtitle",
@@ -1023,7 +1055,7 @@
                 },
                 {
                   title: Lampa.Lang.translate(
-                    "app_settings_ie_btn_import_title",
+                    "app_settings_ie_btn_import_cloud_title",
                   ),
                   subtitle: Lampa.Lang.translate(
                     "app_settings_ie_btn_import_cloud_subtitle",
@@ -1038,7 +1070,7 @@
                 },
                 {
                   title: Lampa.Lang.translate(
-                    "app_settings_ie_btn_export_title",
+                    "app_settings_ie_btn_export_file_title",
                   ),
                   subtitle: Lampa.Lang.translate(
                     "app_settings_ie_btn_export_subtitle",
@@ -1047,7 +1079,7 @@
                 },
                 {
                   title: Lampa.Lang.translate(
-                    "app_settings_ie_btn_import_title",
+                    "app_settings_ie_btn_import_file_title",
                   ),
                   subtitle: Lampa.Lang.translate(
                     "app_settings_ie_btn_import_subtitle",

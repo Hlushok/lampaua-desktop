@@ -5,7 +5,6 @@ const {
   decryptJson,
 } = require("../utils/encryption");
 
-// Импортируем функцию importSettings
 const { importSettings } = require("./settingsHandlers");
 
 function registerCloudHandlers(store, getMainWindow, injectPlugin) {
@@ -38,9 +37,9 @@ function registerCloudHandlers(store, getMainWindow, injectPlugin) {
         .then((data) => {
           mainWindow.webContents.executeJavaScript(`
             Lampa.Modal.open({
-              title: "Экспорт",
+              title: "Код експорту",
               html: $(
-                "<div><ul><li>Сохраните ID экспорта: ${data.id}</li><li>И пин-код для расшифровки: ${pin}</li></ul><ul><li>Внимание! Хранится на сервере 1 час.</li></ul></div>",
+                '<div style="line-height: 1.45;"><p>Налаштування збережено тимчасово.</p><p><b>ID експорту:</b> ${data.id}<br><b>PIN-код:</b> ${pin}</p><p>Щоб перенести налаштування на інший пристрій, відкрийте там <b>Налаштування застосунку → Резервна копія / перенесення → Ввести ID і PIN</b>.</p><p>Код зберігається на сервері 1 годину.</p></div>',
               ),
               size: "small",
               onBack: function () {
@@ -49,23 +48,23 @@ function registerCloudHandlers(store, getMainWindow, injectPlugin) {
               },
             });
           `);
-          return { success: true, message: "Настройки успешно экспортированы" };
+          return { success: true, message: "Код експорту створено" };
         })
         .catch((error) => {
-          console.error("Полная ошибка:", error);
+          console.error("Помилка експорту:", error);
           mainWindow.webContents.executeJavaScript(`
-            Lampa.Noty.show("Ошибка экспорта");
+            Lampa.Noty.show("Помилка експорту");
           `);
           return {
             success: false,
-            message: "Ошибка при экспорте в облако",
+            message: "Не вдалося створити код експорту",
           };
         });
     } catch (err) {
-      console.log(`Не удалось экспортировать настройки: ${err.message}`);
+      console.log(`Не вдалося експортувати налаштування: ${err.message}`);
       return {
         success: false,
-        message: `Не удалось экспортировать настройки: ${err.message}`,
+        message: `Не вдалося експортувати налаштування: ${err.message}`,
       };
     }
   });
@@ -78,23 +77,22 @@ function registerCloudHandlers(store, getMainWindow, injectPlugin) {
       if (typeof settings !== "object" || settings === null) {
         return {
           success: false,
-          message: "Неверный формат файла",
+          message: "Неправильний формат даних",
         };
       }
 
-      // Используем импортированную функцию
       await importSettings(settings, store, mainWindow, injectPlugin);
 
       console.log("Settings imported successfully");
       return {
         success: true,
-        message: "Настройки успешно импортированы, производим перезапуск...",
+        message: "Налаштування імпортовано, перезапускаємо застосунок...",
       };
     } catch (err) {
       console.log(`Error importing settings: ${err.message}`);
       return {
         success: false,
-        message: `Не удалось импортировать настройки: ${err.message}`,
+        message: `Не вдалося імпортувати налаштування: ${err.message}`,
       };
     }
   });

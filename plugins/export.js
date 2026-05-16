@@ -90,7 +90,7 @@
         Lampa.Modal.open({
           title: Lampa.Lang.translate("kff_export_modal_title"),
           html: $(
-            `<div><ul><li>${Lampa.Lang.translate("kff_export_modal_save_id")}: ${data.id}</li><li>${Lampa.Lang.translate("kff_export_modal_pin_code")}: ${pin}</li></ul><ul><li>${Lampa.Lang.translate("kff_export_modal_warning")}</li></ul></div>`,
+            `<div style="line-height: 1.45;"><p>${Lampa.Lang.translate("kff_export_modal_saved")}</p><p><b>${Lampa.Lang.translate("kff_export_modal_save_id")}:</b> ${data.id}<br><b>${Lampa.Lang.translate("kff_export_modal_pin_code")}:</b> ${pin}</p><p>${Lampa.Lang.translate("kff_export_modal_where")}</p><p>${Lampa.Lang.translate("kff_export_modal_warning")}</p></div>`,
           ),
           size: "small",
           onBack: function () {
@@ -330,21 +330,21 @@
     Lampa.Lang.add({
       // Меню
       kff_export_import_menu: {
-        ru: "Экспорт/Импорт (Кфф)",
+        ru: "Резервна копія / перенесення",
         en: "Export/Import (Kff)",
-        uk: "Експорт/Імпорт (Кфф)",
+        uk: "Резервна копія / перенесення",
       },
 
       // Разделители
       kff_separator_cloud: {
-        ru: "Через облако",
+        ru: "Через ID і PIN",
         en: "Via cloud",
-        uk: "Через хмару",
+        uk: "Через ID і PIN",
       },
       kff_separator_local: {
-        ru: "Локально",
+        ru: "Через файл",
         en: "Local",
-        uk: "Локально",
+        uk: "Через файл",
       },
       kff_separator_unavailable: {
         ru: "Недоступно на этом устройстве",
@@ -354,118 +354,128 @@
 
       // Кнопки
       kff_export_cloud_btn: {
-        ru: "Экспорт в облако",
+        ru: "Створити ID і PIN",
         en: "Export to cloud",
-        uk: "Експорт у хмару",
+        uk: "Створити ID і PIN",
       },
       kff_export_cloud_desc: {
-        ru: "Сохранить настройки в облако. Ваши данные будут зашифрованы перед отправкой с помощью пин-кода и хранятся 1 час.",
+        ru: "Покаже ID експорту та PIN. Їх треба ввести на іншому пристрої протягом 1 години.",
         en: "Save settings to the cloud. Your data will be encrypted before sending using a PIN code and stored for 1 hour.",
-        uk: "Зберегти налаштування в хмару. Ваші дані будуть зашифровані перед відправкою за допомогою пін-коду та зберігаються 1 годину.",
+        uk: "Покаже ID експорту та PIN. Їх треба ввести на іншому пристрої протягом 1 години.",
       },
       kff_import_cloud_btn: {
-        ru: "Импорт из облака",
+        ru: "Ввести ID і PIN",
         en: "Import from cloud",
-        uk: "Імпорт із хмари",
+        uk: "Ввести ID і PIN",
       },
       kff_import_cloud_desc: {
-        ru: "Импортировать настройки из облака",
+        ru: "Ввести ID експорту та PIN, які були показані під час експорту.",
         en: "Import settings from cloud",
-        uk: "Імпортувати налаштування з хмари",
+        uk: "Ввести ID експорту та PIN, які були показані під час експорту.",
       },
       kff_export_file_btn: {
-        ru: "Экспорт в файл",
+        ru: "Зберегти файл",
         en: "Export to file",
-        uk: "Експорт у файл",
+        uk: "Зберегти файл",
       },
       kff_export_file_desc: {
-        ru: "Экспортировать настройки в файл",
+        ru: "Створити файл резервної копії на цьому пристрої",
         en: "Export settings to file",
-        uk: "Експортувати налаштування у файл",
+        uk: "Створити файл резервної копії на цьому пристрої",
       },
       kff_import_file_btn: {
-        ru: "Импорт из файла",
+        ru: "Відновити з файлу",
         en: "Import from file",
-        uk: "Імпорт із файлу",
+        uk: "Відновити з файлу",
       },
       kff_import_file_desc: {
-        ru: "Импортировать настройки из файла",
+        ru: "Вибрати файл резервної копії з пристрою",
         en: "Import settings from file",
-        uk: "Імпортувати налаштування з файлу",
+        uk: "Вибрати файл резервної копії з пристрою",
       },
 
       // Модальные окна экспорта
       kff_export_modal_title: {
-        ru: "Экспорт",
+        ru: "Код експорту",
         en: "Export",
-        uk: "Експорт",
+        uk: "Код експорту",
+      },
+      kff_export_modal_saved: {
+        ru: "Налаштування збережено тимчасово.",
+        en: "Settings were saved temporarily.",
+        uk: "Налаштування збережено тимчасово.",
       },
       kff_export_modal_save_id: {
-        ru: "Сохраните ID экспорта",
+        ru: "ID експорту",
         en: "Save export ID",
-        uk: "Збережіть ID експорту",
+        uk: "ID експорту",
       },
       kff_export_modal_pin_code: {
-        ru: "И пин-код для расшифровки",
+        ru: "PIN-код",
         en: "And PIN code for decryption",
-        uk: "І пін-код для розшифрування",
+        uk: "PIN-код",
+      },
+      kff_export_modal_where: {
+        ru: "Щоб перенести налаштування, відкрийте на іншому пристрої цей розділ і натисніть «Ввести ID і PIN».",
+        en: 'To transfer settings, open this section on another device and choose "Enter ID and PIN".',
+        uk: "Щоб перенести налаштування, відкрийте на іншому пристрої цей розділ і натисніть «Ввести ID і PIN».",
       },
       kff_export_modal_warning: {
-        ru: "Внимание! Хранится на сервере 1 час.",
+        ru: "Код зберігається на сервері 1 годину.",
         en: "Attention! Stored on the server for 1 hour.",
-        uk: "Увага! Зберігається на сервері 1 годину.",
+        uk: "Код зберігається на сервері 1 годину.",
       },
 
       // Модальные окна импорта
       kff_import_modal_title: {
-        ru: "Импорт настроек из облака",
+        ru: "Імпорт через ID і PIN",
         en: "Import settings from cloud",
-        uk: "Імпорт налаштувань із хмари",
+        uk: "Імпорт через ID і PIN",
       },
       kff_import_modal_enter_id: {
-        ru: "Введите ID",
+        ru: "Введіть ID експорту (10 цифр)",
         en: "Enter ID",
-        uk: "Введіть ID",
+        uk: "Введіть ID експорту (10 цифр)",
       },
       kff_import_modal_enter_pin: {
-        ru: "Введите PIN-код",
+        ru: "Введіть PIN-код",
         en: "Enter PIN code",
         uk: "Введіть PIN-код",
       },
 
       // Уведомления
       kff_noty_waiting: {
-        ru: "Ожидайте...",
+        ru: "Зачекайте...",
         en: "Please wait...",
         uk: "Зачекайте...",
       },
       kff_export_error: {
-        ru: "Ошибка экспорта",
+        ru: "Помилка експорту",
         en: "Export error",
         uk: "Помилка експорту",
       },
       kff_import_success: {
-        ru: "Успешно, перезагрузка",
+        ru: "Успішно, перезавантаження",
         en: "Success, reloading",
         uk: "Успішно, перезавантаження",
       },
       kff_import_error_data: {
-        ru: "Ошибка импорта, возможно вы ввели данные неверно",
+        ru: "Помилка імпорту. Можливо, ID або PIN введено неправильно.",
         en: "Import error, possibly you entered data incorrectly",
-        uk: "Помилка імпорту, можливо ви ввели дані невірно",
+        uk: "Помилка імпорту. Можливо, ID або PIN введено неправильно.",
       },
       kff_import_invalid_pin: {
-        ru: "Неверный PIN",
+        ru: "Неправильний PIN",
         en: "Invalid PIN",
         uk: "Невірний PIN",
       },
       kff_import_error_format: {
-        ru: "Неверный формат файла",
+        ru: "Неправильний формат файлу",
         en: "Invalid file format",
         uk: "Невірний формат файлу",
       },
       kff_import_error_parse: {
-        ru: "Ошибка при разборе JSON",
+        ru: "Помилка під час розбору JSON",
         en: "JSON parsing error",
         uk: "Помилка при розборі JSON",
       },
