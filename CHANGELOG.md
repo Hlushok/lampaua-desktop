@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.5.1](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.0...v1.5.1) (2026-05-16)
+
+### Зміни
+
+- Адаптовано застосунок під LampaUa: назва, `appId`, артефакти збірки та GitHub releases.
+- Оновлено стартову адресу та резервний endpoint Lampac для LampaUa.
+- Виправлено пакування Windows-іконки.
+- Уточнено українські тексти імпорту та експорту.
+- Виправлено Prettier-перевірки для Windows checkout.
+- Очищено таблицю завантажень у GitHub Release для окремих Windows, macOS і Linux файлів.
+
 ## [1.5.0](https://github.com/Kolovatoff/lampa-desktop/compare/v1.4.0...v1.5.0) (2026-05-05)
 
 ### ✨ Новые возможности
