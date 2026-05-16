@@ -88,7 +88,7 @@ function registerSettingsHandlers(store, getMainWindow, injectPlugin) {
 
       const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
         title: "Экспортировать настройки",
-        defaultPath: "lampa-desktop-settings.json",
+        defaultPath: "lampaua-desktop-settings.json",
         filters: [{ name: "JSON файлы", extensions: ["json"] }],
       });
 

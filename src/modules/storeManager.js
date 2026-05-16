@@ -16,7 +16,7 @@ if (isDev) {
 const store = new Store({
   cwd: userDataPath,
   defaults: {
-    lampaUrl: "http://lampa.mx",
+    lampaUrl: "http://lampaua.mooo.com",
     fullscreen: false,
     webSecurity: true,
     autoUpdate: true,

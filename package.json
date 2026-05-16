@@ -1,11 +1,11 @@
 {
-  "name": "lampa-desktop",
-  "productName": "Lampa",
+  "name": "lampaua-desktop",
+  "productName": "LampaUa",
   "version": "1.5.0",
-  "description": "Десктопное приложение-клиент для Lampa",
+  "description": "Десктопний клієнт LampaUa",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Kolovatoff/lampa-desktop"
+    "url": "https://github.com/Hlushok/lampaua-desktop"
   },
   "main": "src/main.js",
   "engines": {
@@ -47,14 +47,14 @@
     "prettier": "3.8.3"
   },
   "author": {
-    "name": "yumata, Kolovatoff",
-    "email": "kirill@kolovatov.ru"
+    "name": "yumata, Kolovatoff, Hlushok",
+    "email": "stpuh2@gmail.com"
   },
-  "license": "MIT",
+  "license": "GPL-2.0",
   "build": {
-    "appId": "com.lampa.desktop",
-    "productName": "Lampa",
-    "artifactName": "lampa-${arch}-${version}.${ext}",
+    "appId": "com.lampaua.desktop",
+    "productName": "LampaUa",
+    "artifactName": "lampaua-${arch}-${version}.${ext}",
     "linux": {
       "target": [
         {
@@ -101,7 +101,8 @@
         }
       ],
       "icon": "assets/win.ico",
-      "verifyUpdateCodeSignature": true
+      "verifyUpdateCodeSignature": false,
+      "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,
@@ -115,8 +116,8 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "Kolovatoff",
-      "repo": "lampa-desktop"
+      "owner": "Hlushok",
+      "repo": "lampaua-desktop"
     }
   },
   "files": [

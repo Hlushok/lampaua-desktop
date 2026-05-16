@@ -236,16 +236,16 @@ function setupErrorHandler(mainWindow) {
           max-width: 600px;
           margin: 0 auto;
         ">
-          <h1>Ошибка загрузки страницы</h1>
-          <p><strong>Код ошибки:</strong> ${errorCode}</p>
-          <p><strong>Описание:</strong> ${errorDescription}</p>
-          <p><strong>Текущий URL:</strong> ${validatedURL}</p>
+          <h1>Не вдалося завантажити LampaUa</h1>
+          <p><strong>Код помилки:</strong> ${errorCode}</p>
+          <p><strong>Опис:</strong> ${errorDescription}</p>
+          <p><strong>Поточна адреса:</strong> ${validatedURL}</p>
 
           <div style="margin: 20px 0;">
             <input
               id="customUrlInput"
               type="text"
-              placeholder="Введите новый URL (например, http://lampa.mx)"
+              placeholder="Введіть адресу, наприклад http://lampaua.mooo.com"
               style="
                 width: 80%;
                 padding: 10px;
@@ -268,7 +268,7 @@ function setupErrorHandler(mainWindow) {
                 cursor: pointer;
               "
             >
-              Загрузить LAMPA.MX
+              Завантажити LampaUa
             </button>
             <button
               onclick="handleCustomReload()"
@@ -289,11 +289,11 @@ function setupErrorHandler(mainWindow) {
         <script>
           async function handleDefaultReload() {
             try {
-              await window.electronAPI.store.set('lampaUrl', 'http://lampa.mx');
-              window.electronAPI.loadUrl('http://lampa.mx');
+              await window.electronAPI.store.set('lampaUrl', 'http://lampaua.mooo.com');
+              window.electronAPI.loadUrl('http://lampaua.mooo.com');
             } catch (err) {
-              console.error('Ошибка:', err);
-              alert('Не удалось загрузить lampa.mx: ' + err.message);
+              console.error('Помилка:', err);
+              alert('Не вдалося завантажити LampaUa: ' + err.message);
             }
           }
 
@@ -302,7 +302,7 @@ function setupErrorHandler(mainWindow) {
             const url = input.value.trim();
 
             if (!url) {
-              alert('Пожалуйста, введите URL!');
+              alert('Будь ласка, введіть адресу!');
               return;
             }
 
@@ -310,8 +310,8 @@ function setupErrorHandler(mainWindow) {
               await window.electronAPI.store.set('lampaUrl', url);
               window.electronAPI.loadUrl(url);
             } catch (err) {
-              console.error('Ошибка:', err);
-              alert('Не удалось перейти по URL: ' + err.message);
+              console.error('Помилка:', err);
+              alert('Не вдалося перейти за адресою: ' + err.message);
             }
           }
         </script>

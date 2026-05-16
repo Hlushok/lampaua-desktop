@@ -3107,9 +3107,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lampa-desktop@workspace:.":
+"lampaua-desktop@workspace:.":
   version: 0.0.0-use.local
-  resolution: "lampa-desktop@workspace:."
+  resolution: "lampaua-desktop@workspace:."
   dependencies:
     "@eslint/js": "npm:9.39.4"
     commit-and-tag-version: "npm:12.7.1"

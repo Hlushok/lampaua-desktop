@@ -30,14 +30,14 @@ function setupAutoUpdater() {
     console.log("Update downloaded:", info);
 
     const repoUrl =
-      "https://github.com/Kolovatoff/lampa-desktop/releases/latest";
+      "https://github.com/Hlushok/lampaua-desktop/releases/latest";
 
     dialog
       .showMessageBox({
         type: "info",
-        title: "Обновление готово",
-        message: "Новое обновление загружено. Перезапустить приложение?",
-        buttons: ["Да", "Позже", "Список изменений на GitHub"],
+        title: "Оновлення готове",
+        message: "Нове оновлення завантажено. Перезапустити застосунок?",
+        buttons: ["Так", "Пізніше", "Список змін на GitHub"],
       })
       .then((result) => {
         if (result.response === 0) {
@@ -51,9 +51,9 @@ function setupAutoUpdater() {
           dialog
             .showMessageBox({
               type: "info",
-              title: "Обновление готово",
-              message: "Новое обновление загружено. Перезапустить приложение?",
-              buttons: ["Да", "Позже"],
+              title: "Оновлення готове",
+              message: "Нове оновлення завантажено. Перезапустити застосунок?",
+              buttons: ["Так", "Пізніше"],
             })
             .then((secondResult) => {
               if (secondResult.response === 0) {

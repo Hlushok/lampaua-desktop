@@ -1,101 +1,43 @@
-# 🎬 Lampa Desktop
+# LampaUa Desktop
 
-[![GitHub All Releases](https://img.shields.io/endpoint?url=https://lampa.kolovatoff.ru/github/downloads)](https://github.com/Kolovatoff/lampa-desktop/releases)
-[![GitHub Release](https://img.shields.io/github/v/release/Kolovatoff/lampa-desktop?style=for-the-badge&logo=github)](https://github.com/Kolovatoff/lampa-desktop/releases)
-[![License](https://img.shields.io/github/license/Kolovatoff/lampa-desktop?style=for-the-badge&color=blue)](LICENSE)
+Десктопний клієнт LampaUa на базі Electron.
 
-![Windows](https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)
-![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
-![macOS](https://img.shields.io/badge/mac%20os-000000?style=for-the-badge&logo=macos&logoColor=F0F0F0)
+Проєкт зроблено на основі `Kolovatoff/lampa-desktop` і адаптовано під сервер LampaUa:
 
-> **Неофициальный** десктоп-клиент для просмотра фильмов и сериалов  
-> Построен на базе **Electron**, использует API сторонних сервисов.
+- стартова адреса за замовчуванням: `http://lampaua.mooo.com`;
+- назва застосунку: `LampaUa`;
+- окремий `appId`: `com.lampaua.desktop`;
+- власні артефакти збірки: `lampaua-${arch}-${version}`;
+- автооновлення орієнтоване на релізи `Hlushok/lampaua-desktop`;
+- вбудовані налаштування LampaUa, TorrServer, зовнішніх плеєрів, імпорту/експорту.
 
----
+## Розробка
 
-## 🔧 Возможности
+```bash
+corepack yarn install
+corepack yarn dev
+```
 
-✅ Поддержка **Windows, Linux, macOS**  
-✅ Синхронизация таймкодов с **VLC, MPC(HC/BE)**  (кроме macos)  
-✅ Динамическая загрузка Lampa с `lampa.mx` или кастомного URL  
-✅ Экспорт/импорт конфигурации между устройствами  
-✅ Встроенные настройки: смена URL, полноэкранный режим и др.  
-✅ Поддержка `window.location.reload()`  
-✅ Сохранение позиции окна, размера и монитора  
-✅ Кнопка закрытия приложения  
-✅ Автоматические обновления  
-✅ Встроенная поддержка **TorrServer**  
-✅ Автообнаружение плеера при запуске, также окно выбора плеера из найденных  
-✅ Горячие клавиши
+## Збірка
 
-## 🔧 Горячие клавиши в приложении
+```bash
+corepack yarn build-win
+corepack yarn build-linux
+corepack yarn build-mac
+```
 
-- F - полный экран
-- S - открывает поиск
-- M - открывает левое меню
+## Перший запуск
 
----
+Після запуску застосунок відкриває:
 
-## 📦 Установка
+```text
+http://lampaua.mooo.com
+```
 
-Скачайте последнюю версию из [релизов](https://github.com/Kolovatoff/lampa-desktop/releases):
+Адресу можна змінити в налаштуваннях застосунку, але для LampaUa рекомендовано залишати адресу за замовчуванням.
 
-1. Выберите подходящий установщик:
-   - `.exe` — для Windows
-   - `.AppImage` / `.deb` / `.rpm` — для Linux
-   - `.dmg` — для macOS
-2. Установите и наслаждайтесь!
+## Ліцензія та походження
 
----
+Початковий проєкт: `https://github.com/Kolovatoff/lampa-desktop`.
 
-## 🔄 Экспорт и импорт настроек
-
-Переносите свои настройки между устройствами или резервируйте их:
-
-- [📖 Подробнее: Экспорт/Импорт](docs/export-import.md)
-
----
-
-## 🛠 Разработка
-
-Документация по этому проекту от ИИ [![DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Kolovatoff/lampa-desktop)
-
-Исходный код самой **Lampa** доступен здесь: 👉 [yumata/lampa-source](https://github.com/yumata/lampa-source)
-
-### ✍️ Внесение изменений
-
-Процесс стандартный:
-
-1. **Форкните репозиторий** — кнопка `Fork` в правом верхнем углу GitHub
-2. **Клонируйте свой форк** — `git clone https://github.com/ВАШ_ЛОГИН/lampa-desktop.git`
-3. **Создайте ветку** — `git checkout -b feature/название-фичи` или `fix/описание-бага`
-4. **Внесите изменения и закоммитьте** — `git commit -m 'Краткое описание того, что сделано'`
-5. **Отправьте ветку** — `git push origin feature/название-фичи`
-6. **Откройте Pull Request** — перейдите в оригинальный репозиторий и нажмите `Compare & pull request`
-
----
-
-## 📢 Обратная связь
-
-По вопросам, багам и предложениям — пишите в Telegram:  
-👉 [@lampa_desktop](http://t.me/lampa_desktop) (Группа)
-
----
-
-## 📄 Лицензия
-
-Этот проект распространяется под лицензией **GPL-2.0**.  
-Подробнее см. в файле [LICENSE](LICENSE).
-
----
-
-⭐ Если проект полезен — поставьте звезду
-
-### Поддержать через Robokassa
-
-| 100₽ | 250₽ | 500₽ |
-|:---:|:---:|:---:|
-| ![QR 100₽](https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://auth.robokassa.ru/merchant/Invoice/uJcZeMG59kWFwRlrYKNPfQ?FreeOutSum=100) | ![QR 250₽](https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://auth.robokassa.ru/merchant/Invoice/uJcZeMG59kWFwRlrYKNPfQ?FreeOutSum=250) | ![QR 500₽](https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://auth.robokassa.ru/merchant/Invoice/uJcZeMG59kWFwRlrYKNPfQ?FreeOutSum=500) |
-| [Поддержать на 100₽](https://auth.robokassa.ru/merchant/Invoice/uJcZeMG59kWFwRlrYKNPfQ?FreeOutSum=100) | [Поддержать на 250₽](https://auth.robokassa.ru/merchant/Invoice/uJcZeMG59kWFwRlrYKNPfQ?FreeOutSum=250) | [Поддержать на 500₽](https://auth.robokassa.ru/merchant/Invoice/uJcZeMG59kWFwRlrYKNPfQ?FreeOutSum=500) |
-
-
+Зміни LampaUa зберігаються в окремому форку/проєкті, щоб мати власні релізи, брендинг і оновлення.
