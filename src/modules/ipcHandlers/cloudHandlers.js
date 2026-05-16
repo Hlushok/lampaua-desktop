@@ -7,6 +7,8 @@ const {
 
 const { importSettings } = require("./settingsHandlers");
 
+const BACKUP_API_BASE_URL = "http://lampaua.mooo.com/database/desktop-backup";
+
 function registerCloudHandlers(store, getMainWindow, injectPlugin) {
   ipcMain.handle("export-settings-to-cloud", async () => {
     try {
@@ -37,9 +39,9 @@ function registerCloudHandlers(store, getMainWindow, injectPlugin) {
         .then((data) => {
           mainWindow.webContents.executeJavaScript(`
             Lampa.Modal.open({
-              title: "Код експорту",
+              title: "Експорт",
               html: $(
-                '<div style="line-height: 1.45;"><p>Налаштування збережено тимчасово.</p><p><b>ID експорту:</b> ${data.id}<br><b>PIN-код:</b> ${pin}</p><p>Щоб перенести налаштування на інший пристрій, відкрийте там <b>Налаштування застосунку → Резервна копія / перенесення → Ввести ID і PIN</b>.</p><p>Код зберігається на сервері 1 годину.</p></div>',
+                '<div style="line-height: 1.45;"><p><b>Збережіть ID експорту:</b> ${data.id}<br><b>І PIN-код для розшифрування:</b> ${pin}</p><p>Увага! Зберігається на сервері 1 годину.</p></div>',
               ),
               size: "small",
               onBack: function () {
@@ -102,7 +104,7 @@ async function uploadJson(jsonData, pin) {
   const pinStr = String(pin).padStart(4, "0");
   const encrypted = encryptJson(jsonData, pinStr);
 
-  const response = await fetch("https://lampa.kolovatoff.ru/ei/upload", {
+  const response = await fetch(`${BACKUP_API_BASE_URL}/upload.php`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ data: encrypted }),
@@ -117,7 +119,7 @@ async function downloadJson(fileId, pin) {
   const pinStr = String(pin).padStart(4, "0");
 
   const response = await fetch(
-    `https://lampa.kolovatoff.ru/ei/download?id=${fileId}`,
+    `${BACKUP_API_BASE_URL}/download.php?id=${encodeURIComponent(fileId)}`,
   );
   const result = await response.json();
 

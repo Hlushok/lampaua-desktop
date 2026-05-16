@@ -4,6 +4,8 @@
   var settings_app_icon =
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M7.5 13.75v.5q0 .325.213.538T8.25 15t.538-.213T9 14.25v-2.5q0-.325-.213-.537T8.25 11t-.537.213t-.213.537v.5h-.75q-.325 0-.537.213T6 13t.213.538t.537.212zm3.25 0h6.5q.325 0 .538-.213T18 13t-.213-.537t-.537-.213h-6.5q-.325 0-.537.213T10 13t.213.538t.537.212m5.75-4h.75q.325 0 .538-.213T18 9t-.213-.537t-.537-.213h-.75v-.5q0-.325-.213-.537T15.75 7t-.537.213T15 7.75v2.5q0 .325.213.538t.537.212t.538-.213t.212-.537zm-9.75 0h6.5q.325 0 .538-.213T14 9t-.213-.537t-.537-.213h-6.5q-.325 0-.537.213T6 9t.213.538t.537.212M4 19q-.825 0-1.412-.587T2 17V5q0-.825.588-1.412T4 3h16q.825 0 1.413.588T22 5v12q0 .825-.587 1.413T20 19h-4v1q0 .425-.288.713T15 21H9q-.425 0-.712-.288T8 20v-1zm0-2h16V5H4zm0 0V5z"/></svg>';
 
+  var BACKUP_API_BASE_URL = "http://lampaua.mooo.com/database/desktop-backup";
+
   // Шифрование JSON с PIN и отправка на сервер
   async function uploadJson(jsonData, pin) {
     const pinStr = String(pin).padStart(4, "0");
@@ -19,7 +21,7 @@
 
     const encryptedB64 = btoa(unescape(encodeURIComponent(encrypted)));
 
-    const response = await fetch("https://lampa.kolovatoff.ru/ei/upload", {
+    const response = await fetch(`${BACKUP_API_BASE_URL}/upload.php`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ data: encryptedB64 }),
@@ -34,7 +36,7 @@
     const pinStr = String(pin).padStart(4, "0");
 
     const response = await fetch(
-      `https://lampa.kolovatoff.ru/ei/download?id=${fileId}`,
+      `${BACKUP_API_BASE_URL}/download.php?id=${encodeURIComponent(fileId)}`,
     );
     const result = await response.json();
 
@@ -61,6 +63,14 @@
   function generatePin() {
     const pin = Math.floor(Math.random() * 10000);
     return pin.toString().padStart(4, "0");
+  }
+
+  function forceUkrainianTranslations(translations) {
+    Object.values(translations).forEach((translation) => {
+      if (translation && typeof translation === "object" && translation.uk) {
+        translation.ru = translation.uk;
+      }
+    });
   }
 
   function exportToCloud() {
@@ -327,7 +337,7 @@
   }
 
   function addAppSettings() {
-    Lampa.Lang.add({
+    const translations = {
       // Меню
       kff_export_import_menu: {
         ru: "Резервна копія / перенесення",
@@ -396,9 +406,9 @@
 
       // Модальные окна экспорта
       kff_export_modal_title: {
-        ru: "Код експорту",
+        ru: "Експорт",
         en: "Export",
-        uk: "Код експорту",
+        uk: "Експорт",
       },
       kff_export_modal_saved: {
         ru: "Налаштування збережено тимчасово.",
@@ -406,14 +416,14 @@
         uk: "Налаштування збережено тимчасово.",
       },
       kff_export_modal_save_id: {
-        ru: "ID експорту",
+        ru: "Збережіть ID експорту",
         en: "Save export ID",
-        uk: "ID експорту",
+        uk: "Збережіть ID експорту",
       },
       kff_export_modal_pin_code: {
-        ru: "PIN-код",
+        ru: "І PIN-код для розшифрування",
         en: "And PIN code for decryption",
-        uk: "PIN-код",
+        uk: "І PIN-код для розшифрування",
       },
       kff_export_modal_where: {
         ru: "Щоб перенести налаштування, відкрийте на іншому пристрої цей розділ і натисніть «Ввести ID і PIN».",
@@ -421,9 +431,9 @@
         uk: "Щоб перенести налаштування, відкрийте на іншому пристрої цей розділ і натисніть «Ввести ID і PIN».",
       },
       kff_export_modal_warning: {
-        ru: "Код зберігається на сервері 1 годину.",
+        ru: "Увага! Зберігається на сервері 1 годину.",
         en: "Attention! Stored on the server for 1 hour.",
-        uk: "Код зберігається на сервері 1 годину.",
+        uk: "Увага! Зберігається на сервері 1 годину.",
       },
 
       // Модальные окна импорта
@@ -484,7 +494,10 @@
         en: "File reading error",
         uk: "Помилка при читанні файлу",
       },
-    });
+    };
+
+    forceUkrainianTranslations(translations);
+    Lampa.Lang.add(translations);
 
     Lampa.SettingsApi.addComponent({
       component: "kff_export_import_menu",

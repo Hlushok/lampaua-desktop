@@ -87,9 +87,9 @@ function registerSettingsHandlers(store, getMainWindow, injectPlugin) {
       const { app } = require("electron");
 
       const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
-        title: "Экспортировать настройки",
+        title: "Експортувати налаштування",
         defaultPath: "lampaua-desktop-settings.json",
-        filters: [{ name: "JSON файлы", extensions: ["json"] }],
+        filters: [{ name: "JSON-файли", extensions: ["json"] }],
       });
 
       if (canceled || !filePath) return;
@@ -107,13 +107,13 @@ function registerSettingsHandlers(store, getMainWindow, injectPlugin) {
 
       writeFileSync(filePath, JSON.stringify(settings, null, 2));
 
-      console.log("Настройки успешно экспортированы");
-      return { success: true, message: "Настройки успешно экспортированы" };
+      console.log("Налаштування успішно експортовано");
+      return { success: true, message: "Налаштування успішно експортовано" };
     } catch (err) {
-      console.log(`Не удалось экспортировать настройки: ${err.message}`);
+      console.log(`Не вдалося експортувати налаштування: ${err.message}`);
       return {
         success: false,
-        message: `Не удалось экспортировать настройки: ${err.message}`,
+        message: `Не вдалося експортувати налаштування: ${err.message}`,
       };
     }
   });
@@ -123,8 +123,8 @@ function registerSettingsHandlers(store, getMainWindow, injectPlugin) {
       const mainWindow = getMainWindow();
 
       const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
-        title: "Импортировать настройки",
-        filters: [{ name: "JSON файлы", extensions: ["json"] }],
+        title: "Імпортувати налаштування",
+        filters: [{ name: "JSON-файли", extensions: ["json"] }],
         properties: ["openFile"],
       });
 
@@ -132,7 +132,7 @@ function registerSettingsHandlers(store, getMainWindow, injectPlugin) {
 
       if (filePaths.length > 1) {
         console.warn(
-          "Выбрано несколько файлов, будет использован только первый",
+          "Вибрано кілька файлів, буде використано лише перший",
         );
       }
 
@@ -142,7 +142,7 @@ function registerSettingsHandlers(store, getMainWindow, injectPlugin) {
       if (typeof settings !== "object" || settings === null) {
         return {
           success: false,
-          message: "Неверный формат файла",
+          message: "Неправильний формат файлу",
         };
       }
 
@@ -151,13 +151,13 @@ function registerSettingsHandlers(store, getMainWindow, injectPlugin) {
       console.log("Settings imported successfully");
       return {
         success: true,
-        message: "Настройки успешно импортированы, производим перезапуск...",
+        message: "Налаштування успішно імпортовано, перезапускаємо застосунок...",
       };
     } catch (err) {
       console.log(`Error importing settings: ${err.message}`);
       return {
         success: false,
-        message: `Не удалось импортировать настройки: ${err.message}`,
+        message: `Не вдалося імпортувати налаштування: ${err.message}`,
       };
     }
   });

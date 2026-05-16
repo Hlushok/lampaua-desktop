@@ -65,8 +65,16 @@
     }
   }
 
+  function forceUkrainianTranslations(translations) {
+    Object.values(translations).forEach((translation) => {
+      if (translation && typeof translation === "object" && translation.uk) {
+        translation.ru = translation.uk;
+      }
+    });
+  }
+
   function addAppSettings() {
-    Lampa.Lang.add({
+    const translations = {
       // Основные настройки
       app_settings: {
         ru: "Приложение",
@@ -552,7 +560,10 @@
         en: "Error",
         uk: "Помилка",
       },
-    });
+    };
+
+    forceUkrainianTranslations(translations);
+    Lampa.Lang.add(translations);
 
     Lampa.SettingsApi.addComponent({
       component: "app_settings",
