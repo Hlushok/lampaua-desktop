@@ -1,10 +1,16 @@
 # LampaUa Desktop
 
-Десктопний клієнт LampaUa на базі Electron.
+Десктопний клієнт LampaUa для Windows, macOS і Linux.
 
-Проєкт зроблено на основі `Kolovatoff/lampa-desktop` і адаптовано під сервер LampaUa.
+## Про проєкт
 
-LampaUa Desktop is an unofficial fork/adaptation of `Kolovatoff/lampa-desktop` and is not affiliated with the original Lampa project.
+LampaUa Desktop — це неофіційна адаптація десктопного клієнта `Kolovatoff/lampa-desktop` для сервера LampaUa.
+
+Ми зробили форк оригінального проєкту, змінили назву, стартову адресу, налаштування, релізи та автооновлення, щоб застосунок був зручним для користувачів LampaUa.
+
+Проєкт не є офіційним релізом оригінальної Lampa і не пов’язаний з авторами оригінального проєкту. Усі права на оригінальний код належать його авторам. Зміни LampaUa публікуються у відкритому репозиторії з дотриманням ліцензії оригінального проєкту.
+
+Оригінальний проєкт: `https://github.com/Kolovatoff/lampa-desktop`
 
 - стартова адреса за замовчуванням: `http://lampaua.mooo.com`;
 - назва застосунку: `LampaUa`;

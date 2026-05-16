@@ -263,6 +263,15 @@ jobs:
           ${{ needs.generate-downloads-table.outputs.downloads_section }}
           EOF
 
+          cat >> release_body.md << 'EOF'
+
+          ## About this fork
+
+          LampaUa Desktop is an unofficial fork of `Kolovatoff/lampa-desktop`, adapted for LampaUa. We changed the app name, default start URL, settings, releases and auto-updates. This project is not an official release of the original Lampa project.
+
+          Original project: https://github.com/Kolovatoff/lampa-desktop
+          EOF
+
           echo "" >> release_body.md
 
           cat >> release_body.md << 'EOF'
