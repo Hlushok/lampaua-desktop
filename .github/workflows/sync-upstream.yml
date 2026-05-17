@@ -3,10 +3,11 @@ name: Sync desktop upstream
 on:
   workflow_dispatch:
   schedule:
-    - cron: '27 3 * * *'
+    - cron: "27 3 * * *"
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   sync:
@@ -34,3 +35,44 @@ jobs:
 
       - name: Push updated fork
         run: git push origin main
+
+      - name: Close stale failure issue
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_TITLE: Sync desktop upstream failed
+        run: |
+          issue_number="$(gh issue list --state open --search "$ISSUE_TITLE in:title" --json number --jq '.[0].number // ""')"
+          if [ -n "$issue_number" ]; then
+            gh issue comment "$issue_number" --body "Upstream sync is healthy again in run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}."
+            gh issue close "$issue_number" --reason completed
+          fi
+
+      - name: Create failure issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_TITLE: Sync desktop upstream failed
+        run: |
+          issue_number="$(gh issue list --state open --search "$ISSUE_TITLE in:title" --json number --jq '.[0].number // ""')"
+          if [ -n "$issue_number" ]; then
+            gh issue comment "$issue_number" --body "Upstream sync failed again: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            exit 0
+          fi
+
+          gh issue create \
+            --title "$ISSUE_TITLE" \
+            --body "Automatic sync from Kolovatoff/lampa-desktop:main failed.
+
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          This usually means the upstream merge has conflicts or the push failed. Please inspect the workflow logs and resolve manually in D:\opt\lampaua-desktop.
+
+          Suggested manual check:
+
+          \`\`\`bash
+          git fetch upstream main
+          git merge upstream/main
+          corepack yarn lint
+          git push origin main
+          \`\`\`"
