@@ -1,0 +1,36 @@
+name: Sync desktop upstream
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '27 3 * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/Kolovatoff/lampa-desktop.git
+          git fetch upstream main
+
+      - name: Merge upstream main
+        run: git merge --no-edit upstream/main
+
+      - name: Push updated fork
+        run: git push origin main
