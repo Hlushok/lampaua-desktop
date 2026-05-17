@@ -1,4 +1,4 @@
-const { BrowserWindow, screen } = require("electron");
+const { BrowserWindow, screen, shell } = require("electron");
 const path = require("node:path");
 const store = require("./storeManager");
 const { setupPluginHandler } = require("./pluginHandler");
@@ -208,6 +208,11 @@ function setupNavigationHandlers(mainWindow) {
 
   mainWindow.webContents.on("will-navigate", (event, navigationUrl) => {
     const parsedUrl = new URL(navigationUrl);
+    const currentUrl = mainWindow.webContents.getURL();
+
+    if (isInternalNavigation(parsedUrl, currentUrl)) {
+      return;
+    }
 
     // исправление запуска плееров на MacOS
     const allowedProtocols = ["mpv:", "iina:", "infuse:"];
@@ -219,7 +224,42 @@ function setupNavigationHandlers(mainWindow) {
       return;
     }
     event.preventDefault();
+
+    if (["http:", "https:"].includes(parsedUrl.protocol)) {
+      shell.openExternal(navigationUrl);
+    }
   });
+}
+
+function isInternalNavigation(parsedUrl, currentUrl) {
+  if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+    return false;
+  }
+
+  try {
+    if (currentUrl) {
+      const current = new URL(currentUrl);
+      if (parsedUrl.origin === current.origin) {
+        return true;
+      }
+    }
+  } catch (error) {
+    console.warn("Cannot parse current URL for navigation check:", error);
+  }
+
+  try {
+    const lampaUrl = store.get("lampaUrl");
+    if (lampaUrl) {
+      const configured = new URL(lampaUrl);
+      if (parsedUrl.origin === configured.origin) {
+        return true;
+      }
+    }
+  } catch (error) {
+    console.warn("Cannot parse configured Lampa URL:", error);
+  }
+
+  return false;
 }
 
 function setupErrorHandler(mainWindow) {
@@ -327,9 +367,19 @@ function setupErrorHandler(mainWindow) {
 }
 
 function setupWindowOpenHandler(mainWindow) {
-  const { shell } = require("electron");
-
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    try {
+      const parsedUrl = new URL(url);
+      const currentUrl = mainWindow.webContents.getURL();
+
+      if (isInternalNavigation(parsedUrl, currentUrl)) {
+        mainWindow.loadURL(url);
+        return { action: "deny" };
+      }
+    } catch (error) {
+      console.warn("Cannot parse window open URL:", error);
+    }
+
     shell.openExternal(url);
     return { action: "deny" };
   });
