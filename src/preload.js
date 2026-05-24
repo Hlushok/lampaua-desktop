@@ -60,6 +60,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Управление приложением
   closeApp: () => ipcRenderer.send("close-app"),
   toggleFullscreen: () => ipcRenderer.send("toggle-fullscreen"),
+  getFullscreenMode: () => ipcRenderer.invoke("get-fullscreen-mode"),
+  setFullscreenMode: (mode) => ipcRenderer.invoke("set-fullscreen-mode", mode),
   loadUrl: (url) => ipcRenderer.send("load-url", url),
   getAppVersion: async () => {
     return await ipcRenderer.invoke("get-app-version");

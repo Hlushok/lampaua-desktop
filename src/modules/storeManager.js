@@ -17,7 +17,7 @@ const store = new Store({
   cwd: userDataPath,
   defaults: {
     lampaUrl: "http://lampa.mx",
-    fullscreen: false,
+    fullscreenMode: "last",
     webSecurity: true,
     autoUpdate: true,
     windowState: {},

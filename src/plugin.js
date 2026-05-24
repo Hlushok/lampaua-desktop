@@ -73,10 +73,31 @@
         en: "App",
         uk: "Додаток",
       },
-      app_settings_fullscreen_field_name: {
-        ru: "Запускать в полноэкранном режиме",
-        en: "Launch in fullscreen mode",
-        uk: "Запускати в повноекранному режимі",
+      // Настройки полноэкранного режима
+      app_settings_fullscreen_mode_name: {
+        ru: "Режим полного экрана",
+        en: "Fullscreen mode",
+        uk: "Режим повного екрану",
+      },
+      app_settings_fullscreen_mode_description: {
+        ru: "Выберите как будет запускаться приложение",
+        en: "Choose how the application will start",
+        uk: "Виберіть як буде запускатися додаток",
+      },
+      fullscreen_mode_always: {
+        ru: "Всегда полноэкранный",
+        en: "Always fullscreen",
+        uk: "Завжди повноекранний",
+      },
+      fullscreen_mode_never: {
+        ru: "Не запускать в полном экране",
+        en: "Never start fullscreen",
+        uk: "Не запускати в повному екрані",
+      },
+      fullscreen_mode_last: {
+        ru: "Последнее состояние",
+        en: "Last state",
+        uk: "Останній стан",
       },
       app_settings_autoupdate_field_name: {
         ru: "Автоматическое обновление",
@@ -625,17 +646,35 @@
     });
 
     Promise.all([
-      settingsManager.loadAsyncSetting("fullscreen", {
+      settingsManager.addToQueue({
         order: 3,
         param: {
-          name: "app_settings_fullscreen",
-          type: "trigger",
+          name: "app_settings_fullscreen_mode",
+          type: "select",
+          values: {
+            always: Lampa.Lang.translate("fullscreen_mode_always"),
+            never: Lampa.Lang.translate("fullscreen_mode_never"),
+            last: Lampa.Lang.translate("fullscreen_mode_last"),
+          },
+          default: "last",
         },
         field: {
-          name: Lampa.Lang.translate("app_settings_fullscreen_field_name"),
+          name: Lampa.Lang.translate("app_settings_fullscreen_mode_name"),
+          description: Lampa.Lang.translate(
+            "app_settings_fullscreen_mode_description",
+          ),
         },
-        onChange: async function (value) {
-          await window.electronAPI.store.set("fullscreen", value === "true");
+        onChange: async (value) => {
+          const result = await window.electronAPI.setFullscreenMode(value);
+          if (result.success) {
+            Lampa.Noty.show(`Режим изменен на: ${value}`, "success", 2000);
+          } else {
+            Lampa.Noty.show(
+              `${Lampa.Lang.translate("app_error")}: ${result.message}`,
+              "error",
+              5000,
+            );
+          }
         },
       }),
 

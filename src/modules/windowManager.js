@@ -5,6 +5,25 @@ const { setupPluginHandler } = require("./pluginHandler");
 
 let mainWindow = null;
 
+function getFullscreenConfig() {
+  const mode = store.get("fullscreenMode", "last");
+  const savedWindowState = store.get("windowState", {});
+
+  switch (mode) {
+    case "always":
+      return { fullscreen: true, shouldShowFullscreen: true };
+    case "never":
+      return { fullscreen: false, shouldShowFullscreen: false };
+    case "last":
+      return {
+        fullscreen: savedWindowState.fullscreen || false,
+        shouldShowFullscreen: savedWindowState.fullscreen || false,
+      };
+    default:
+      return { fullscreen: false, shouldShowFullscreen: false };
+  }
+}
+
 function getMainWindow() {
   return mainWindow;
 }
@@ -32,6 +51,7 @@ function loadWindowState() {
 
 function createWindow() {
   const savedState = loadWindowState();
+  const fullscreenConfig = getFullscreenConfig();
   const displays = screen.getAllDisplays();
 
   if (process.argv.includes("--dev")) {
@@ -52,7 +72,7 @@ function createWindow() {
     },
     show: false,
     titleBarStyle: "default",
-    fullscreen: Boolean(store.get("fullscreen")),
+    fullscreen: fullscreenConfig.fullscreen,
   };
 
   let targetDisplay;
@@ -91,7 +111,7 @@ function createWindow() {
   mainWindow.setMenu(null);
 
   mainWindow.once("ready-to-show", () => {
-    if (savedState && !windowOptions.fullscreen) {
+    if (savedState && !fullscreenConfig.shouldShowFullscreen) {
       try {
         mainWindow.setBounds({
           x: windowOptions.x,
@@ -126,6 +146,7 @@ function createWindow() {
     ) {
       const bounds = mainWindow.getBounds();
       const display = screen.getDisplayMatching(bounds);
+      const isFullscreen = mainWindow.isFullScreen();
 
       const windowState = {
         x: bounds.x,
@@ -134,6 +155,7 @@ function createWindow() {
         height: bounds.height,
         displayId: display.id,
         maximized: mainWindow.isMaximized(),
+        fullscreen: isFullscreen,
       };
 
       saveWindowState(windowState);
@@ -149,6 +171,7 @@ function createWindow() {
         ? mainWindow.getNormalBounds()
         : mainWindow.getBounds();
       const display = screen.getDisplayMatching(bounds);
+      const isFullscreen = mainWindow.isFullScreen();
 
       const windowState = {
         x: bounds.x,
@@ -157,6 +180,7 @@ function createWindow() {
         height: bounds.height,
         displayId: display.id,
         maximized: mainWindow.isMaximized(),
+        fullscreen: isFullscreen,
       };
 
       saveWindowState(windowState);
