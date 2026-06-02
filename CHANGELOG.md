@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.5.3](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.2...v1.5.3) (2026-06-02)
+
+### ♻️ Рефакторинг
+
+- добавить плеер MPC-QT ([0fd2ca5](https://github.com/Hlushok/lampaua-desktop/commit/0fd2ca552b13cf741b7cc1f28810949f40912eb7))
+- изменить режимы работы полного экрана ([c430223](https://github.com/Hlushok/lampaua-desktop/commit/c430223242b0a1404342d411019d418bf5873bb6))
+- **plugin:** изменить стили окна пожертвования ([9822983](https://github.com/Hlushok/lampaua-desktop/commit/9822983e10bf5a88ecfdc91fb073645170a24230))
+
+### 📦 Сборка
+
+- изменена версия yarn на 4.9.4 ([2e1c55f](https://github.com/Hlushok/lampaua-desktop/commit/2e1c55f6e1c41a575d59a77b43ea6ce1e2bdede8))
+
 ## [1.5.2](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.1...v1.5.2) (2026-05-17)
 
 ## [1.5.1](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.0...v1.5.1) (2026-05-16)
