@@ -842,7 +842,7 @@
                      alt="QR код 100₽">
               </div>
               <div class="donate-amount">100₽</div>
-              <div class="simple-button selector donate-link" data-amount="100" style="margin-right: unset; font-size: unset;">
+              <div class="simple-button selector donate-link" data-amount="100" style="margin-right: unset; font-size: unset; text-align: center">
                 <span>` +
                 Lampa.Lang.translate("donate_support").replace(
                   "{amount}",
@@ -859,7 +859,7 @@
                      alt="QR код 250₽">
               </div>
               <div class="donate-amount">250₽</div>
-              <div class="simple-button selector donate-link" data-amount="250" style="margin-right: unset; font-size: unset;">
+              <div class="simple-button selector donate-link" data-amount="250" style="margin-right: unset; font-size: unset; text-align: center">
                 <span>` +
                 Lampa.Lang.translate("donate_support").replace(
                   "{amount}",
@@ -876,7 +876,7 @@
                      alt="QR код 500₽">
               </div>
               <div class="donate-amount">500₽</div>
-              <div class="simple-button selector donate-link" data-amount="500" style="margin-right: unset; font-size: unset;">
+              <div class="simple-button selector donate-link" data-amount="500" style="margin-right: unset; font-size: unset; text-align: center">
                 <span>` +
                 Lampa.Lang.translate("donate_support").replace(
                   "{amount}",
