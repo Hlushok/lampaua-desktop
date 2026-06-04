@@ -77,6 +77,28 @@ const PLAYERS = {
       linux: { paths: [] },
     },
   },
+  kmplayer: {
+    name: "KMPlayer",
+    description: "",
+    platforms: {
+      win32: {
+        paths: [
+          path.join(
+            process.env.ProgramFiles || "C:\\Program Files",
+            "KMPlayer 64X",
+            "KMPlayer64.exe",
+          ),
+          path.join(
+            process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)",
+            "KMPlayer",
+            "KMPlayer.exe",
+          ),
+        ],
+      },
+      darwin: { paths: [] },
+      linux: { paths: [] },
+    },
+  },
   mpc_qt: {
     name: "MPC-QT",
     description: "Media Player Classic Qute Theater",

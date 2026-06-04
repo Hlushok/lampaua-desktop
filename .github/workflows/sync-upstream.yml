@@ -38,6 +38,7 @@ jobs:
 
       - name: Close stale failure issue
         if: success()
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_TITLE: Sync desktop upstream failed
@@ -50,11 +51,12 @@ jobs:
 
       - name: Create failure issue
         if: failure()
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_TITLE: Sync desktop upstream failed
         run: |
-          issue_number="$(gh issue list --state open --search "$ISSUE_TITLE in:title" --json number --jq '.[0].number // ""')"
+          issue_number="$(gh issue list --state open --search "$ISSUE_TITLE in:title" --json number --jq '.[0].number // ""' 2>/dev/null || true)"
           if [ -n "$issue_number" ]; then
             gh issue comment "$issue_number" --body "Upstream sync failed again: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             exit 0
@@ -75,4 +77,4 @@ jobs:
           git merge upstream/main
           corepack yarn lint
           git push origin main
-          \`\`\`"
+          \`\`\`" || echo "::warning::Could not create GitHub issue. The sync failure above is still the root cause."
