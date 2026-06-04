@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.5.4](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.3...v1.5.4) (2026-06-04)
+
+### 🐛 Исправления
+
+- исправить поиск плеера на MacOS ([825b266](https://github.com/Hlushok/lampaua-desktop/commit/825b2666b518a3e42790cc7a1dd8b6f1b5df7b85))
+
+### 📚 Документация
+
+- обновить документацию ([1a8a474](https://github.com/Hlushok/lampaua-desktop/commit/1a8a474a201b881f165fe07b1ede12713540647d))
+- обновить документацию ([2fb2462](https://github.com/Hlushok/lampaua-desktop/commit/2fb24623259d71d67fcfd6732880f55fe0214250))
+
+### ♻️ Рефакторинг
+
+- добавлена поддержка KMPlayer ([6ba23bf](https://github.com/Hlushok/lampaua-desktop/commit/6ba23bf0e3471abddfe5de5b552ba95a82030f16))
+
 ## [1.5.3](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.2...v1.5.3) (2026-06-02)
 
 ### ♻️ Рефакторинг
