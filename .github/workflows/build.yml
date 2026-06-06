@@ -25,7 +25,6 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "24"
-      #          cache: "yarn"
 
       - name: Install Yarn 4
         run: |
@@ -35,7 +34,7 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libfuse2 rpm
@@ -89,7 +88,6 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "24"
-      #          cache: "yarn"
 
       - name: Install Yarn 4
         run: |
@@ -124,7 +122,6 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "24"
-      #          cache: "yarn"
 
       - name: Install Yarn 4
         run: |
@@ -147,20 +144,56 @@ jobs:
             dist/*.blockmap
             dist/latest.yml
 
-  generate-downloads-table:
+  release:
     runs-on: ubuntu-latest
     needs: [build-linux, build-macos, build-windows]
     outputs:
-      downloads_section: ${{ steps.generate.outputs.downloads_section }}
+      release_url: ${{ steps.create_release.outputs.url }}
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v7
 
-      - name: Generate downloads table
-        id: generate
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body: "Release ${{ github.ref_name }}"
+          draft: false
+          prerelease: false
+          files: |
+            lampa-linux/*.AppImage
+            lampa-linux/*.deb
+            lampa-linux/*.rpm
+            lampa-linux/latest-linux.yml
+            lampa-macos/*.dmg
+            lampa-macos/*.blockmap
+            lampa-macos/latest-mac.yml
+            lampa-windows/*.exe
+            lampa-windows/*.blockmap
+            lampa-windows/latest.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  generate-downloads-table:
+    runs-on: ubuntu-latest
+    needs: [release, build-linux]
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v7
+
+      - name: Generate and update release body
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.build-linux.outputs.version }}
+          REPO: ${{ github.repository }}
+          RELEASE_ID: ${{ needs.release.outputs.upload_url }}
         run: |
           VERSION="${{ needs.build-linux.outputs.version }}"
-
+          
+          # Generate downloads table
           cat > downloads.md << 'EOF'
           ### ⬇️ Скачать
 
@@ -177,7 +210,6 @@ jobs:
               filename=$(basename "$file")
               size=$(du -h "$file" | cut -f1)
 
-              # Determine architecture from filename
               if [[ "$filename" == *"x64"* ]]; then
                 arch="**64-bit**"
               elif [[ "$filename" == *"ia32"* ]]; then
@@ -294,43 +326,16 @@ jobs:
           </details>
           EOF
 
-          downloads_section=$(cat downloads.md)
-          echo "downloads_section<<EOF" >> $GITHUB_OUTPUT
-          echo "$downloads_section" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-  release:
-    runs-on: ubuntu-latest
-    needs: [build-linux, build-macos, build-windows, generate-downloads-table]
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v7
-
-      - name: Combine release body
-        run: |
-          # Combine changelog with downloads section
-          echo "${{ needs.build-linux.outputs.changelog_body }}" > release_body.md
-          echo "" >> release_body.md
-          echo "${{ needs.generate-downloads-table.outputs.downloads_section }}" >> release_body.md
-
-          # Show the combined body for debugging
-          cat release_body.md
-
-      - name: Publish to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          body_path: release_body.md
-          files: |
-            lampa-linux/*.AppImage
-            lampa-linux/*.deb
-            lampa-linux/*.rpm
-            lampa-linux/latest-linux.yml
-            lampa-macos/*.dmg
-            lampa-macos/*.blockmap
-            lampa-macos/latest-mac.yml
-            lampa-windows/*.exe
-            lampa-windows/*.blockmap
-            lampa-windows/latest.yml
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Update the release with the changelog and downloads table
+          # First, get changelog
+          CHANGELOG="${{ needs.build-linux.outputs.changelog_body }}"
+          
+          # Combine changelog with downloads table
+          echo "$CHANGELOG" > full_body.md
+          echo "" >> full_body.md
+          cat downloads.md >> full_body.md
+          
+          # Update the release
+          gh release edit v$VERSION \
+            --repo ${{ github.repository }} \
+            --body-file full_body.md
