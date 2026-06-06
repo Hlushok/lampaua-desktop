@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.5.5](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.4...v1.5.5) (2026-06-06)
+
+### 📚 Документация
+
+- обновить документацию ([0059e9d](https://github.com/Hlushok/lampaua-desktop/commit/0059e9d0801a0f5cd95a02ba416fe28c8f69161d))
+
+### 🔧 CI/CD
+
+- исправить проблемы отсутсивя ссылок на файлы для скачивания ([2e412f2](https://github.com/Hlushok/lampaua-desktop/commit/2e412f2b7739da7deeca4e077425ac6d8660b69f))
+- исправить проблемы отсутсивя ссылок на файлы для скачивания ([561546a](https://github.com/Hlushok/lampaua-desktop/commit/561546ac4a8d6af754e34e280a701c2f49646702))
+
 ## [1.5.4](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.3...v1.5.4) (2026-06-04)
 
 ### 🐛 Исправления
