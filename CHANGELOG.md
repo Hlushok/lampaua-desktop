@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.5.1](https://github.com/Kolovatoff/lampa-desktop/compare/v1.5.0...v1.5.1) (2026-06-06)
+
+### 🐛 Исправления
+
+- исправлен поиск плеера на MacOS ([825b266](https://github.com/Kolovatoff/lampa-desktop/commit/825b2666b518a3e42790cc7a1dd8b6f1b5df7b85))
+
+### 📚 Документация
+
+- добавлена документация о быстром старте и т.п.([2fb2462](https://github.com/Kolovatoff/lampa-desktop/commit/2fb24623259d71d67fcfd6732880f55fe0214250))([0059e9d](https://github.com/Kolovatoff/lampa-desktop/commit/0059e9d0801a0f5cd95a02ba416fe28c8f69161d))([1a8a474](https://github.com/Kolovatoff/lampa-desktop/commit/1a8a474a201b881f165fe07b1ede12713540647d))
+
+### ♻️ Рефакторинг
+
+- поддержка плеера MPC-QT ([0fd2ca5](https://github.com/Kolovatoff/lampa-desktop/commit/0fd2ca552b13cf741b7cc1f28810949f40912eb7))
+- поддержка плеера KMPlayer ([6ba23bf](https://github.com/Kolovatoff/lampa-desktop/commit/6ba23bf0e3471abddfe5de5b552ba95a82030f16))
+- изменен принцип работы полного экрана ([c430223](https://github.com/Kolovatoff/lampa-desktop/commit/c430223242b0a1404342d411019d418bf5873bb6))
+
+### 📦 Сборка
+
+- изменена версия yarn на 4.9.4 ([2e1c55f](https://github.com/Kolovatoff/lampa-desktop/commit/2e1c55f6e1c41a575d59a77b43ea6ce1e2bdede8))
+
+### 🔧 CI/CD
+
+- исправлена проблема отсутствия ссылок на файлы для скачивания в релизе ([2e412f2](https://github.com/Kolovatoff/lampa-desktop/commit/2e412f2b7739da7deeca4e077425ac6d8660b69f))([561546a](https://github.com/Kolovatoff/lampa-desktop/commit/561546ac4a8d6af754e34e280a701c2f49646702))
+
 ## [1.5.0](https://github.com/Kolovatoff/lampa-desktop/compare/v1.4.0...v1.5.0) (2026-05-05)
 
 ### ✨ Новые возможности
