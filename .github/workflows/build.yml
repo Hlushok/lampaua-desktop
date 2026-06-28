@@ -17,7 +17,7 @@ jobs:
       changelog_body: ${{ steps.changelog.outputs.body }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -67,7 +67,7 @@ jobs:
           fi
 
       - name: Upload Linux Artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: lampa-linux
           path: |
@@ -80,7 +80,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -101,7 +101,7 @@ jobs:
         run: yarn run build-mac
 
       - name: Upload macOS Artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: lampa-macos
           path: |
@@ -112,7 +112,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -133,7 +133,7 @@ jobs:
         run: yarn run build-win
 
       - name: Upload Windows Artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: lampa-windows
           path: |
@@ -147,7 +147,7 @@ jobs:
       downloads_section: ${{ steps.generate.outputs.downloads_section }}
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
 
       - name: Generate downloads table
         id: generate
@@ -255,7 +255,7 @@ jobs:
     needs: [build-linux, build-macos, build-windows, generate-downloads-table]
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
 
       - name: Combine release body
         run: |
