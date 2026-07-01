@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.5.8](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.7...v1.5.8) (2026-07-01)
+
+### 🔧 CI/CD
+
+- add dependency update checks ([8bc5dbd](https://github.com/Hlushok/lampaua-desktop/commit/8bc5dbdbdd85d0616495609fc9dce4e8e2888fe6))
+
 ## [1.5.7](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.6...v1.5.7) (2026-06-28)
 
 ### 🔧 CI/CD
