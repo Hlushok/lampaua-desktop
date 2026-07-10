@@ -1635,9 +1635,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron@npm:42.5.2":
-  version: 42.5.2
-  resolution: "electron@npm:42.5.2"
+"electron@npm:42.6.1":
+  version: 42.6.1
+  resolution: "electron@npm:42.6.1"
   dependencies:
     "@electron-internal/extract-zip": "npm:^1.0.1"
     "@electron/get": "npm:^5.0.0"
@@ -1645,7 +1645,7 @@ __metadata:
   bin:
     electron: cli.js
     install-electron: install.js
-  checksum: 10c0/12c0138c56723ccffd6dd85ec606e82c74b66831e7932f647979e2aaa7378dc34927ad0859d4a8f683241744842c41a1f1a75bc6e0759ccd5a6ddca3551e620f
+  checksum: 10c0/bdc78ec3d0ce57a2534558517fece8bcc103694068e64bc16d66918f7e831a3aef31340a59d813a8da80a2fb20fbd8d53eac86bdd4ad3184675391a83b75cb2f
   languageName: node
   linkType: hard
 
@@ -2787,14 +2787,14 @@ __metadata:
   dependencies:
     "@eslint/js": "npm:9.39.4"
     commit-and-tag-version: "npm:12.7.3"
-    electron: "npm:42.5.2"
+    electron: "npm:42.6.1"
     electron-builder: "npm:26.15.3"
     electron-store: "npm:11.0.2"
     electron-updater: "npm:6.8.9"
     eslint: "npm:9.39.4"
     eslint-config-prettier: "npm:10.1.8"
     globals: "npm:17.7.0"
-    prettier: "npm:3.9.4"
+    prettier: "npm:3.9.5"
     rcedit: "npm:5.0.2"
     which: "npm:7.0.0"
   languageName: unknown
@@ -3484,12 +3484,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prettier@npm:3.9.4":
-  version: 3.9.4
-  resolution: "prettier@npm:3.9.4"
+"prettier@npm:3.9.5":
+  version: 3.9.5
+  resolution: "prettier@npm:3.9.5"
   bin:
     prettier: bin/prettier.cjs
-  checksum: 10c0/dc6ec13d692745c6b7e7bf39beda9eb1b3b76c619118319bce393928c392264b1273337c75f80499695e165affefc7b3a9d2ebb18983af0a8f4dfbb2f45f6ff3
+  checksum: 10c0/0349dd9e6d8010965de6f69e6b6ee2484b8caf78c66675afced6c75ad60ff24c3a2a4f41153fb8adeaee4d8f539641b48cebc71d283cec4d146e9962126c5ceb
   languageName: node
   linkType: hard
 
