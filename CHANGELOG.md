@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.5.10](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.9...v1.5.10) (2026-07-11)
+
+### ✨ Новые возможности
+
+- restrict LampaUa URL choices ([b48b391](https://github.com/Hlushok/lampaua-desktop/commit/b48b3916d5f2c88c194a9f87a3bf8420cdae0d04))
+
 ## [1.5.9](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.8...v1.5.9) (2026-07-03)
 
 ### 🔧 CI/CD
