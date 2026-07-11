@@ -2,6 +2,7 @@ const { BrowserWindow, screen, shell } = require("electron");
 const path = require("node:path");
 const store = require("./storeManager");
 const { setupPluginHandler } = require("./pluginHandler");
+const { DEFAULT_LAMPA_URL, LEGACY_LAMPA_URL } = require("./lampaUrls");
 
 let mainWindow = null;
 
@@ -306,24 +307,9 @@ function setupErrorHandler(mainWindow) {
           <p><strong>Опис:</strong> ${errorDescription}</p>
           <p><strong>Поточна адреса:</strong> ${validatedURL}</p>
 
-          <div style="margin: 20px 0;">
-            <input
-              id="customUrlInput"
-              type="text"
-              placeholder="Введіть адресу, наприклад http://lampaua.mooo.com"
-              style="
-                width: 80%;
-                padding: 10px;
-                border: 1px solid #ccc;
-                border-radius: 4px;
-                font-size: 16px;
-              "
-            />
-          </div>
-
           <div style="display: flex; gap: 10px; justify-content: center;">
             <button
-              onclick="handleDefaultReload()"
+              onclick="handleUrlReload('${DEFAULT_LAMPA_URL}')"
               style="
                 padding: 10px 20px;
                 background-color: #28a745;
@@ -333,10 +319,10 @@ function setupErrorHandler(mainWindow) {
                 cursor: pointer;
               "
             >
-              Завантажити LampaUa
+              https://kinohub.uk/
             </button>
             <button
-              onclick="handleCustomReload()"
+              onclick="handleUrlReload('${LEGACY_LAMPA_URL}')"
               style="
                 padding: 10px 20px;
                 background-color: #007bff;
@@ -346,37 +332,19 @@ function setupErrorHandler(mainWindow) {
                 cursor: pointer;
               "
             >
-              Перейти
+              http://lampaua.mooo.com/
             </button>
           </div>
         </div>
 
         <script>
-          async function handleDefaultReload() {
-            try {
-              await window.electronAPI.store.set('lampaUrl', 'http://lampaua.mooo.com');
-              window.electronAPI.loadUrl('http://lampaua.mooo.com');
-            } catch (err) {
-              console.error('Помилка:', err);
-              alert('Не вдалося завантажити LampaUa: ' + err.message);
-            }
-          }
-
-          async function handleCustomReload() {
-            const input = document.getElementById('customUrlInput');
-            const url = input.value.trim();
-
-            if (!url) {
-              alert('Будь ласка, введіть адресу!');
-              return;
-            }
-
+          async function handleUrlReload(url) {
             try {
               await window.electronAPI.store.set('lampaUrl', url);
               window.electronAPI.loadUrl(url);
             } catch (err) {
               console.error('Помилка:', err);
-              alert('Не вдалося перейти за адресою: ' + err.message);
+              alert('Не вдалося завантажити LampaUa: ' + err.message);
             }
           }
         </script>

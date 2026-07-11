@@ -1,4 +1,5 @@
 const { ipcMain } = require("electron");
+const { normalizeLampaUrl } = require("../lampaUrls");
 
 function registerStoreHandlers(store) {
   // Обработчик изменения URL
@@ -16,7 +17,7 @@ function registerStoreHandlers(store) {
   });
 
   ipcMain.handle("store-set", (event, key, value) => {
-    store.set(key, value);
+    store.set(key, key === "lampaUrl" ? normalizeLampaUrl(value) : value);
   });
 
   ipcMain.handle("store-has", (event, key) => {

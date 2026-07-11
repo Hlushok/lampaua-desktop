@@ -3,6 +3,12 @@
 
   var icon_quit =
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 4h3a2 2 0 0 1 2 2v1m-5 13h3a2 2 0 0 0 2-2v-1M4.425 19.428l6 1.8A2 2 0 0 0 13 19.312V4.688a2 2 0 0 0-2.575-1.916l-6 1.8A2 2 0 0 0 3 6.488v11.024a2 2 0 0 0 1.425 1.916M16.001 12h5m0 0l-2-2m2 2l-2 2"/></svg>';
+  const DEFAULT_LAMPA_URL = "https://kinohub.uk/";
+  const LEGACY_LAMPA_URL = "http://lampaua.mooo.com/";
+  const LAMPA_URL_OPTIONS = {
+    [DEFAULT_LAMPA_URL]: "https://kinohub.uk/",
+    [LEGACY_LAMPA_URL]: "http://lampaua.mooo.com/",
+  };
 
   function addQuitButton() {
     const container = Lampa.Head.render().find(".head__actions");
@@ -123,9 +129,9 @@
         uk: "Адреса LampaUa",
       },
       app_settings_lampa_url_description: {
-        ru: "По умолчанию: http://lampaua.mooo.com",
-        en: "Default: http://lampaua.mooo.com",
-        uk: "За замовчуванням: http://lampaua.mooo.com",
+        ru: "По умолчанию: https://kinohub.uk/",
+        en: "Default: https://kinohub.uk/",
+        uk: "За замовчуванням: https://kinohub.uk/",
       },
       app_settings_lampa_url_ok: {
         ru: "Сохранено, ожидайте перехода...",
@@ -729,11 +735,9 @@
         order: 5,
         param: {
           name: "app_settings_lampaUrl",
-          type: "input",
-          placeholder: Lampa.Lang.translate(
-            "app_settings_lampa_url_placeholder",
-          ),
-          values: "",
+          type: "select",
+          values: LAMPA_URL_OPTIONS,
+          default: DEFAULT_LAMPA_URL,
         },
         field: {
           name: Lampa.Lang.translate("app_settings_lampa_url_name"),
@@ -742,18 +746,19 @@
           ),
         },
         onChange: async function (value) {
-          if (URL.canParse(value)) {
-            // Lampa.Settings.update();
-            Lampa.Noty.show(Lampa.Lang.translate("app_settings_lampa_url_ok"));
-            setTimeout(
-              async () => await window.electronAPI.store.set("lampaUrl", value),
-              1000,
-            );
-          } else {
-            Lampa.Noty.show(
-              Lampa.Lang.translate("app_settings_lampa_url_error"),
-            );
-          }
+          const lampaUrl = Object.prototype.hasOwnProperty.call(
+            LAMPA_URL_OPTIONS,
+            value,
+          )
+            ? value
+            : DEFAULT_LAMPA_URL;
+
+          Lampa.Noty.show(Lampa.Lang.translate("app_settings_lampa_url_ok"));
+          setTimeout(
+            async () =>
+              await window.electronAPI.store.set("lampaUrl", lampaUrl),
+            1000,
+          );
         },
       }),
       settingsManager.loadAsyncSetting("webSecurity", {

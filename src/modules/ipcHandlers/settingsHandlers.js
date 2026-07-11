@@ -1,5 +1,6 @@
 const { ipcMain, dialog } = require("electron");
 const { readFileSync, writeFileSync } = require("fs");
+const { normalizeLampaUrl } = require("../lampaUrls");
 
 // Экспортируем функцию для использования в других модулях
 async function importSettings(settings, store, mainWindow, injectPlugin) {
@@ -8,7 +9,7 @@ async function importSettings(settings, store, mainWindow, injectPlugin) {
   if (settings.app) {
     for (const [key, value] of Object.entries(settings.app)) {
       if (store.has(key)) {
-        store.set(key, value);
+        store.set(key, key === "lampaUrl" ? normalizeLampaUrl(value) : value);
       }
     }
   }

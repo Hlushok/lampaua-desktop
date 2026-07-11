@@ -2,6 +2,7 @@
 const Store = require("electron-store").default;
 const { app } = require("electron");
 const path = require("node:path");
+const { DEFAULT_LAMPA_URL, normalizeLampaUrl } = require("./lampaUrls");
 
 const isDev =
   process.argv.includes("--dev") || process.env.NODE_ENV === "development";
@@ -16,7 +17,7 @@ if (isDev) {
 const store = new Store({
   cwd: userDataPath,
   defaults: {
-    lampaUrl: "http://lampaua.mooo.com",
+    lampaUrl: DEFAULT_LAMPA_URL,
     fullscreenMode: "last",
     webSecurity: true,
     autoUpdate: true,
@@ -30,5 +31,10 @@ const store = new Store({
 });
 
 console.log(`📁 Store location: ${store.path}`);
+
+const normalizedLampaUrl = normalizeLampaUrl(store.get("lampaUrl"));
+if (store.get("lampaUrl") !== normalizedLampaUrl) {
+  store.set("lampaUrl", normalizedLampaUrl);
+}
 
 module.exports = store;
