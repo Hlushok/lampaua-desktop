@@ -26,7 +26,7 @@ class TorrServerManager {
   getPlatformInfo() {
     const platform = process.platform;
     const arch = process.arch;
-    let osName = "";
+    let osName;
 
     switch (platform) {
       case "win32":
