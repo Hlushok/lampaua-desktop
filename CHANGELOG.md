@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.5.12](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.11...v1.5.12) (2026-08-20)
+
+### ✨ Новые возможности
+
+- добавить локализацию настроек клавиатуры ([2fc288e](https://github.com/Hlushok/lampaua-desktop/commit/2fc288e905b26403975c508d1ff8c44a8d2eecde))
+- добавить управление с геймпада ([a0802ab](https://github.com/Hlushok/lampaua-desktop/commit/a0802ab1889e8dca4163279996dac90e65ba08bc))
+- улучшить работу геймпада с экранной клавиатурой ([df77a54](https://github.com/Hlushok/lampaua-desktop/commit/df77a54910531bd1ce496ad2a181f3a42d3cfba8))
+
+### 🐛 Исправления
+
+- исправить инициализацию настроек клавиатуры ([bc58fd5](https://github.com/Hlushok/lampaua-desktop/commit/bc58fd52a04d05782a8764af3bb0858d151161e8))
+- исправить управление геймпадом в полях ввода ([6950608](https://github.com/Hlushok/lampaua-desktop/commit/695060888cbf8ef15b16c9f24755ad4f776fd2b6))
+
 ## [1.5.11](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.10...v1.5.11) (2026-08-11)
 
 ## [1.5.10](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.9...v1.5.10) (2026-07-11)
