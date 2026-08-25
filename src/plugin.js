@@ -1988,7 +1988,7 @@
 
           if (status.version !== null) {
             const useGst = status.useGst || false;
-            let versionText = status.version;
+            let versionText;
             if (status.running) {
               // Если сервер запущен, пытаемся получить информацию с сервера
               try {

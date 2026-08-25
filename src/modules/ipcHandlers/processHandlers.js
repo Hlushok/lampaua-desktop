@@ -43,6 +43,9 @@ const WHITELIST = {
   allowedDirectories: new Set([]),
 };
 
+const childProcesses = new Map();
+const sendersWithCleanup = new WeakSet();
+
 function normalizePath(filePath) {
   if (!filePath) return filePath;
   return path.normalize(filePath).toLowerCase();
@@ -86,6 +89,37 @@ function isCommandAllowed(cmd, resolvedPath) {
   return isInAllowedDirectory(resolvedPath);
 }
 
+function safeSend(sender, channel, ...args) {
+  if (typeof sender.isDestroyed === "function" && sender.isDestroyed()) {
+    return;
+  }
+
+  sender.send(channel, ...args);
+}
+
+function cleanupProcess(id) {
+  childProcesses.delete(id);
+}
+
+function cleanupSenderProcesses(sender) {
+  for (const [id, entry] of childProcesses) {
+    if (entry.sender === sender) {
+      childProcesses.delete(id);
+    }
+  }
+}
+
+function ensureSenderCleanup(sender) {
+  if (sendersWithCleanup.has(sender) || typeof sender.once !== "function") {
+    return;
+  }
+
+  sendersWithCleanup.add(sender);
+  sender.once("destroyed", () => {
+    cleanupSenderProcesses(sender);
+  });
+}
+
 function registerProcessHandlers() {
   ipcMain.on("fs-existsSync", async (event, filePath) => {
     try {
@@ -111,27 +145,52 @@ function registerProcessHandlers() {
       const spawnOptions = opts || {};
       spawnOptions.env = { ...process.env, ...(opts?.env || {}) };
       const child = spawn(resolvedCmd, args, spawnOptions);
+      childProcesses.set(id, { child, sender: event.sender });
+      ensureSenderCleanup(event.sender);
 
       child.on("error", (err) => {
-        event.sender.send(`child-process-spawn-error-${id}`, err);
+        safeSend(event.sender, `child-process-spawn-error-${id}`, err);
+        cleanupProcess(id);
       });
 
-      child.on("exit", (code) => {
-        event.sender.send(`child-process-spawn-exit-${id}`, code);
+      child.on("exit", (code, signal) => {
+        safeSend(event.sender, `child-process-spawn-exit-${id}`, code, signal);
+        cleanupProcess(id);
       });
 
-      child.stdout.on("data", (data) => {
-        event.sender.send(`child-process-spawn-stdout-${id}`, data);
+      child.on("close", (code, signal) => {
+        safeSend(event.sender, `child-process-spawn-close-${id}`, code, signal);
+        cleanupProcess(id);
       });
 
-      child.stderr.on("data", (data) => {
-        event.sender.send(`child-process-spawn-stderr-${id}`, data);
+      child.stdout?.on("data", (data) => {
+        safeSend(event.sender, `child-process-spawn-stdout-${id}`, data);
+      });
+
+      child.stderr?.on("data", (data) => {
+        safeSend(event.sender, `child-process-spawn-stderr-${id}`, data);
       });
     } catch (err) {
-      event.sender.send(
+      safeSend(
+        event.sender,
         `child-process-spawn-error-${id}`,
         new Error(`Command ${cmd} not allowed: ${err.message}`),
       );
+    }
+  });
+
+  ipcMain.on("child-process-kill", (event, id, signal) => {
+    const entry = childProcesses.get(id);
+
+    if (!entry || entry.sender !== event.sender) {
+      return;
+    }
+
+    try {
+      entry.child.kill(signal);
+    } catch (err) {
+      safeSend(event.sender, `child-process-spawn-error-${id}`, err);
+      cleanupProcess(id);
     }
   });
 }

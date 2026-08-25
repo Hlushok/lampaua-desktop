@@ -15,6 +15,9 @@ contextBridge.exposeInMainWorld("require", (module) => {
         const id = Math.random().toString(36).substr(2, 9);
         ipcRenderer.send("child-process-spawn", id, command, args, options);
         return {
+          kill: (signal) => {
+            ipcRenderer.send("child-process-kill", id, signal);
+          },
           on: (event, callback) => {
             if (event === "error") {
               ipcRenderer.once(
@@ -24,7 +27,12 @@ contextBridge.exposeInMainWorld("require", (module) => {
             } else if (event === "exit") {
               ipcRenderer.once(
                 `child-process-spawn-exit-${id}`,
-                (event, code) => callback(code),
+                (event, code, signal) => callback(code, signal),
+              );
+            } else if (event === "close") {
+              ipcRenderer.once(
+                `child-process-spawn-close-${id}`,
+                (event, code, signal) => callback(code, signal),
               );
             }
           },
