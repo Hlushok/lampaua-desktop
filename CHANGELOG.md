@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.5.13](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.12...v1.5.13) (2026-08-25)
+
+### ✨ Новые возможности
+
+- добавить поддержку TorrServer GST ([f4a9a99](https://github.com/Hlushok/lampaua-desktop/commit/f4a9a99c9af5cd416061217423a6db6fd30c8397))
+
+### 🐛 Исправления
+
+- support killing proxied player processes ([5455846](https://github.com/Hlushok/lampaua-desktop/commit/54558463174b6698b4239299a694a194a5684daa))
+
 ## [1.5.12](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.11...v1.5.12) (2026-08-20)
 
 ### ✨ Новые возможности
