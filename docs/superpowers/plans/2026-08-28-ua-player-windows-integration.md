@@ -26,12 +26,14 @@
 ### Task 1: Discover and Persist UA Player by Exact Path
 
 **Files:**
+
 - Modify: `src/modules/playerFinder.js`
 - Modify: `src/modules/ipcHandlers/playerHandlers.js`
 - Modify: `src/modules/lampaInitializer.js`
 - Modify: `scripts/verify-external-player-contract.js`
 
 **Interfaces:**
+
 - Adds player id `ua_player` with name `UA Player` and description `UA Player for Windows`.
 - Produces synchronous helpers `normalizePlayerPath(filePath)`, `isAuthorizedPlayerPath(filePath)`, and `isUaPlayerPath(filePath)` for the main process.
 - Persists the exact chosen path in Electron store key `selectedPlayerPath` whenever `saveToLocalStorage` succeeds.
@@ -41,7 +43,10 @@
 ```js
 assert.equal(players[0].id, "ua_player");
 assert.equal(playerFinder.isAuthorizedPlayerPath(discoveredPath), true);
-assert.equal(playerFinder.isAuthorizedPlayerPath(`${discoveredPath}.evil`), false);
+assert.equal(
+  playerFinder.isAuthorizedPlayerPath(`${discoveredPath}.evil`),
+  false,
+);
 ```
 
 - [ ] **Step 2: Run `corepack yarn test:external-player-contract` and confirm the missing `ua_player` assertions fail.**
@@ -59,11 +64,13 @@ Commit: `Add exact UA Player discovery to Desktop`
 ### Task 2: Build and Validate Bounded UA Player Session Files
 
 **Files:**
+
 - Create: `src/modules/uaPlayerSessionBridge.js`
 - Create: `scripts/verify-ua-player-session-contract.js`
 - Modify: `package.json`
 
 **Interfaces:**
+
 - Produces `prepareLaunch({ sessionId, payload, positionalUrl, owner })` returning `{ args, cleanup, finish }`.
 - Session schema is `lampaua-player-session-v1` with at most 256 playlist items and 4 MiB serialized input.
 - Result schema is `lampaua-player-result-v1` with at most 1 MiB and only `end_by`, `url`, `position`, `duration`, `playlist_index`, and bounded `playback_results`.
@@ -95,12 +102,14 @@ Commit: `Add bounded UA Player session exchange`
 ### Task 3: Preserve Child Ownership While Launching Full Sessions
 
 **Files:**
+
 - Modify: `src/modules/ipcHandlers/processHandlers.js`
 - Modify: `src/preload.js`
 - Modify: `scripts/verify-external-player-contract.js`
 - Modify: `scripts/verify-ua-player-session-contract.js`
 
 **Interfaces:**
+
 - Extends `child-process-spawn` with an optional final `{ uaPlayerSession }` value supplied only by the preload proxy.
 - Adds preload methods `electronAPI.player.prepareUaPlayerSession(session)` and `electronAPI.player.onUaPlayerResult(callback)`.
 - Main sends `ua-player-session-result` only to the owner renderer that spawned the matching child.
@@ -124,10 +133,12 @@ Commit: `Launch UA Player sessions without weakening process ownership`
 ### Task 4: Feed LAMPA Metadata and Apply Playback Results
 
 **Files:**
+
 - Modify: `src/plugin.js`
 - Modify: `scripts/verify-ua-player-session-contract.js`
 
 **Interfaces:**
+
 - Follows `Lampa.Player.listener` `create` events, detects the selected exact UA Player path, creates a renderer-local `sessionId`, sends a serializable `lampaua-player-session-v1` payload to preload, and retains timeline callbacks in a `Map`.
 - On result, calls the original timeline handler as `handler(percent, seconds, durationSeconds)` and emits `ua_player_result` on the player listener with the complete normalized result.
 
@@ -148,10 +159,12 @@ Commit: `Connect LAMPA playback metadata to UA Player`
 ### Task 5: Desktop Verification Without Publication
 
 **Files:**
+
 - Modify only when a verification failure identifies a scoped defect.
 - Produce locally through existing build: `dist/` Windows artifacts at package version `1.5.14` only.
 
 **Interfaces:**
+
 - Produces a locally verified LampaUa Desktop build that discovers and launches the local UA Player 0.0.1 artifacts.
 
 - [ ] **Step 1: Run immutable dependency verification.**
