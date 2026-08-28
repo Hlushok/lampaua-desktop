@@ -1,6 +1,10 @@
 const { ipcMain, dialog } = require("electron");
 const { readFileSync, writeFileSync } = require("fs");
 const { normalizeLampaUrl } = require("../lampaUrls");
+const {
+  isMainOnlyStoreKey,
+  publicStoreSnapshot,
+} = require("../storeAccessPolicy");
 
 // Экспортируем функцию для использования в других модулях
 async function importSettings(settings, store, mainWindow, injectPlugin) {
@@ -8,7 +12,7 @@ async function importSettings(settings, store, mainWindow, injectPlugin) {
 
   if (settings.app) {
     for (const [key, value] of Object.entries(settings.app)) {
-      if (store.has(key)) {
+      if (!isMainOnlyStoreKey(key) && store.has(key)) {
         store.set(key, key === "lampaUrl" ? normalizeLampaUrl(value) : value);
       }
     }
@@ -102,7 +106,7 @@ function registerSettingsHandlers(store, getMainWindow, injectPlugin) {
       const settings = {
         appVersion: app.getVersion(),
         dateCreated: new Date().toISOString(),
-        app: store.get(),
+        app: publicStoreSnapshot(store.get()),
         lampa: localStorageData,
       };
 

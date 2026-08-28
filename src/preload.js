@@ -210,7 +210,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     find: (playerId) => ipcRenderer.invoke("player-find", playerId),
     findAll: () => ipcRenderer.invoke("player-find-all"),
     selectManual: () => ipcRenderer.invoke("player-select-manual"),
-    savePath: (path) => ipcRenderer.invoke("player-save-path", path),
     getAvailable: () => ipcRenderer.invoke("player-get-available"),
     getAllWithDetails: () => ipcRenderer.invoke("player-get-all-with-details"),
     setDefaultAndSave: (playerId) =>

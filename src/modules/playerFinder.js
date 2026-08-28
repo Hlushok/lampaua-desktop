@@ -3,6 +3,8 @@ const { existsSync, statSync } = require("fs");
 const path = require("path");
 const store = require("./storeManager");
 
+const TRUSTED_PLAYER_PATH_KEY = "trustedPlayerPath";
+
 function normalizePlayerPath(filePath) {
   if (typeof filePath !== "string" || !filePath.trim()) {
     return null;
@@ -319,8 +321,8 @@ class PlayerFinder {
       playerInfo = defaultPlayer;
     }
 
-    if (!isExistingFile(finalPath)) {
-      console.error(`❌ Путь не существует: ${finalPath}`);
+    if (!isExistingFile(finalPath) || !this.isAuthorizedPlayerPath(finalPath)) {
+      console.error(`❌ Путь не авторизован: ${finalPath}`);
       return false;
     }
 
@@ -341,8 +343,6 @@ class PlayerFinder {
         }
       `);
 
-      store.set("selectedPlayerPath", finalPath);
-
       console.log(
         `✅ Путь сохранен: ${finalPath} ${playerInfo ? `(${playerInfo.name})` : ""}`,
       );
@@ -351,6 +351,18 @@ class PlayerFinder {
       console.error("❌ Ошибка сохранения:", error);
       return false;
     }
+  }
+
+  async saveManualSelection(mainWindow, playerPath) {
+    if (!isExistingFile(playerPath)) return false;
+    const finalPath = path.resolve(playerPath);
+    const previous = store.get(TRUSTED_PLAYER_PATH_KEY, null);
+    store.set(TRUSTED_PLAYER_PATH_KEY, finalPath);
+    const saved = await this.saveToLocalStorage(mainWindow, finalPath);
+    if (saved) return true;
+    if (previous) store.set(TRUSTED_PLAYER_PATH_KEY, previous);
+    else store.delete(TRUSTED_PLAYER_PATH_KEY);
+    return false;
   }
 
   // Диалог выбора плеера вручную
@@ -395,7 +407,7 @@ class PlayerFinder {
       return platformPaths;
     }
 
-    const selectedPath = store.get("selectedPlayerPath", null);
+    const selectedPath = store.get(TRUSTED_PLAYER_PATH_KEY, null);
     const candidates = [...platformPaths];
     if (
       this.isUaPlayerExecutable(selectedPath) &&
@@ -432,7 +444,7 @@ class PlayerFinder {
       return false;
     }
 
-    const selectedPath = store.get("selectedPlayerPath", null);
+    const selectedPath = store.get(TRUSTED_PLAYER_PATH_KEY, null);
     const candidates = [
       ...Array.from(this.foundPlayers.values(), (player) => player.path),
       selectedPath,
@@ -454,7 +466,7 @@ class PlayerFinder {
       return false;
     }
 
-    const selectedPath = store.get("selectedPlayerPath", null);
+    const selectedPath = store.get(TRUSTED_PLAYER_PATH_KEY, null);
     const uaPlayer = this.foundPlayers.get("ua_player");
     return [...uaPlayerWindowsPaths, selectedPath, uaPlayer?.path].some(
       (candidate) => normalizePlayerPath(candidate) === normalized,

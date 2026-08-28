@@ -39,16 +39,10 @@ function registerPlayerHandlers() {
     const mainWindow = getMainWindow();
     const path = await playerFinder.showManualSelectDialog(mainWindow);
     if (path) {
-      const saved = await playerFinder.saveToLocalStorage(mainWindow, path);
+      const saved = await playerFinder.saveManualSelection(mainWindow, path);
       return saved ? path : null;
     }
     return null;
-  });
-
-  // Сохранить путь в localStorage
-  ipcMain.handle("player-save-path", async (event, playerPath) => {
-    const mainWindow = getMainWindow();
-    return await playerFinder.saveToLocalStorage(mainWindow, playerPath);
   });
 
   // Получить список доступных плееров

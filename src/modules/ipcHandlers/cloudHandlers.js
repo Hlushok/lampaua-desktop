@@ -6,6 +6,7 @@ const {
 } = require("../utils/encryption");
 
 const { importSettings } = require("./settingsHandlers");
+const { publicStoreSnapshot } = require("../storeAccessPolicy");
 
 const BACKUP_API_BASE_URL = "http://lampaua.mooo.com/database/desktop-backup";
 
@@ -29,7 +30,7 @@ function registerCloudHandlers(store, getMainWindow, injectPlugin) {
       const settings = {
         appVersion: app.getVersion(),
         dateCreated: new Date().toISOString(),
-        app: store.get(),
+        app: publicStoreSnapshot(store.get()),
         lampa: storageData,
       };
 

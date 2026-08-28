@@ -49,13 +49,21 @@ class LampaInitializer {
         return;
       }
 
-      // Проверяем, есть ли уже путь в localStorage
+      await playerFinder.findAllPlayers();
+
+      // Renderer-local storage can select only an exact path already trusted by main.
       const existingPath = await playerFinder.checkLocalStoragePath(mainWindow);
 
       if (existingPath && existsSync(existingPath)) {
-        await playerFinder.saveToLocalStorage(mainWindow, existingPath);
-        console.log(`✅ Путь к плееру уже есть: ${existingPath}`);
-        return;
+        const saved = await playerFinder.saveToLocalStorage(
+          mainWindow,
+          existingPath,
+        );
+        if (saved) {
+          console.log(`✅ Путь к плееру уже есть: ${existingPath}`);
+          return;
+        }
+        console.warn(`⚠️ Ігноруємо неавторизований шлях плеєра: ${existingPath}`);
       }
 
       // Проверяем какой плеер выбран в Lampa

@@ -177,6 +177,7 @@ function verifyPreloadContract() {
     electronAPI.player.createUaPlayerSessionId(),
     /^[0-9a-f]{8}-[0-9a-f-]{27}$/,
   );
+  assert.equal(electronAPI.player.savePath, undefined);
 }
 
 function createIpcMainMock() {
@@ -185,7 +186,54 @@ function createIpcMainMock() {
     on(channel, handler) {
       this.handlers.set(channel, handler);
     },
+    handle(channel, handler) {
+      this.handlers.set(channel, handler);
+    },
   };
+}
+
+async function verifyMainOnlyPlayerAuthorizationStore() {
+  const ipcMain = createIpcMainMock();
+  const values = new Map();
+  const store = {
+    onDidChange() {},
+    get(key) {
+      return values.get(key);
+    },
+    set(key, value) {
+      values.set(key, value);
+    },
+    has(key) {
+      return values.has(key);
+    },
+    delete(key) {
+      values.delete(key);
+    },
+  };
+  const windowManagerMock = { getMainWindow: () => null };
+  withMockedModules(
+    { electron: { ipcMain }, "../windowManager": windowManagerMock },
+    () => {
+      freshRequire(
+        path.join(
+          projectRoot,
+          "src",
+          "modules",
+          "ipcHandlers",
+          "storeHandlers.js",
+        ),
+      )(store);
+    },
+  );
+
+  const setValue = ipcMain.handlers.get("store-set");
+  const getValue = ipcMain.handlers.get("store-get");
+  await setValue({}, "theme", "dark");
+  assert.equal(await getValue({}, "theme"), "dark");
+  for (const key of ["selectedPlayerPath", "trustedPlayerPath"]) {
+    assert.throws(() => setValue({}, key, "C:\\Windows\\System32\\cmd.exe"));
+    assert.throws(() => getValue({}, key));
+  }
 }
 
 function createSender(name) {
@@ -230,13 +278,14 @@ async function verifyPlayerFinderContract() {
     "UAPlayer.exe",
   );
   const selectedPath = "D:\\Players\\UA Player\\UAPlayer.exe";
+  const arbitraryPath = "C:\\Windows\\System32\\cmd.exe";
   const normalize = (filePath) => path.resolve(filePath).toLowerCase();
   const existingFiles = new Set(
-    [installedPath, legacyPath, selectedPath].map(normalize),
+    [installedPath, legacyPath, selectedPath, arbitraryPath].map(normalize),
   );
   const values = new Map([
     ["defaultPlayer", "ua_player"],
-    ["selectedPlayerPath", selectedPath],
+    ["trustedPlayerPath", selectedPath],
   ]);
   const storeMock = {
     delete(key) {
@@ -306,15 +355,28 @@ async function verifyPlayerFinderContract() {
       await playerFinder.saveToLocalStorage(mainWindow, selectedPath),
       true,
     );
-    assert.equal(values.get("selectedPlayerPath"), selectedPath);
+    assert.equal(values.get("trustedPlayerPath"), selectedPath);
     assert.equal(scripts.length, 1);
+
+    assert.equal(
+      await playerFinder.saveToLocalStorage(mainWindow, arbitraryPath),
+      false,
+    );
+    assert.equal(scripts.length, 1);
+
+    assert.equal(
+      await playerFinder.saveManualSelection(mainWindow, arbitraryPath),
+      true,
+    );
+    assert.equal(values.get("trustedPlayerPath"), arbitraryPath);
+    assert.equal(scripts.length, 2);
 
     const missingPath = "D:\\Players\\Missing\\UAPlayer.exe";
     assert.equal(
       await playerFinder.saveToLocalStorage(mainWindow, missingPath),
       false,
     );
-    assert.equal(values.get("selectedPlayerPath"), selectedPath);
+    assert.equal(values.get("trustedPlayerPath"), arbitraryPath);
   } finally {
     if (previousProgramFiles === undefined) {
       delete process.env.ProgramFiles;
@@ -678,6 +740,7 @@ async function verifyUaPlayerMainProcessContract() {
 async function main() {
   await verifyPlayerFinderContract();
   verifyPreloadContract();
+  await verifyMainOnlyPlayerAuthorizationStore();
   await verifyMainProcessContract();
   await verifyUaPlayerMainProcessContract();
   console.log("External player process proxy contract verified");
