@@ -232,15 +232,23 @@ async function verifyMainOnlyPlayerAuthorizationStore() {
   const deleteValue = ipcMain.handlers.get("store-delete");
   await setValue({}, "theme", "dark");
   assert.equal(await getValue({}, "theme"), "dark");
-  for (const key of ["selectedPlayerPath", "trustedPlayerPath"]) {
+  for (const key of [
+    "selectedPlayerPath",
+    "trustedPlayerPath",
+    "selectedPlayerPath.nested",
+    "trustedPlayerPath.nested",
+    "\\selectedPlayerPath",
+    "\\trustedPlayerPath",
+    "selected\\PlayerPath",
+    "trusted\\PlayerPath",
+    "[selectedPlayerPath]",
+    "[trustedPlayerPath]",
+    "theme.nested",
+  ]) {
     assert.throws(() => setValue({}, key, "C:\\Windows\\System32\\cmd.exe"));
     assert.throws(() => getValue({}, key));
     assert.throws(() => hasValue({}, key));
     assert.throws(() => deleteValue({}, key));
-    assert.throws(() => setValue({}, `${key}.nested`, "bypass"));
-    assert.throws(() => getValue({}, `${key}.nested`));
-    assert.throws(() => hasValue({}, `${key}.nested`));
-    assert.throws(() => deleteValue({}, `${key}.nested`));
   }
   for (const key of [
     { trustedPlayerPath: "C:\\Windows\\System32\\cmd.exe" },
@@ -264,9 +272,61 @@ async function verifyMainOnlyPlayerAuthorizationStore() {
       theme: "dark",
       selectedPlayerPath: "legacy-untrusted",
       trustedPlayerPath: "main-only",
+      "\\trustedPlayerPath": "escaped-main-only",
+      "theme.nested": "nested-not-public",
     }),
     { theme: "dark" },
   );
+
+  let importSettings;
+  withMockedModules({ electron: { ipcMain: {}, dialog: {} } }, () => {
+    ({ importSettings } = freshRequire(
+      path.join(
+        projectRoot,
+        "src",
+        "modules",
+        "ipcHandlers",
+        "settingsHandlers.js",
+      ),
+    ));
+  });
+  const importedValues = [];
+  const importStore = {
+    get(key) {
+      return key === "lampaUrl" ? "https://portal.example.test" : undefined;
+    },
+    has() {
+      return true;
+    },
+    set(key, value) {
+      importedValues.push({ key, value });
+    },
+  };
+  const importWindow = {
+    webContents: {
+      getURL: () => "https://unrelated.example.test",
+    },
+  };
+  let pluginInjectionCount = 0;
+  await importSettings(
+    {
+      app: {
+        theme: "light",
+        trustedPlayerPath: "C:\\Windows\\System32\\cmd.exe",
+        "\\trustedPlayerPath": "C:\\Windows\\System32\\cmd.exe",
+        "trusted\\PlayerPath": "C:\\Windows\\System32\\cmd.exe",
+        "trustedPlayerPath.nested": "C:\\Windows\\System32\\cmd.exe",
+        "[trustedPlayerPath]": "C:\\Windows\\System32\\cmd.exe",
+      },
+    },
+    importStore,
+    importWindow,
+    () => {
+      pluginInjectionCount += 1;
+    },
+  );
+  assert.deepEqual(importedValues, [{ key: "theme", value: "light" }]);
+  assert.equal(pluginInjectionCount, 1);
 }
 
 function createSender(name) {
