@@ -1,4 +1,52 @@
 const { contextBridge, ipcRenderer } = require("electron");
+const crypto = require("node:crypto");
+const path = require("node:path");
+
+const UA_PLAYER_SESSION_TTL_MS = 30_000;
+let pendingUaPlayerSession = null;
+let pendingUaPlayerSessionTimer = null;
+
+function clearPendingUaPlayerSession() {
+  pendingUaPlayerSession = null;
+  if (pendingUaPlayerSessionTimer) {
+    clearTimeout(pendingUaPlayerSessionTimer);
+    pendingUaPlayerSessionTimer = null;
+  }
+}
+
+function prepareUaPlayerSession(session) {
+  if (!session || typeof session !== "object" || Array.isArray(session)) {
+    return false;
+  }
+  clearPendingUaPlayerSession();
+  pendingUaPlayerSession = {
+    expiresAt: Date.now() + UA_PLAYER_SESSION_TTL_MS,
+    value: session,
+  };
+  pendingUaPlayerSessionTimer = setTimeout(
+    clearPendingUaPlayerSession,
+    UA_PLAYER_SESSION_TTL_MS,
+  );
+  pendingUaPlayerSessionTimer.unref?.();
+  return true;
+}
+
+function takeUaPlayerSession(command) {
+  if (!pendingUaPlayerSession) return null;
+  if (pendingUaPlayerSession.expiresAt < Date.now()) {
+    clearPendingUaPlayerSession();
+    return null;
+  }
+  if (
+    typeof command !== "string" ||
+    path.win32.basename(command).toLowerCase() !== "uaplayer.exe"
+  ) {
+    return null;
+  }
+  const session = pendingUaPlayerSession.value;
+  clearPendingUaPlayerSession();
+  return session;
+}
 
 // Модуль для Node.js модулей
 contextBridge.exposeInMainWorld("require", (module) => {
@@ -13,7 +61,10 @@ contextBridge.exposeInMainWorld("require", (module) => {
     return {
       spawn: (command, args, options) => {
         const id = Math.random().toString(36).substr(2, 9);
-        ipcRenderer.send("child-process-spawn", id, command, args, options);
+        const uaPlayerSession = takeUaPlayerSession(command);
+        const spawnArguments = [id, command, args, options];
+        if (uaPlayerSession) spawnArguments.push({ uaPlayerSession });
+        ipcRenderer.send("child-process-spawn", ...spawnArguments);
         return {
           kill: (signal) => {
             ipcRenderer.send("child-process-kill", id, signal);
@@ -164,6 +215,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getAllWithDetails: () => ipcRenderer.invoke("player-get-all-with-details"),
     setDefaultAndSave: (playerId) =>
       ipcRenderer.invoke("player-set-default-and-save", playerId),
+    prepareUaPlayerSession,
+    createUaPlayerSessionId: () => crypto.randomUUID(),
+    onUaPlayerResult: (callback) => {
+      const subscription = (event, value) => callback(value);
+      ipcRenderer.on("ua-player-session-result", subscription);
+      return () => {
+        ipcRenderer.removeListener("ua-player-session-result", subscription);
+      };
+    },
   },
 });
 

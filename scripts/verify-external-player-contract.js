@@ -79,12 +79,15 @@ function createIpcRendererMock() {
 
 function verifyPreloadContract() {
   let exposedRequire;
+  let electronAPI;
   const ipcRenderer = createIpcRendererMock();
   const electronMock = {
     contextBridge: {
       exposeInMainWorld(name, value) {
         if (name === "require") {
           exposedRequire = value;
+        } else if (name === "electronAPI") {
+          electronAPI = value;
         }
       },
     },
@@ -119,6 +122,61 @@ function verifyPreloadContract() {
 
   const secondPlayer = childProcess.spawn("vlc", ["second.mp4"], {});
   assert.equal(typeof secondPlayer.kill, "function");
+
+  const preparedSession = {
+    sessionId: "preload-session",
+    payload: {
+      schema: "lampaua-player-session-v1",
+      items: [{ url: "https://stream.example.test/video.m3u8" }],
+    },
+    positionalUrl: "https://stream.example.test/video.m3u8",
+  };
+  assert.equal(
+    electronAPI.player.prepareUaPlayerSession(preparedSession),
+    true,
+  );
+  childProcess.spawn("vlc", ["unrelated.mp4"], {});
+  const unrelatedSpawn = ipcRenderer.sent
+    .filter((message) => message.channel === "child-process-spawn")
+    .at(-1);
+  assert.equal(unrelatedSpawn.args.length, 4);
+
+  childProcess.spawn(
+    "C:\\Program Files\\UA Player\\UAPlayer.exe",
+    [preparedSession.positionalUrl],
+    {},
+  );
+  const uaSpawn = ipcRenderer.sent
+    .filter((message) => message.channel === "child-process-spawn")
+    .at(-1);
+  assert.deepEqual(uaSpawn.args.at(-1), {
+    uaPlayerSession: preparedSession,
+  });
+
+  childProcess.spawn(
+    "C:\\Program Files\\UA Player\\UAPlayer.exe",
+    [preparedSession.positionalUrl],
+    {},
+  );
+  const oneShotSpawn = ipcRenderer.sent
+    .filter((message) => message.channel === "child-process-spawn")
+    .at(-1);
+  assert.equal(oneShotSpawn.args.length, 4);
+
+  let receivedResult;
+  const unsubscribe = electronAPI.player.onUaPlayerResult((value) => {
+    receivedResult = value;
+  });
+  ipcRenderer.emitFromMain("ua-player-session-result", {
+    sessionId: preparedSession.sessionId,
+    result: { schema: "lampaua-player-result-v1" },
+  });
+  assert.equal(receivedResult.sessionId, preparedSession.sessionId);
+  assert.equal(typeof unsubscribe, "function");
+  assert.match(
+    electronAPI.player.createUaPlayerSessionId(),
+    /^[0-9a-f]{8}-[0-9a-f-]{27}$/,
+  );
 }
 
 function createIpcMainMock() {
@@ -288,12 +346,22 @@ async function verifyMainProcessContract() {
     },
   };
   const whichMock = async (command) => command;
+  const playerFinderMock = {
+    isAuthorizedPlayerPath: () => false,
+    isUaPlayerPath: () => false,
+  };
+  const sessionBridgeMock = {
+    cleanupAll() {},
+    cleanupOwner() {},
+  };
 
   withMockedModules(
     {
       electron: electronMock,
       child_process: childProcessMock,
       which: whichMock,
+      "../playerFinder": playerFinderMock,
+      "../uaPlayerSessionBridge": sessionBridgeMock,
     },
     () => {
       const registerProcessHandlers = freshRequire(
@@ -356,10 +424,239 @@ async function verifyMainProcessContract() {
   assert.deepEqual(children[1].killCalls, []);
 }
 
+async function verifyUaPlayerMainProcessContract() {
+  const ipcMain = createIpcMainMock();
+  const app = new EventEmitter();
+  const owner = createSender("ua-owner");
+  const intruder = createSender("ua-intruder");
+  const executable = "C:\\Program Files\\UA Player\\UAPlayer.exe";
+  const children = [];
+  const spawnCalls = [];
+  const launches = [];
+  let cleanupAllCalls = 0;
+  const childProcessMock = {
+    spawn(command, args, options) {
+      const child = createChildProcess();
+      children.push(child);
+      spawnCalls.push({ command, args, options });
+      return child;
+    },
+  };
+  const playerFinderMock = {
+    isAuthorizedPlayerPath(filePath) {
+      return filePath.toLowerCase() === executable.toLowerCase();
+    },
+    isUaPlayerPath(filePath) {
+      return filePath.toLowerCase() === executable.toLowerCase();
+    },
+  };
+  const sessionBridgeMock = {
+    cleanupAll() {
+      cleanupAllCalls += 1;
+    },
+    cleanupOwner(ownerToClean) {
+      for (const state of launches) {
+        if (state.options.owner !== ownerToClean || state.cleaned) continue;
+        state.cleaned = true;
+        state.cleanupCalls += 1;
+      }
+    },
+    prepareLaunch(options) {
+      const state = {
+        cleanupCalls: 0,
+        cleaned: false,
+        finishCalls: 0,
+        finished: false,
+        options,
+      };
+      launches.push(state);
+      return {
+        args: [
+          "--session-json",
+          `C:\\Temp\\${options.sessionId}\\session.json`,
+          "--result-file",
+          `C:\\Temp\\${options.sessionId}\\result.json`,
+        ],
+        cleanup() {
+          if (state.cleaned) return;
+          state.cleaned = true;
+          state.cleanupCalls += 1;
+        },
+        finish() {
+          if (state.finished || state.cleaned) return null;
+          state.finished = true;
+          state.finishCalls += 1;
+          state.cleaned = true;
+          state.cleanupCalls += 1;
+          return {
+            schema: "lampaua-player-result-v1",
+            end_by: "user",
+            url: options.positionalUrl,
+            position: 10_000,
+            duration: 20_000,
+            playlist_index: 0,
+            playback_results: [],
+          };
+        },
+        sessionId: options.sessionId,
+        usesSession: true,
+      };
+    },
+  };
+  const whichMock = async (command) => command;
+
+  withMockedModules(
+    {
+      electron: { app, ipcMain },
+      child_process: childProcessMock,
+      which: whichMock,
+      "../playerFinder": playerFinderMock,
+      "../uaPlayerSessionBridge": sessionBridgeMock,
+    },
+    () => {
+      const registerProcessHandlers = freshRequire(
+        path.join(
+          projectRoot,
+          "src",
+          "modules",
+          "ipcHandlers",
+          "processHandlers.js",
+        ),
+      );
+      registerProcessHandlers();
+    },
+  );
+
+  const spawnHandler = ipcMain.handlers.get("child-process-spawn");
+  const killHandler = ipcMain.handlers.get("child-process-kill");
+  const session = {
+    sessionId: "main-session",
+    payload: {
+      schema: "lampaua-player-session-v1",
+      items: [{ url: "https://stream.example.test/video.m3u8" }],
+    },
+    positionalUrl: "https://stream.example.test/video.m3u8",
+  };
+
+  await spawnHandler(
+    { sender: owner },
+    "basename-only",
+    "UAPlayer.exe",
+    [session.positionalUrl],
+    {},
+    { uaPlayerSession: session },
+  );
+  assert.equal(children.length, 0);
+
+  await spawnHandler(
+    { sender: owner },
+    "exact-player",
+    executable,
+    [session.positionalUrl],
+    { windowsHide: false },
+    { uaPlayerSession: session },
+  );
+  assert.equal(children.length, 1);
+  assert.equal(launches.length, 1);
+  assert.equal(launches[0].options.owner, owner);
+  assert.deepEqual(spawnCalls[0].args.slice(0, 2), [
+    "--session-json",
+    "C:\\Temp\\main-session\\session.json",
+  ]);
+
+  killHandler({ sender: intruder }, "exact-player", "SIGTERM");
+  assert.deepEqual(children[0].killCalls, []);
+  killHandler({ sender: owner }, "exact-player", "SIGTERM");
+  assert.deepEqual(children[0].killCalls, ["SIGTERM"]);
+
+  children[0].stdout.emit("data", "stdout");
+  children[0].stderr.emit("data", "stderr");
+  children[0].emit("exit", 0, null);
+  assert.equal(launches[0].finishCalls, 0);
+  children[0].emit("close", 0, null);
+  children[0].emit("close", 0, null);
+  assert.equal(launches[0].finishCalls, 1);
+  assert.equal(launches[0].cleanupCalls, 1);
+  const resultMessages = owner.sent.filter(
+    (message) => message.channel === "ua-player-session-result",
+  );
+  assert.equal(resultMessages.length, 1);
+  assert.equal(resultMessages[0].args[0].sessionId, session.sessionId);
+  assert.equal(intruder.sent.length, 0);
+  for (const suffix of ["stdout", "stderr", "exit", "close"]) {
+    assert.equal(
+      owner.sent.some(
+        (message) =>
+          message.channel === `child-process-spawn-${suffix}-exact-player`,
+      ),
+      true,
+    );
+  }
+
+  const errorOwner = createSender("error-owner");
+  await spawnHandler(
+    { sender: errorOwner },
+    "error-player",
+    executable,
+    [session.positionalUrl],
+    {},
+    {
+      uaPlayerSession: { ...session, sessionId: "error-session" },
+    },
+  );
+  children[1].emit("error", new Error("spawn failed"));
+  children[1].emit("close", 1, null);
+  assert.equal(launches[1].cleanupCalls, 1);
+  assert.equal(
+    errorOwner.sent.some(
+      (message) => message.channel === "child-process-spawn-error-error-player",
+    ),
+    true,
+  );
+
+  const destroyedOwner = createSender("destroyed-owner");
+  await spawnHandler(
+    { sender: destroyedOwner },
+    "destroyed-player",
+    executable,
+    [session.positionalUrl],
+    {},
+    {
+      uaPlayerSession: { ...session, sessionId: "destroyed-session" },
+    },
+  );
+  children[2].emit("exit", 0, null);
+  destroyedOwner.destroy();
+  assert.equal(launches[2].cleanupCalls, 1);
+  children[2].emit("close", 0, null);
+  assert.equal(
+    destroyedOwner.sent.some(
+      (message) => message.channel === "ua-player-session-result",
+    ),
+    false,
+  );
+
+  const quitOwner = createSender("quit-owner");
+  await spawnHandler(
+    { sender: quitOwner },
+    "quit-player",
+    executable,
+    [session.positionalUrl],
+    {},
+    {
+      uaPlayerSession: { ...session, sessionId: "quit-session" },
+    },
+  );
+  app.emit("before-quit");
+  assert.equal(launches[3].cleanupCalls, 1);
+  assert.equal(cleanupAllCalls, 1);
+}
+
 async function main() {
   await verifyPlayerFinderContract();
   verifyPreloadContract();
   await verifyMainProcessContract();
+  await verifyUaPlayerMainProcessContract();
   console.log("External player process proxy contract verified");
 }
 

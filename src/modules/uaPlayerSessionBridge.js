@@ -533,8 +533,8 @@ function getDefaultBridge() {
 }
 
 module.exports = {
-  cleanupAll: () => getDefaultBridge().cleanupAll(),
-  cleanupOwner: (owner) => getDefaultBridge().cleanupOwner(owner),
+  cleanupAll: () => defaultBridge?.cleanupAll(),
+  cleanupOwner: (owner) => defaultBridge?.cleanupOwner(owner),
   createUaPlayerSessionBridge,
   prepareLaunch: (options) => getDefaultBridge().prepareLaunch(options),
 };
