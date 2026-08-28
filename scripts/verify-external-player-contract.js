@@ -228,11 +228,32 @@ async function verifyMainOnlyPlayerAuthorizationStore() {
 
   const setValue = ipcMain.handlers.get("store-set");
   const getValue = ipcMain.handlers.get("store-get");
+  const hasValue = ipcMain.handlers.get("store-has");
+  const deleteValue = ipcMain.handlers.get("store-delete");
   await setValue({}, "theme", "dark");
   assert.equal(await getValue({}, "theme"), "dark");
   for (const key of ["selectedPlayerPath", "trustedPlayerPath"]) {
     assert.throws(() => setValue({}, key, "C:\\Windows\\System32\\cmd.exe"));
     assert.throws(() => getValue({}, key));
+    assert.throws(() => hasValue({}, key));
+    assert.throws(() => deleteValue({}, key));
+    assert.throws(() => setValue({}, `${key}.nested`, "bypass"));
+    assert.throws(() => getValue({}, `${key}.nested`));
+    assert.throws(() => hasValue({}, `${key}.nested`));
+    assert.throws(() => deleteValue({}, `${key}.nested`));
+  }
+  for (const key of [
+    { trustedPlayerPath: "C:\\Windows\\System32\\cmd.exe" },
+    ["trustedPlayerPath"],
+    null,
+    42,
+    "",
+    "   ",
+  ]) {
+    assert.throws(() => setValue({}, key, "bypass"));
+    assert.throws(() => getValue({}, key));
+    assert.throws(() => hasValue({}, key));
+    assert.throws(() => deleteValue({}, key));
   }
 
   const { publicStoreSnapshot } = freshRequire(
