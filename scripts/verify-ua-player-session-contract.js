@@ -285,6 +285,13 @@ function verifyResultValidation(createUaPlayerSessionBridge) {
     assert.equal(valid.finish(), null);
     assert.equal(fs.existsSync(validDirectory), false);
 
+    const replaced = prepare("replaced-result");
+    writeAtomicJson(
+      resultPathFor(replaced),
+      validResult({ end_by: "replaced" }),
+    );
+    assert.equal(replaced.finish().end_by, "replaced");
+
     verifyRejected("missing-result", () => {});
     verifyRejected("malformed-result", (filePath) => {
       fs.writeFileSync(filePath, "{not-json");
@@ -384,7 +391,8 @@ function verifyPluginContract() {
   assert.equal(typeof listeners.get("create"), "function");
   assert.equal(typeof resultSubscription, "function");
 
-  let timelineArgs;
+  let firstTimelineArgs;
+  let currentTimelineArgs;
   const data = {
     url: "https://origin.example.test/episode-2.m3u8",
     title: "Серія 2",
@@ -394,7 +402,7 @@ function verifyPluginContract() {
       hash: "timeline-hash",
       time: 12,
       handler(...args) {
-        timelineArgs = args;
+        currentTimelineArgs = args;
       },
     },
     playlist_index: 1,
@@ -403,6 +411,11 @@ function verifyPluginContract() {
         url: "https://origin.example.test/episode-1.m3u8",
         title: "Серія 1",
         episode: 1,
+        timeline: {
+          handler(...args) {
+            firstTimelineArgs = args;
+          },
+        },
       },
       {
         url: "https://origin.example.test/episode-2.m3u8",
@@ -459,11 +472,34 @@ function verifyPluginContract() {
     sessionId: "unknown-session",
     result: validResult(),
   });
-  assert.equal(timelineArgs, undefined);
+  assert.equal(firstTimelineArgs, undefined);
+  assert.equal(currentTimelineArgs, undefined);
 
-  const result = validResult({ position: 30_000, duration: 60_000 });
+  const result = validResult({
+    url: "https://origin.example.test/episode-2.m3u8",
+    position: 30_000,
+    duration: 60_000,
+    playlist_index: 1,
+    playback_results: [
+      {
+        end_by: "playing",
+        url: "https://origin.example.test/episode-1.m3u8",
+        position: 10_000,
+        duration: 40_000,
+        playlist_index: 0,
+      },
+      {
+        end_by: "playing",
+        url: "https://origin.example.test/episode-2.m3u8",
+        position: 20_000,
+        duration: 60_000,
+        playlist_index: 1,
+      },
+    ],
+  });
   resultSubscription({ sessionId: prepared.sessionId, result });
-  assert.deepEqual(timelineArgs, [50, 30, 60]);
+  assert.deepEqual(firstTimelineArgs, [25, 10, 40]);
+  assert.deepEqual(currentTimelineArgs, [(20 / 60) * 100, 20, 60]);
   assert.equal(sentEvents.at(-1).eventName, "ua_player_result");
   assert.equal(sentEvents.at(-1).value, result);
 

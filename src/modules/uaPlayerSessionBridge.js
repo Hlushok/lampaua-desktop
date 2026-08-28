@@ -25,6 +25,7 @@ const ALLOWED_END_REASONS = new Set([
   "ended",
   "failed",
   "playing",
+  "replaced",
   "stopped",
   "user",
 ]);

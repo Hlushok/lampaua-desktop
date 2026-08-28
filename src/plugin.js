@@ -250,7 +250,13 @@
       : 0;
   }
 
-  function buildUaPlayerPayload(data) {
+  function timelineHandler(data) {
+    return typeof data?.timeline?.handler === "function"
+      ? data.timeline.handler
+      : null;
+  }
+
+  function buildUaPlayerSession(data) {
     if (!data || typeof data !== "object") return null;
     const rawPlaylist = Array.isArray(data.playlist) ? data.playlist : [];
     const currentPositionMs = currentTimelinePositionMs(data);
@@ -271,6 +277,7 @@
         item: buildUaPlayerItem(entry, data, 0, false),
         raw: entry,
         rawIndex,
+        timelineHandler: timelineHandler(entry),
       }))
       .filter((entry) => entry.item.url || entry.item.resolver_url);
     let rawPlaylistIndex = ownValue(
@@ -297,39 +304,49 @@
             entry.item.url === originalCurrentUrl),
       );
     }
-    let items = playlistEntries.map((entry) => entry.item);
+    let sessionEntries = playlistEntries;
 
-    if (playlistIndex >= 0 && playlistIndex < items.length) {
+    if (playlistIndex >= 0 && playlistIndex < sessionEntries.length) {
       const selectedSource = Object.assign(
         {},
         selectedData,
         playlistEntries[playlistIndex].raw || {},
       );
       selectedSource.url = selectedData.url || selectedSource.url;
-      items[playlistIndex] = buildUaPlayerItem(
-        selectedSource,
-        data,
-        currentPositionMs,
-        true,
-      );
+      sessionEntries[playlistIndex] = {
+        ...sessionEntries[playlistIndex],
+        item: buildUaPlayerItem(selectedSource, data, currentPositionMs, true),
+        timelineHandler:
+          timelineHandler(data) ||
+          sessionEntries[playlistIndex].timelineHandler,
+      };
     } else {
-      items.unshift(currentItem);
+      sessionEntries.unshift({
+        item: currentItem,
+        raw: data,
+        rawIndex: -1,
+        timelineHandler: timelineHandler(data),
+      });
       playlistIndex = 0;
     }
 
-    if (!items.length) return null;
-    playlistIndex = Math.max(0, Math.min(playlistIndex, items.length - 1));
-    if (items.length > UA_PLAYER_MAX_ITEMS) {
+    if (!sessionEntries.length) return null;
+    playlistIndex = Math.max(
+      0,
+      Math.min(playlistIndex, sessionEntries.length - 1),
+    );
+    if (sessionEntries.length > UA_PLAYER_MAX_ITEMS) {
       const start = Math.max(
         0,
         Math.min(
           playlistIndex - Math.floor(UA_PLAYER_MAX_ITEMS / 2),
-          items.length - UA_PLAYER_MAX_ITEMS,
+          sessionEntries.length - UA_PLAYER_MAX_ITEMS,
         ),
       );
-      items = items.slice(start, start + UA_PLAYER_MAX_ITEMS);
+      sessionEntries = sessionEntries.slice(start, start + UA_PLAYER_MAX_ITEMS);
       playlistIndex -= start;
     }
+    const items = sessionEntries.map((entry) => entry.item);
     const payload = {
       schema: UA_PLAYER_SESSION_SCHEMA,
       playlist_index: playlistIndex,
@@ -340,7 +357,10 @@
       ownValue(data, "playlist_title", "playlist_name", "title"),
     );
     if (title) payload.title = title;
-    return payload;
+    return {
+      payload,
+      timelineHandlers: sessionEntries.map((entry) => entry.timelineHandler),
+    };
   }
 
   function createUaPlayerSessionId(playerApi) {
@@ -378,7 +398,7 @@
       return pending;
     }
 
-    function rememberSession(sessionId, timelineHandler) {
+    function rememberSession(sessionId, timelineHandlers) {
       while (pendingSessions.size >= UA_PLAYER_MAX_PENDING_SESSIONS) {
         const oldest = pendingSessions.keys().next().value;
         forgetSession(oldest);
@@ -387,14 +407,38 @@
         () => forgetSession(sessionId),
         UA_PLAYER_PENDING_TTL_MS,
       );
-      pendingSessions.set(sessionId, { timelineHandler, timeout });
+      pendingSessions.set(sessionId, { timelineHandlers, timeout });
+    }
+
+    function applyTimelineResult(handler, result) {
+      if (typeof handler !== "function" || !result) return false;
+      const position = Number.isFinite(result.position)
+        ? Math.max(0, result.position)
+        : 0;
+      const duration = Number.isFinite(result.duration)
+        ? Math.max(0, result.duration)
+        : 0;
+      const boundedPosition = duration > 0 ? Math.min(position, duration) : 0;
+      if (duration <= 0 || boundedPosition <= 0) return false;
+      const percent = Math.max(
+        0,
+        Math.min(100, (boundedPosition / duration) * 100),
+      );
+      try {
+        handler(percent, boundedPosition / 1000, duration / 1000);
+        return true;
+      } catch (error) {
+        console.error("UA Player: не вдалося зберегти timeline", error);
+        return false;
+      }
     }
 
     Lampa.Player.listener.follow("create", (event) => {
       if (!selectedPlayerIsUaPlayer()) return;
       const data = event?.data;
-      const payload = buildUaPlayerPayload(data);
-      if (!payload) return;
+      const session = buildUaPlayerSession(data);
+      if (!session) return;
+      const { payload, timelineHandlers } = session;
       const sessionId = createUaPlayerSessionId(playerApi);
       const positionalUrl = payload.items[payload.playlist_index]?.url;
       try {
@@ -404,12 +448,7 @@
           positionalUrl,
         });
         if (!prepared) return;
-        rememberSession(
-          sessionId,
-          typeof data.timeline?.handler === "function"
-            ? data.timeline.handler
-            : null,
-        );
+        rememberSession(sessionId, timelineHandlers);
       } catch {
         console.warn(
           "UA Player: не вдалося підготувати повний сеанс, використовується звичайний запуск URL",
@@ -431,27 +470,21 @@
       }
 
       const pending = forgetSession(sessionId);
-      const position = Number.isFinite(result.position)
-        ? Math.max(0, result.position)
-        : 0;
-      const duration = Number.isFinite(result.duration)
-        ? Math.max(0, result.duration)
-        : 0;
-      const boundedPosition = duration > 0 ? Math.min(position, duration) : 0;
-      if (pending?.timelineHandler && duration > 0 && boundedPosition > 0) {
-        const percent =
-          duration > 0
-            ? Math.max(0, Math.min(100, (boundedPosition / duration) * 100))
-            : 0;
-        try {
-          pending.timelineHandler(
-            percent,
-            boundedPosition / 1000,
-            duration / 1000,
-          );
-        } catch (error) {
-          console.error("UA Player: не вдалося зберегти timeline", error);
+      const appliedIndexes = new Set();
+      for (const entry of Array.isArray(result.playback_results)
+        ? result.playback_results
+        : []) {
+        const index = entry?.playlist_index;
+        if (!Number.isSafeInteger(index) || index < 0) continue;
+        if (applyTimelineResult(pending?.timelineHandlers?.[index], entry)) {
+          appliedIndexes.add(index);
         }
+      }
+      if (!appliedIndexes.has(result.playlist_index)) {
+        applyTimelineResult(
+          pending?.timelineHandlers?.[result.playlist_index],
+          result,
+        );
       }
       Lampa.Player.listener.send("ua_player_result", result);
     });
