@@ -31,6 +31,7 @@
 
 > **Плееры с поддержкой тайм-кодов:**
 >
+> - UA Player for Windows (рекомендовано для LampaUa у Windows)
 > - VLC (для всех ОС)
 > - KMPlayer / MPC-HC / MPC-BE / MPC-QT (Windows)
 > - MPC-QT (Linux)

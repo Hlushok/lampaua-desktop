@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.5.15](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.14...v1.5.15) (2026-08-29)
+
+### ✨ Новые возможности
+
+- додано UA Player for Windows як повноцінний зовнішній плеєр із точним пошуком у Program Files
+  та сумісністю з попереднім шляхом встановлення;
+- додано bounded session/result JSON для плейлистів, метаданих і повернення прогресу окремо для
+  кожного стабільно відтвореного елемента;
+- додано безпечний fallback TorrServer URL із `preload` на звичайний запуск відтворення.
+
+### 🐛 Исправления
+
+- збережено чинний owner-bound child-process contract під час запуску UA Player;
+- шлях зовнішнього плеєра тепер авторизується лише main-процесом після системного вибору файлу;
+- заблоковано object, array, escaped, dotted і bracket обходи захищених ключів налаштувань;
+- result-файл читається атомарно, перевіряється за схемою та гарантовано очищається після сеансу.
+
 ## [1.5.14](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.13...v1.5.14) (2026-08-25)
 
 ## [1.5.13](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.12...v1.5.13) (2026-08-25)
