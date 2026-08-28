@@ -9,6 +9,453 @@
     [DEFAULT_LAMPA_URL]: "https://kinohub.uk/",
     [LEGACY_LAMPA_URL]: "http://lampaua.mooo.com/",
   };
+  const UA_PLAYER_SESSION_SCHEMA = "lampaua-player-session-v1";
+  const UA_PLAYER_RESULT_SCHEMA = "lampaua-player-result-v1";
+  const UA_PLAYER_MAX_ITEMS = 256;
+  const UA_PLAYER_MAX_PENDING_SESSIONS = 32;
+  const UA_PLAYER_PENDING_TTL_MS = 24 * 60 * 60 * 1000;
+
+  function ownValue(object, ...keys) {
+    if (!object || typeof object !== "object" || Array.isArray(object)) {
+      return undefined;
+    }
+    for (const key of keys) {
+      if (Object.prototype.hasOwnProperty.call(object, key)) {
+        return object[key];
+      }
+    }
+    return undefined;
+  }
+
+  function textValue(value) {
+    return typeof value === "string" && value.trim() ? value.trim() : undefined;
+  }
+
+  function storageField(name) {
+    try {
+      if (typeof Lampa.Storage.field === "function") {
+        return Lampa.Storage.field(name);
+      }
+      return Lampa.Storage.get(name);
+    } catch {
+      return undefined;
+    }
+  }
+
+  function selectedPlayerIsUaPlayer() {
+    const selectedPath = textValue(storageField("player_nw_path"));
+    if (!selectedPath) return false;
+    return (
+      selectedPath.replace(/\//g, "\\").split("\\").at(-1).toLowerCase() ===
+      "uaplayer.exe"
+    );
+  }
+
+  function toLampaPlayUrl(value) {
+    const url = textValue(value);
+    if (!url) return undefined;
+    try {
+      const converted = Lampa.Torserver?.toPlayUrl?.(url);
+      return textValue(converted) || url;
+    } catch {
+      return url;
+    }
+  }
+
+  function copyStringMap(value) {
+    const result = {};
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return result;
+    }
+    for (const [key, item] of Object.entries(value)) {
+      if (typeof item === "string" && key.trim()) result[key] = item;
+    }
+    return result;
+  }
+
+  function copyQualities(value) {
+    const result = {};
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return result;
+    }
+    for (const [label, item] of Object.entries(value)) {
+      const rawUrl =
+        typeof item === "string" ? item : ownValue(item, "url", "src");
+      const url = toLampaPlayUrl(rawUrl);
+      if (label.trim() && url) result[label] = url;
+    }
+    return result;
+  }
+
+  function lampaSelectedQualityUrl(data) {
+    const quality = ownValue(data, "quality");
+    if (!quality || typeof quality !== "object" || Array.isArray(quality)) {
+      return undefined;
+    }
+    const entries = Object.entries(quality);
+    if (entries.length <= 1) return undefined;
+    const preferredHeight = Number.parseInt(
+      storageField("video_quality_default"),
+      10,
+    );
+    if (!Number.isFinite(preferredHeight)) return undefined;
+    for (const [label, item] of entries) {
+      const rawUrl =
+        typeof item === "string" ? item : ownValue(item, "url", "src");
+      if (Number.parseInt(label, 10) === preferredHeight && textValue(rawUrl)) {
+        return rawUrl;
+      }
+    }
+    return undefined;
+  }
+
+  function copySubtitles(value) {
+    if (!Array.isArray(value)) return [];
+    return value
+      .map((item) => {
+        if (!item || typeof item !== "object" || Array.isArray(item)) {
+          return null;
+        }
+        const url = textValue(ownValue(item, "url", "file"));
+        if (!url) return null;
+        const subtitle = { url };
+        const label = textValue(ownValue(item, "label", "title", "name"));
+        const language = textValue(ownValue(item, "language", "lang"));
+        if (label) subtitle.label = label;
+        if (language) subtitle.language = language;
+        if (ownValue(item, "default") === true) subtitle.default = true;
+        return subtitle;
+      })
+      .filter(Boolean);
+  }
+
+  function copySegment(segment) {
+    if (!segment || typeof segment !== "object" || Array.isArray(segment)) {
+      return null;
+    }
+    const result = {};
+    for (const field of ["start", "end", "start_ms", "end_ms"]) {
+      const value = ownValue(segment, field);
+      if (Number.isFinite(value)) result[field] = value;
+    }
+    for (const field of ["kind", "type", "source"]) {
+      const value = textValue(ownValue(segment, field));
+      if (value) result[field] = value;
+    }
+    if (ownValue(segment, "whole_content_ad") === true) {
+      result.whole_content_ad = true;
+    }
+    return Object.keys(result).length ? result : null;
+  }
+
+  function copySegments(value) {
+    if (Array.isArray(value)) return value.map(copySegment).filter(Boolean);
+    if (!value || typeof value !== "object") return [];
+    const result = {};
+    for (const [kind, items] of Object.entries(value)) {
+      if (!Array.isArray(items)) continue;
+      result[kind] = items.map(copySegment).filter(Boolean);
+    }
+    return result;
+  }
+
+  function itemSources(primary, fallback) {
+    return [primary, fallback, primary?.card, fallback?.card].filter(
+      (value) => value && typeof value === "object",
+    );
+  }
+
+  function firstItemValue(sources, ...keys) {
+    for (const source of sources) {
+      const value = ownValue(source, ...keys);
+      if (value !== undefined && value !== null) return value;
+    }
+    return undefined;
+  }
+
+  function buildUaPlayerItem(primary, fallback, positionMs, fullPlaybackData) {
+    const sources = itemSources(primary, fallback);
+    const streamSources = fullPlaybackData ? sources : [primary];
+    const item = {};
+    const url = toLampaPlayUrl(
+      firstItemValue(streamSources, "url", "media_url", "stream_url"),
+    );
+    const resolverUrl = textValue(
+      firstItemValue(streamSources, "resolver_url", "resolver", "call_url"),
+    );
+    const thumbnail = textValue(
+      firstItemValue(sources, "thumbnail", "poster", "image"),
+    );
+    if (url) item.url = url;
+    if (resolverUrl) item.resolver_url = resolverUrl;
+    if (thumbnail) item.thumbnail = thumbnail;
+
+    const textFields = [
+      ["id", ["id"]],
+      ["title", ["title", "name"]],
+      ["mime_type", ["mime_type", "mimeType", "content_type"]],
+      ["group", ["group", "group_title"]],
+      ["tvg_id", ["tvg_id", "tvg-id"]],
+      ["tvg_name", ["tvg_name", "tvg-name"]],
+      ["language", ["language", "lang"]],
+      ["catchup", ["catchup"]],
+      ["catchup_source", ["catchup_source", "catchup-source"]],
+      ["imdb_id", ["imdb_id", "imdbId"]],
+      ["media_type", ["media_type", "mediaType"]],
+      ["original_title", ["original_title", "originalTitle"]],
+    ];
+    for (const [outputName, inputNames] of textFields) {
+      const value = textValue(firstItemValue(sources, ...inputNames));
+      if (value) item[outputName] = value;
+    }
+
+    const integerFields = [
+      ["tmdb_id", ["tmdb_id", "tmdbId"]],
+      ["kp_id", ["kp_id", "kinopoisk_id", "kinopoiskId"]],
+      ["mal_id", ["mal_id", "malId"]],
+      ["year", ["year", "release_year"]],
+      ["season", ["season", "season_number", "seasonNumber"]],
+      ["episode", ["episode", "episode_number", "episodeNumber"]],
+    ];
+    for (const [outputName, inputNames] of integerFields) {
+      const value = firstItemValue(sources, ...inputNames);
+      if (Number.isSafeInteger(value) && value > 0) item[outputName] = value;
+    }
+    if (firstItemValue(sources, "is_anime", "anime") === true) {
+      item.is_anime = true;
+    }
+    if (Number.isSafeInteger(positionMs) && positionMs >= 0) {
+      item.position_ms = positionMs;
+    }
+
+    item.headers = copyStringMap(firstItemValue(sources, "headers"));
+    item.resolver_headers = copyStringMap(
+      firstItemValue(sources, "resolver_headers"),
+    );
+    const playbackSource = fullPlaybackData ? primary : primary || {};
+    item.quality = copyQualities(
+      ownValue(playbackSource, "quality", "qualities"),
+    );
+    item.subtitles = copySubtitles(ownValue(playbackSource, "subtitles"));
+    item.segments = copySegments(
+      ownValue(playbackSource, "segments", "_session_segments"),
+    );
+    return item;
+  }
+
+  function currentTimelinePositionMs(data) {
+    const seconds = ownValue(data?.timeline, "time");
+    return Number.isFinite(seconds) && seconds > 0
+      ? Math.round(seconds * 1000)
+      : 0;
+  }
+
+  function buildUaPlayerPayload(data) {
+    if (!data || typeof data !== "object") return null;
+    const rawPlaylist = Array.isArray(data.playlist) ? data.playlist : [];
+    const currentPositionMs = currentTimelinePositionMs(data);
+    const originalCurrentUrl = toLampaPlayUrl(data.url);
+    const selectedData = Object.assign({}, data);
+    const selectedQualityUrl = lampaSelectedQualityUrl(data);
+    if (selectedQualityUrl) selectedData.url = selectedQualityUrl;
+    const currentItem = buildUaPlayerItem(
+      selectedData,
+      null,
+      currentPositionMs,
+      true,
+    );
+    if (!currentItem.url && !currentItem.resolver_url) return null;
+
+    const playlistEntries = rawPlaylist
+      .map((entry, rawIndex) => ({
+        item: buildUaPlayerItem(entry, data, 0, false),
+        raw: entry,
+        rawIndex,
+      }))
+      .filter((entry) => entry.item.url || entry.item.resolver_url);
+    let rawPlaylistIndex = ownValue(
+      data,
+      "playlist_index",
+      "current_index",
+      "index",
+    );
+    if (
+      !Number.isSafeInteger(rawPlaylistIndex) ||
+      rawPlaylistIndex < 0 ||
+      rawPlaylistIndex >= rawPlaylist.length
+    ) {
+      rawPlaylistIndex = -1;
+    }
+    let playlistIndex = playlistEntries.findIndex(
+      (entry) => entry.rawIndex === rawPlaylistIndex,
+    );
+    if (playlistIndex < 0) {
+      playlistIndex = playlistEntries.findIndex(
+        (entry) =>
+          entry.item.url &&
+          (entry.item.url === currentItem.url ||
+            entry.item.url === originalCurrentUrl),
+      );
+    }
+    let items = playlistEntries.map((entry) => entry.item);
+
+    if (playlistIndex >= 0 && playlistIndex < items.length) {
+      const selectedSource = Object.assign(
+        {},
+        selectedData,
+        playlistEntries[playlistIndex].raw || {},
+      );
+      selectedSource.url = selectedData.url || selectedSource.url;
+      items[playlistIndex] = buildUaPlayerItem(
+        selectedSource,
+        data,
+        currentPositionMs,
+        true,
+      );
+    } else {
+      items.unshift(currentItem);
+      playlistIndex = 0;
+    }
+
+    if (!items.length) return null;
+    playlistIndex = Math.max(0, Math.min(playlistIndex, items.length - 1));
+    if (items.length > UA_PLAYER_MAX_ITEMS) {
+      const start = Math.max(
+        0,
+        Math.min(
+          playlistIndex - Math.floor(UA_PLAYER_MAX_ITEMS / 2),
+          items.length - UA_PLAYER_MAX_ITEMS,
+        ),
+      );
+      items = items.slice(start, start + UA_PLAYER_MAX_ITEMS);
+      playlistIndex -= start;
+    }
+    const payload = {
+      schema: UA_PLAYER_SESSION_SCHEMA,
+      playlist_index: playlistIndex,
+      auto_next: ownValue(data, "auto_next") !== false,
+      items,
+    };
+    const title = textValue(
+      ownValue(data, "playlist_title", "playlist_name", "title"),
+    );
+    if (title) payload.title = title;
+    return payload;
+  }
+
+  function createUaPlayerSessionId(playerApi) {
+    try {
+      const value = playerApi.createUaPlayerSessionId?.();
+      if (typeof value === "string" && value) return value;
+    } catch {
+      // Fall through to a renderer-local collision-resistant id.
+    }
+    if (typeof window.crypto?.randomUUID === "function") {
+      return window.crypto.randomUUID();
+    }
+    return `ua-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  }
+
+  function initUaPlayerSessionIntegration() {
+    if (window.uaPlayerSessionIntegrationReady) return;
+    const playerApi = window.electronAPI?.player;
+    if (
+      !playerApi ||
+      typeof playerApi.prepareUaPlayerSession !== "function" ||
+      typeof playerApi.onUaPlayerResult !== "function" ||
+      !Lampa.Player?.listener
+    ) {
+      return;
+    }
+    window.uaPlayerSessionIntegrationReady = true;
+    const pendingSessions = new Map();
+
+    function forgetSession(sessionId) {
+      const pending = pendingSessions.get(sessionId);
+      if (!pending) return null;
+      pendingSessions.delete(sessionId);
+      if (pending.timeout) clearTimeout(pending.timeout);
+      return pending;
+    }
+
+    function rememberSession(sessionId, timelineHandler) {
+      while (pendingSessions.size >= UA_PLAYER_MAX_PENDING_SESSIONS) {
+        const oldest = pendingSessions.keys().next().value;
+        forgetSession(oldest);
+      }
+      const timeout = setTimeout(
+        () => forgetSession(sessionId),
+        UA_PLAYER_PENDING_TTL_MS,
+      );
+      pendingSessions.set(sessionId, { timelineHandler, timeout });
+    }
+
+    Lampa.Player.listener.follow("create", (event) => {
+      if (!selectedPlayerIsUaPlayer()) return;
+      const data = event?.data;
+      const payload = buildUaPlayerPayload(data);
+      if (!payload) return;
+      const sessionId = createUaPlayerSessionId(playerApi);
+      const positionalUrl = payload.items[payload.playlist_index]?.url;
+      try {
+        const prepared = playerApi.prepareUaPlayerSession({
+          sessionId,
+          payload,
+          positionalUrl,
+        });
+        if (!prepared) return;
+        rememberSession(
+          sessionId,
+          typeof data.timeline?.handler === "function"
+            ? data.timeline.handler
+            : null,
+        );
+      } catch {
+        console.warn(
+          "UA Player: не вдалося підготувати повний сеанс, використовується звичайний запуск URL",
+        );
+      }
+    });
+
+    playerApi.onUaPlayerResult((message) => {
+      if (!message || typeof message !== "object") return;
+      const sessionId = message.sessionId;
+      const result = message.result;
+      if (
+        typeof sessionId !== "string" ||
+        !result ||
+        result.schema !== UA_PLAYER_RESULT_SCHEMA ||
+        !pendingSessions.has(sessionId)
+      ) {
+        return;
+      }
+
+      const pending = forgetSession(sessionId);
+      const position = Number.isFinite(result.position)
+        ? Math.max(0, result.position)
+        : 0;
+      const duration = Number.isFinite(result.duration)
+        ? Math.max(0, result.duration)
+        : 0;
+      const boundedPosition = duration > 0 ? Math.min(position, duration) : 0;
+      if (pending?.timelineHandler && duration > 0 && boundedPosition > 0) {
+        const percent =
+          duration > 0
+            ? Math.max(0, Math.min(100, (boundedPosition / duration) * 100))
+            : 0;
+        try {
+          pending.timelineHandler(
+            percent,
+            boundedPosition / 1000,
+            duration / 1000,
+          );
+        } catch (error) {
+          console.error("UA Player: не вдалося зберегти timeline", error);
+        }
+      }
+      Lampa.Player.listener.send("ua_player_result", result);
+    });
+  }
 
   function addQuitButton() {
     const container = Lampa.Head.render().find(".head__actions");
@@ -2949,6 +3396,8 @@
     addAppSettings(); // Настройки приложения внутри лампы
     initInputManager();
   }
+
+  initUaPlayerSessionIntegration();
 
   if (!window.plugin_app_ready) {
     window.plugin_app_ready = true;

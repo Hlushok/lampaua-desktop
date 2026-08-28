@@ -55,7 +55,7 @@ function integerValue(value, fallback = undefined) {
   return value;
 }
 
-function normalizedUrl(value, fieldName, required = false) {
+function normalizedUrl(value, fieldName, required = false, strict = true) {
   const text = boundedText(value, MAX_URL_CHARS);
   if (!text) {
     if (required) throw new Error(`${fieldName} URL is required`);
@@ -66,6 +66,7 @@ function normalizedUrl(value, fieldName, required = false) {
   try {
     parsed = new URL(text);
   } catch {
+    if (!required && !strict) return undefined;
     throw new Error(`${fieldName} URL is invalid`);
   }
 
@@ -74,12 +75,14 @@ function normalizedUrl(value, fieldName, required = false) {
     parsed.username ||
     parsed.password
   ) {
+    if (!required && !strict) return undefined;
     throw new Error(`${fieldName} URL is not allowed`);
   }
   if (
     (parsed.protocol === "http:" || parsed.protocol === "https:") &&
     !parsed.hostname
   ) {
+    if (!required && !strict) return undefined;
     throw new Error(`${fieldName} URL is invalid`);
   }
   return text;
@@ -137,7 +140,7 @@ function normalizeQualities(item) {
   for (const [rawLabel, rawUrl] of entries.slice(0, MAX_QUALITIES)) {
     const label = boundedText(rawLabel, 128);
     if (!label) continue;
-    const url = normalizedUrl(rawUrl, `quality ${label}`);
+    const url = normalizedUrl(rawUrl, `quality ${label}`, false, false);
     if (url) result[label] = url;
   }
   return result;
@@ -149,7 +152,12 @@ function normalizeSubtitles(value) {
 
   for (const raw of value.slice(0, MAX_SUBTITLES)) {
     if (!isObject(raw)) continue;
-    const url = normalizedUrl(ownValue(raw, "url", "file"), "subtitle");
+    const url = normalizedUrl(
+      ownValue(raw, "url", "file"),
+      "subtitle",
+      false,
+      false,
+    );
     if (!url) continue;
     const subtitle = { url };
     const label = boundedText(ownValue(raw, "label", "title", "name"), 256);
@@ -263,6 +271,8 @@ function normalizeItem(rawItem, index) {
   const thumbnail = normalizedUrl(
     ownValue(rawItem, "thumbnail", "poster", "image"),
     `playlist thumbnail ${index + 1}`,
+    false,
+    false,
   );
   if (url) item.url = url;
   if (resolverUrl) item.resolver_url = resolverUrl;

@@ -462,6 +462,9 @@ async function verifyUaPlayerMainProcessContract() {
       }
     },
     prepareLaunch(options) {
+      if (options.sessionId === "fallback-session") {
+        throw new Error("invalid prepared session");
+      }
       const state = {
         cleanupCalls: 0,
         cleaned: false,
@@ -631,6 +634,26 @@ async function verifyUaPlayerMainProcessContract() {
   children[2].emit("close", 0, null);
   assert.equal(
     destroyedOwner.sent.some(
+      (message) => message.channel === "ua-player-session-result",
+    ),
+    false,
+  );
+
+  const fallbackOwner = createSender("fallback-owner");
+  await spawnHandler(
+    { sender: fallbackOwner },
+    "fallback-player",
+    executable,
+    [session.positionalUrl],
+    {},
+    {
+      uaPlayerSession: { ...session, sessionId: "fallback-session" },
+    },
+  );
+  assert.deepEqual(spawnCalls[3].args, [session.positionalUrl]);
+  children[3].emit("close", 0, null);
+  assert.equal(
+    fallbackOwner.sent.some(
       (message) => message.channel === "ua-player-session-result",
     ),
     false,

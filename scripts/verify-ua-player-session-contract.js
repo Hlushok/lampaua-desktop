@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const vm = require("node:vm");
 
 const projectRoot = path.resolve(__dirname, "..");
 const bridgeModulePath = path.join(
@@ -315,10 +316,169 @@ function verifyResultValidation(createUaPlayerSessionBridge) {
   }
 }
 
+function verifyPluginContract() {
+  const listeners = new Map();
+  const sentEvents = [];
+  const preparedSessions = [];
+  let resultSubscription;
+  let selectedPlayerPath = "C:\\Program Files\\UA Player\\UAPlayer.exe";
+  const playerListener = {
+    follow(eventName, callback) {
+      listeners.set(eventName, callback);
+    },
+    send(eventName, value) {
+      sentEvents.push({ eventName, value });
+    },
+  };
+  const Lampa = {
+    Player: { listener: playerListener },
+    Storage: {
+      field(key) {
+        if (key === "player_nw_path") return selectedPlayerPath;
+        if (key === "video_quality_default") return "1080";
+        return undefined;
+      },
+      get(key) {
+        return this.field(key);
+      },
+    },
+    Torserver: {
+      toPlayUrl(url) {
+        return `http://localhost:8090/play/${encodeURIComponent(url)}`;
+      },
+    },
+  };
+  const electronPlayer = {
+    createUaPlayerSessionId() {
+      return "11111111-1111-4111-8111-111111111111";
+    },
+    onUaPlayerResult(callback) {
+      resultSubscription = callback;
+      return () => {};
+    },
+    prepareUaPlayerSession(session) {
+      preparedSessions.push(session);
+      return true;
+    },
+  };
+  const window = {
+    Lampa,
+    electronAPI: { player: electronPlayer },
+    plugin_app_ready: true,
+  };
+  window.window = window;
+  const context = {
+    Lampa,
+    clearTimeout() {},
+    console: { error() {}, log() {}, warn() {} },
+    encodeURIComponent,
+    setTimeout: () => 0,
+    window,
+  };
+
+  const pluginPath = path.join(projectRoot, "src", "plugin.js");
+  vm.runInNewContext(fs.readFileSync(pluginPath, "utf8"), context, {
+    filename: pluginPath,
+  });
+
+  assert.equal(typeof listeners.get("create"), "function");
+  assert.equal(typeof resultSubscription, "function");
+
+  let timelineArgs;
+  const data = {
+    url: "https://origin.example.test/episode-2.m3u8",
+    title: "Серія 2",
+    poster: "https://images.example.test/season.jpg",
+    headers: { Authorization: "Bearer playback" },
+    timeline: {
+      hash: "timeline-hash",
+      time: 12,
+      handler(...args) {
+        timelineArgs = args;
+      },
+    },
+    playlist_index: 1,
+    playlist: [
+      {
+        url: "https://origin.example.test/episode-1.m3u8",
+        title: "Серія 1",
+        episode: 1,
+      },
+      {
+        url: "https://origin.example.test/episode-2.m3u8",
+        title: "Серія 2",
+        episode: 2,
+      },
+    ],
+    season: 1,
+    episode: 2,
+    tmdb_id: 123,
+    quality: {
+      "1080p": "https://origin.example.test/episode-2-1080.m3u8",
+      "720p": "https://origin.example.test/episode-2-720.m3u8",
+    },
+    subtitles: [
+      {
+        url: "https://subtitles.example.test/episode-2.vtt",
+        label: "Українська",
+        language: "uk",
+      },
+    ],
+    segments: [{ start: 10, end: 20, kind: "intro" }],
+  };
+
+  listeners.get("create")({ data, abort() {} });
+  assert.equal(preparedSessions.length, 1);
+  const prepared = preparedSessions[0];
+  assert.equal(prepared.sessionId, "11111111-1111-4111-8111-111111111111");
+  assert.equal(prepared.payload.schema, "lampaua-player-session-v1");
+  assert.equal(prepared.payload.playlist_index, 1);
+  assert.equal(prepared.payload.items.length, 2);
+  assert.equal(
+    prepared.payload.items[1].url,
+    "http://localhost:8090/play/https%3A%2F%2Forigin.example.test%2Fepisode-2-1080.m3u8",
+  );
+  assert.equal(prepared.positionalUrl, prepared.payload.items[1].url);
+  assert.equal(prepared.payload.items[1].position_ms, 12_000);
+  assert.equal(
+    prepared.payload.items[1].quality["1080p"],
+    "http://localhost:8090/play/https%3A%2F%2Forigin.example.test%2Fepisode-2-1080.m3u8",
+  );
+  assert.equal(
+    prepared.payload.items[1].subtitles[0].url,
+    "https://subtitles.example.test/episode-2.vtt",
+  );
+  assert.equal(
+    prepared.payload.items[1].headers.Authorization,
+    "Bearer playback",
+  );
+  assert.equal(JSON.stringify(prepared).includes("handler"), false);
+  assert.equal(JSON.stringify(prepared).includes("timeline-hash"), false);
+
+  resultSubscription({
+    sessionId: "unknown-session",
+    result: validResult(),
+  });
+  assert.equal(timelineArgs, undefined);
+
+  const result = validResult({ position: 30_000, duration: 60_000 });
+  resultSubscription({ sessionId: prepared.sessionId, result });
+  assert.deepEqual(timelineArgs, [50, 30, 60]);
+  assert.equal(sentEvents.at(-1).eventName, "ua_player_result");
+  assert.equal(sentEvents.at(-1).value, result);
+
+  selectedPlayerPath = "C:\\Tools\\VLC\\vlc.exe";
+  listeners.get("create")({
+    data: { url: "https://origin.example.test/not-ua.m3u8" },
+  });
+  assert.equal(preparedSessions.length, 1);
+}
+
 function main() {
   const { createUaPlayerSessionBridge } = require(bridgeModulePath);
   verifySessionCreation(createUaPlayerSessionBridge);
   verifyResultValidation(createUaPlayerSessionBridge);
+  verifyPluginContract();
   console.log("UA Player session exchange contract verified");
 }
 
