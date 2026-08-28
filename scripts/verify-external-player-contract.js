@@ -234,6 +234,18 @@ async function verifyMainOnlyPlayerAuthorizationStore() {
     assert.throws(() => setValue({}, key, "C:\\Windows\\System32\\cmd.exe"));
     assert.throws(() => getValue({}, key));
   }
+
+  const { publicStoreSnapshot } = freshRequire(
+    path.join(projectRoot, "src", "modules", "storeAccessPolicy.js"),
+  );
+  assert.deepEqual(
+    publicStoreSnapshot({
+      theme: "dark",
+      selectedPlayerPath: "legacy-untrusted",
+      trustedPlayerPath: "main-only",
+    }),
+    { theme: "dark" },
+  );
 }
 
 function createSender(name) {

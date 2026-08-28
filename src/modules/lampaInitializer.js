@@ -63,7 +63,9 @@ class LampaInitializer {
           console.log(`✅ Путь к плееру уже есть: ${existingPath}`);
           return;
         }
-        console.warn(`⚠️ Ігноруємо неавторизований шлях плеєра: ${existingPath}`);
+        console.warn(
+          `⚠️ Ігноруємо неавторизований шлях плеєра: ${existingPath}`,
+        );
       }
 
       // Проверяем какой плеер выбран в Lampa
