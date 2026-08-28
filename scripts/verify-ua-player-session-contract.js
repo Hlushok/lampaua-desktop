@@ -467,11 +467,24 @@ function verifyPluginContract() {
   assert.equal(sentEvents.at(-1).eventName, "ua_player_result");
   assert.equal(sentEvents.at(-1).value, result);
 
+  Lampa.Torserver = {};
+  listeners.get("create")({
+    data: {
+      url: "http://localhost:8090/stream?link=magnet&preload",
+      title: "Торрент",
+      timeline: { handler() {} },
+    },
+  });
+  assert.equal(
+    preparedSessions.at(-1).payload.items[0].url,
+    "http://localhost:8090/stream?link=magnet&play",
+  );
+
   selectedPlayerPath = "C:\\Tools\\VLC\\vlc.exe";
   listeners.get("create")({
     data: { url: "https://origin.example.test/not-ua.m3u8" },
   });
-  assert.equal(preparedSessions.length, 1);
+  assert.equal(preparedSessions.length, 2);
 }
 
 function main() {

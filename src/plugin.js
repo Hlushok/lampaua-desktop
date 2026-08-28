@@ -56,9 +56,9 @@
     if (!url) return undefined;
     try {
       const converted = Lampa.Torserver?.toPlayUrl?.(url);
-      return textValue(converted) || url;
+      return (textValue(converted) || url).replace("&preload", "&play");
     } catch {
-      return url;
+      return url.replace("&preload", "&play");
     }
   }
 
