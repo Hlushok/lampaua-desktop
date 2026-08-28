@@ -39,9 +39,10 @@ function registerPlayerHandlers() {
     const mainWindow = getMainWindow();
     const path = await playerFinder.showManualSelectDialog(mainWindow);
     if (path) {
-      await playerFinder.saveToLocalStorage(mainWindow, path);
+      const saved = await playerFinder.saveToLocalStorage(mainWindow, path);
+      return saved ? path : null;
     }
-    return path;
+    return null;
   });
 
   // Сохранить путь в localStorage

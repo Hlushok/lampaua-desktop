@@ -158,6 +158,124 @@ function createChildProcess() {
   return child;
 }
 
+async function verifyPlayerFinderContract() {
+  const previousProgramFiles = process.env.ProgramFiles;
+  const previousProgramW6432 = process.env.ProgramW6432;
+  const previousLocalAppData = process.env.LOCALAPPDATA;
+  const programFiles = "C:\\Program Files Contract";
+  const localAppData = "C:\\Users\\Contract\\AppData\\Local";
+  const installedPath = path.join(programFiles, "UA Player", "UAPlayer.exe");
+  const legacyPath = path.join(
+    localAppData,
+    "Programs",
+    "UA Player",
+    "UAPlayer.exe",
+  );
+  const selectedPath = "D:\\Players\\UA Player\\UAPlayer.exe";
+  const normalize = (filePath) => path.resolve(filePath).toLowerCase();
+  const existingFiles = new Set(
+    [installedPath, legacyPath, selectedPath].map(normalize),
+  );
+  const values = new Map([
+    ["defaultPlayer", "ua_player"],
+    ["selectedPlayerPath", selectedPath],
+  ]);
+  const storeMock = {
+    delete(key) {
+      values.delete(key);
+    },
+    get(key, fallback) {
+      return values.has(key) ? values.get(key) : fallback;
+    },
+    set(key, value) {
+      values.set(key, value);
+    },
+  };
+  const fsMock = {
+    existsSync(filePath) {
+      return existingFiles.has(normalize(filePath));
+    },
+    statSync(filePath) {
+      if (!existingFiles.has(normalize(filePath))) {
+        throw new Error("ENOENT");
+      }
+      return { isFile: () => true };
+    },
+  };
+
+  process.env.ProgramFiles = programFiles;
+  process.env.ProgramW6432 = programFiles;
+  process.env.LOCALAPPDATA = localAppData;
+
+  try {
+    let playerFinder;
+    withMockedModules({ fs: fsMock, "./storeManager": storeMock }, () => {
+      playerFinder = freshRequire(
+        path.join(projectRoot, "src", "modules", "playerFinder.js"),
+      );
+    });
+
+    let players = await playerFinder.getAllPlayers();
+    assert.equal(players[0].id, "ua_player");
+    assert.equal(players[0].path, installedPath);
+
+    existingFiles.delete(normalize(installedPath));
+    await playerFinder.findAllPlayers();
+    players = await playerFinder.getAllPlayers();
+    assert.equal(players[0].path, legacyPath);
+
+    existingFiles.delete(normalize(legacyPath));
+    await playerFinder.findAllPlayers();
+    players = await playerFinder.getAllPlayers();
+    assert.equal(players[0].path, selectedPath);
+    assert.equal(playerFinder.isAuthorizedPlayerPath(selectedPath), true);
+    assert.equal(
+      playerFinder.isAuthorizedPlayerPath(`${selectedPath}.evil`),
+      false,
+    );
+    assert.equal(playerFinder.isUaPlayerPath(selectedPath), true);
+
+    const scripts = [];
+    const mainWindow = {
+      webContents: {
+        executeJavaScript(script) {
+          scripts.push(script);
+          return Promise.resolve();
+        },
+      },
+    };
+    assert.equal(
+      await playerFinder.saveToLocalStorage(mainWindow, selectedPath),
+      true,
+    );
+    assert.equal(values.get("selectedPlayerPath"), selectedPath);
+    assert.equal(scripts.length, 1);
+
+    const missingPath = "D:\\Players\\Missing\\UAPlayer.exe";
+    assert.equal(
+      await playerFinder.saveToLocalStorage(mainWindow, missingPath),
+      false,
+    );
+    assert.equal(values.get("selectedPlayerPath"), selectedPath);
+  } finally {
+    if (previousProgramFiles === undefined) {
+      delete process.env.ProgramFiles;
+    } else {
+      process.env.ProgramFiles = previousProgramFiles;
+    }
+    if (previousProgramW6432 === undefined) {
+      delete process.env.ProgramW6432;
+    } else {
+      process.env.ProgramW6432 = previousProgramW6432;
+    }
+    if (previousLocalAppData === undefined) {
+      delete process.env.LOCALAPPDATA;
+    } else {
+      process.env.LOCALAPPDATA = previousLocalAppData;
+    }
+  }
+}
+
 async function verifyMainProcessContract() {
   const ipcMain = createIpcMainMock();
   const children = [];
@@ -239,6 +357,7 @@ async function verifyMainProcessContract() {
 }
 
 async function main() {
+  await verifyPlayerFinderContract();
   verifyPreloadContract();
   await verifyMainProcessContract();
   console.log("External player process proxy contract verified");

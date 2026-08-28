@@ -53,6 +53,7 @@ class LampaInitializer {
       const existingPath = await playerFinder.checkLocalStoragePath(mainWindow);
 
       if (existingPath && existsSync(existingPath)) {
+        await playerFinder.saveToLocalStorage(mainWindow, existingPath);
         console.log(`✅ Путь к плееру уже есть: ${existingPath}`);
         return;
       }
@@ -80,7 +81,7 @@ class LampaInitializer {
           setTimeout(() => {
             if (window.Lampa && window.Lampa.Noty) {
               window.Lampa.Noty.show(
-                '⚠️ Медиа плеер не найден! Установите VLC, MPC-HC или mpv и укажите путь в настройках',
+                '⚠️ Медіаплеєр не знайдено! Встановіть UA Player, VLC, MPC-HC або mpv чи вкажіть точний шлях у налаштуваннях',
                 'warning',
                 10000
               );

@@ -1,10 +1,59 @@
 // modules/playerFinder.js
-const { existsSync } = require("fs");
+const { existsSync, statSync } = require("fs");
 const path = require("path");
 const store = require("./storeManager");
 
+function normalizePlayerPath(filePath) {
+  if (typeof filePath !== "string" || !filePath.trim()) {
+    return null;
+  }
+
+  try {
+    const resolvedPath = path.resolve(filePath.trim());
+    return process.platform === "win32"
+      ? resolvedPath.toLowerCase()
+      : resolvedPath;
+  } catch {
+    return null;
+  }
+}
+
+function isExistingFile(filePath) {
+  try {
+    return !!filePath && existsSync(filePath) && statSync(filePath).isFile();
+  } catch {
+    return false;
+  }
+}
+
+const programFilesPath =
+  process.env.ProgramW6432 || process.env.ProgramFiles || "C:\\Program Files";
+const uaPlayerWindowsPaths = [
+  path.join(programFilesPath, "UA Player", "UAPlayer.exe"),
+];
+
+if (process.env.LOCALAPPDATA) {
+  uaPlayerWindowsPaths.push(
+    path.join(
+      process.env.LOCALAPPDATA,
+      "Programs",
+      "UA Player",
+      "UAPlayer.exe",
+    ),
+  );
+}
+
 // Список поддерживаемых плееров
 const PLAYERS = {
+  ua_player: {
+    name: "UA Player",
+    description: "UA Player for Windows",
+    platforms: {
+      win32: { paths: uaPlayerWindowsPaths },
+      darwin: { paths: [] },
+      linux: { paths: [] },
+    },
+  },
   vlc: {
     name: "VLC",
     description: "VLC Media Player",
@@ -135,13 +184,14 @@ class PlayerFinder {
   async findAllPlayers() {
     const platform = process.platform;
     console.log(`🔍 Поиск плееров на ${platform}...`);
+    this.foundPlayers.clear();
 
     for (const [playerId, playerInfo] of Object.entries(PLAYERS)) {
-      const platformPaths = playerInfo.platforms[platform];
-      if (!platformPaths || !platformPaths.paths.length) continue;
+      const playerPaths = this.getPlayerPaths(playerId, playerInfo, platform);
+      if (!playerPaths.length) continue;
 
-      for (const playerPath of platformPaths.paths) {
-        if (existsSync(playerPath)) {
+      for (const playerPath of playerPaths) {
+        if (isExistingFile(playerPath)) {
           this.foundPlayers.set(playerId, {
             id: playerId,
             name: playerInfo.name,
@@ -174,12 +224,11 @@ class PlayerFinder {
     if (!player) return null;
 
     const platform = process.platform;
-    const platformPaths = player.platforms[platform];
+    const playerPaths = this.getPlayerPaths(playerId, player, platform);
+    if (!playerPaths.length) return null;
 
-    if (!platformPaths || !platformPaths.paths.length) return null;
-
-    for (const playerPath of platformPaths.paths) {
-      if (existsSync(playerPath)) {
+    for (const playerPath of playerPaths) {
+      if (isExistingFile(playerPath)) {
         return {
           id: playerId,
           name: player.name,
@@ -270,25 +319,29 @@ class PlayerFinder {
       playerInfo = defaultPlayer;
     }
 
-    if (!finalPath || !existsSync(finalPath)) {
+    if (!isExistingFile(finalPath)) {
       console.error(`❌ Путь не существует: ${finalPath}`);
       return false;
     }
 
     try {
-      const escapedPath = finalPath.replace(/\\/g, "\\\\");
+      finalPath = path.resolve(finalPath);
+      const serializedPath = JSON.stringify(finalPath);
 
       await mainWindow.webContents.executeJavaScript(`
-        localStorage.setItem('player_nw_path', '${escapedPath}');
+        const selectedPlayerPath = ${serializedPath};
+        localStorage.setItem('player_nw_path', selectedPlayerPath);
         localStorage.setItem('player_torrent', 'other');
-        console.log('App', '✅ player_nw_path сохранен:', '${escapedPath}');
+        console.log('App', '✅ player_nw_path сохранен:', selectedPlayerPath);
         console.log('App', '✅ player_torrent сохранен:', 'other');
 
         if (window.Lampa && window.Lampa.Storage) {
-          window.Lampa.Storage.set('player_nw_path', '${escapedPath}');
+          window.Lampa.Storage.set('player_nw_path', selectedPlayerPath);
           window.Lampa.Storage.set('player_torrent', 'other');
         }
       `);
+
+      store.set("selectedPlayerPath", finalPath);
 
       console.log(
         `✅ Путь сохранен: ${finalPath} ${playerInfo ? `(${playerInfo.name})` : ""}`,
@@ -334,6 +387,78 @@ class PlayerFinder {
         info.platforms[platform] && info.platforms[platform].paths.length
       ),
     }));
+  }
+
+  getPlayerPaths(playerId, playerInfo, platform) {
+    const platformPaths = playerInfo.platforms[platform]?.paths || [];
+    if (playerId !== "ua_player" || platform !== "win32") {
+      return platformPaths;
+    }
+
+    const selectedPath = store.get("selectedPlayerPath", null);
+    const candidates = [...platformPaths];
+    if (
+      this.isUaPlayerExecutable(selectedPath) &&
+      isExistingFile(selectedPath)
+    ) {
+      candidates.push(path.resolve(selectedPath));
+    }
+
+    const seen = new Set();
+    return candidates.filter((candidate) => {
+      const normalized = normalizePlayerPath(candidate);
+      if (!normalized || seen.has(normalized)) {
+        return false;
+      }
+      seen.add(normalized);
+      return true;
+    });
+  }
+
+  isUaPlayerExecutable(filePath) {
+    return (
+      typeof filePath === "string" &&
+      path.basename(filePath).toLowerCase() === "uaplayer.exe"
+    );
+  }
+
+  normalizePlayerPath(filePath) {
+    return normalizePlayerPath(filePath);
+  }
+
+  isAuthorizedPlayerPath(filePath) {
+    const normalized = normalizePlayerPath(filePath);
+    if (!normalized || !isExistingFile(filePath)) {
+      return false;
+    }
+
+    const selectedPath = store.get("selectedPlayerPath", null);
+    const candidates = [
+      ...Array.from(this.foundPlayers.values(), (player) => player.path),
+      selectedPath,
+      ...uaPlayerWindowsPaths,
+    ];
+
+    return candidates.some(
+      (candidate) => normalizePlayerPath(candidate) === normalized,
+    );
+  }
+
+  isUaPlayerPath(filePath) {
+    if (!this.isUaPlayerExecutable(filePath)) {
+      return false;
+    }
+
+    const normalized = normalizePlayerPath(filePath);
+    if (!normalized || !this.isAuthorizedPlayerPath(filePath)) {
+      return false;
+    }
+
+    const selectedPath = store.get("selectedPlayerPath", null);
+    const uaPlayer = this.foundPlayers.get("ua_player");
+    return [...uaPlayerWindowsPaths, selectedPath, uaPlayer?.path].some(
+      (candidate) => normalizePlayerPath(candidate) === normalized,
+    );
   }
 }
 
