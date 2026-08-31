@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.5.16](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.15...v1.5.16) (2026-08-31)
+
+### ✨ Новые возможности
+
+- добавить скрипт генерирования иконок приложения ([6c74f0f](https://github.com/Hlushok/lampaua-desktop/commit/6c74f0fde03295dd2259f5e5196cc8a364bfb754))
+- обновить иконки приложения и скрипт генерации ([fcf2c52](https://github.com/Hlushok/lampaua-desktop/commit/fcf2c5266d06e2b65f449e5fca40065d0a61a60b))
+
+### 🐛 Исправления
+
+- исправить закругления для Linux и Windows ([dca9d13](https://github.com/Hlushok/lampaua-desktop/commit/dca9d134c7948be179f811e3b8e6fb7c78b7055a))
+
+### ♻️ Рефакторинг
+
+- изменить условия определения работы GST ([9e0aa7f](https://github.com/Hlushok/lampaua-desktop/commit/9e0aa7faad9719c166ff359fe9aebc93a44f0c7b))
+
 ## [1.5.15](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.14...v1.5.15) (2026-08-29)
 
 ### ✨ Новые возможности
