@@ -94,4 +94,6 @@ out/
 
 # Misc
 .idea
+.vscode
 dist
+dist-test
