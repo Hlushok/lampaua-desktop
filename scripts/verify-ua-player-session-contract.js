@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -23,16 +24,33 @@ function writeAtomicJson(filePath, value) {
   fs.renameSync(temporaryPath, filePath);
 }
 
-function resultPathFor(launch) {
-  const index = launch.args.indexOf("--result-file");
-  assert.notEqual(index, -1);
-  return launch.args[index + 1];
-}
-
-function sessionPathFor(launch) {
-  const index = launch.args.indexOf("--session-json");
-  assert.notEqual(index, -1);
-  return launch.args[index + 1];
+function createStageHarness(protectedRoot) {
+  const calls = [];
+  fs.mkdirSync(protectedRoot, { recursive: true });
+  return {
+    calls,
+    stageProcess(executablePath, sessionPath) {
+      const legacy = JSON.parse(fs.readFileSync(sessionPath, "utf8"));
+      const requestId = crypto.randomUUID();
+      const nonce = crypto.randomBytes(16).toString("base64url");
+      const directory = path.join(protectedRoot, requestId);
+      const requestPath = path.join(directory, "request.json");
+      const resultPath = path.join(directory, "result.json");
+      fs.mkdirSync(directory);
+      fs.writeFileSync(requestPath, '{"fixture":true}');
+      calls.push({ executablePath, legacy, requestPath, resultPath });
+      return {
+        schema: "lampaua.player.stage-result",
+        version: 1,
+        session_id: legacy.session_id,
+        request_id: requestId,
+        nonce,
+        bridge_root: protectedRoot,
+        request_path: requestPath,
+        result_path: resultPath,
+      };
+    },
+  };
 }
 
 function validPayload() {
@@ -102,10 +120,38 @@ function validResult(overrides = {}) {
   };
 }
 
+function validCanonicalResult(launch, overrides = {}) {
+  return {
+    schema: "lampaua.player.playback-result",
+    version: 1,
+    request_id: launch.requestId,
+    nonce: launch.nonce,
+    status: "stopped",
+    current_index: 0,
+    playback_results: [
+      {
+        index: 0,
+        id: "episode-2",
+        position_ms: 20_000,
+        duration_ms: 48_000,
+        completed: false,
+      },
+    ],
+    ...overrides,
+  };
+}
+
 function verifySessionCreation(createUaPlayerSessionBridge) {
   const temporaryRoot = createTemporaryRoot();
+  const protectedRoot = path.join(temporaryRoot, "protected");
+  const stage = createStageHarness(protectedRoot);
   const owner = {};
-  const bridge = createUaPlayerSessionBridge({ tempRoot: temporaryRoot });
+  const executablePath = path.join(temporaryRoot, "UAPlayer.exe");
+  const bridge = createUaPlayerSessionBridge({
+    tempRoot: path.join(temporaryRoot, "temporary"),
+    protectedRoot,
+    stageProcess: stage.stageProcess,
+  });
 
   try {
     const fallback = bridge.prepareLaunch({
@@ -113,34 +159,33 @@ function verifySessionCreation(createUaPlayerSessionBridge) {
       positionalUrl: "https://stream.example.test/plain.m3u8",
       owner,
     });
-    assert.deepEqual(fallback.args, ["https://stream.example.test/plain.m3u8"]);
+    assert.deepEqual(fallback.args, [
+      "--url",
+      "https://stream.example.test/plain.m3u8",
+    ]);
     assert.equal(fallback.finish(), null);
 
     const first = bridge.prepareLaunch({
       sessionId: "session-a",
+      executablePath,
       payload: validPayload(),
       positionalUrl: "https://stream.example.test/plain.m3u8",
       owner,
     });
     const second = bridge.prepareLaunch({
       sessionId: "session-b",
+      executablePath,
       payload: validPayload(),
       owner,
     });
-    const firstSessionPath = sessionPathFor(first);
-    const secondSessionPath = sessionPathFor(second);
-    assert.notEqual(firstSessionPath, secondSessionPath);
+    assert.notEqual(first.requestPath, second.requestPath);
     assert.equal(
-      path.dirname(firstSessionPath).startsWith(temporaryRoot),
+      path.dirname(first.requestPath).startsWith(protectedRoot),
       true,
     );
-    assert.deepEqual(first.args.slice(0, 2), [
-      "--session-json",
-      firstSessionPath,
-    ]);
-    assert.equal(first.args[2], "--result-file");
+    assert.deepEqual(first.args, ["--payload-file", first.requestPath]);
 
-    const written = JSON.parse(fs.readFileSync(firstSessionPath, "utf8"));
+    const written = stage.calls[0].legacy;
     assert.equal(written.schema, "lampaua-player-session-v1");
     assert.equal(written.session_id, "session-a");
     assert.equal(written.items.length, 1);
@@ -160,9 +205,9 @@ function verifySessionCreation(createUaPlayerSessionBridge) {
 
     first.cleanup();
     first.cleanup();
-    assert.equal(fs.existsSync(path.dirname(firstSessionPath)), false);
+    assert.equal(fs.existsSync(path.dirname(first.requestPath)), false);
     bridge.cleanupOwner(owner);
-    assert.equal(fs.existsSync(path.dirname(secondSessionPath)), false);
+    assert.equal(fs.existsSync(path.dirname(second.requestPath)), false);
 
     assert.throws(
       () =>
@@ -221,12 +266,20 @@ function verifySessionCreation(createUaPlayerSessionBridge) {
 
 function verifyResultValidation(createUaPlayerSessionBridge) {
   const temporaryRoot = createTemporaryRoot();
-  const bridge = createUaPlayerSessionBridge({ tempRoot: temporaryRoot });
+  const protectedRoot = path.join(temporaryRoot, "protected");
+  const stage = createStageHarness(protectedRoot);
+  const executablePath = path.join(temporaryRoot, "UAPlayer.exe");
+  const bridge = createUaPlayerSessionBridge({
+    tempRoot: path.join(temporaryRoot, "temporary"),
+    protectedRoot,
+    stageProcess: stage.stageProcess,
+  });
   const owner = {};
 
   function prepare(sessionId) {
     return bridge.prepareLaunch({
       sessionId,
+      executablePath,
       payload: validPayload(),
       owner,
     });
@@ -234,34 +287,27 @@ function verifyResultValidation(createUaPlayerSessionBridge) {
 
   function verifyRejected(sessionId, writeResult) {
     const launch = prepare(sessionId);
-    const directory = path.dirname(sessionPathFor(launch));
-    writeResult(resultPathFor(launch));
+    const directory = path.dirname(launch.resultPath);
+    writeResult(launch.resultPath, launch);
     assert.equal(launch.finish(), null);
     assert.equal(fs.existsSync(directory), false);
   }
 
   try {
     const valid = prepare("valid-result");
-    const validDirectory = path.dirname(sessionPathFor(valid));
+    const validDirectory = path.dirname(valid.resultPath);
     writeAtomicJson(
-      resultPathFor(valid),
-      validResult({
+      valid.resultPath,
+      validCanonicalResult(valid, {
         api_key: "drop-me",
         headers: { Authorization: "drop-me" },
         playback_results: [
           {
-            end_by: "playing",
-            url: "https://stream.example.test/second.m3u8",
-            position: 10_000,
-            duration: 48_000,
-            playlist_index: 0,
-          },
-          {
-            end_by: "playing",
-            url: "https://stream.example.test/video.m3u8",
-            position: 20_000,
-            duration: 48_000,
-            playlist_index: 0,
+            index: 0,
+            id: "episode-2",
+            position_ms: 20_000,
+            duration_ms: 48_000,
+            completed: false,
             headers: { Cookie: "drop-me" },
           },
         ],
@@ -287,8 +333,8 @@ function verifyResultValidation(createUaPlayerSessionBridge) {
 
     const replaced = prepare("replaced-result");
     writeAtomicJson(
-      resultPathFor(replaced),
-      validResult({ end_by: "replaced" }),
+      replaced.resultPath,
+      validCanonicalResult(replaced, { status: "replaced" }),
     );
     assert.equal(replaced.finish().end_by, "replaced");
 
@@ -296,23 +342,39 @@ function verifyResultValidation(createUaPlayerSessionBridge) {
     verifyRejected("malformed-result", (filePath) => {
       fs.writeFileSync(filePath, "{not-json");
     });
-    verifyRejected("wrong-schema", (filePath) => {
-      writeAtomicJson(filePath, validResult({ schema: "wrong" }));
-    });
-    verifyRejected("negative-result", (filePath) => {
-      writeAtomicJson(filePath, validResult({ position: -1 }));
-    });
-    verifyRejected("position-over-duration", (filePath) => {
+    verifyRejected("wrong-schema", (filePath, launch) => {
       writeAtomicJson(
         filePath,
-        validResult({ position: 49_000, duration: 48_000 }),
+        validCanonicalResult(launch, { schema: "wrong" }),
       );
     });
-    verifyRejected("bad-index", (filePath) => {
-      writeAtomicJson(filePath, validResult({ playlist_index: 1 }));
+    verifyRejected("wrong-correlation", (filePath, launch) => {
+      writeAtomicJson(
+        filePath,
+        validCanonicalResult(launch, { request_id: crypto.randomUUID() }),
+      );
     });
-    verifyRejected("bad-result-url", (filePath) => {
-      writeAtomicJson(filePath, validResult({ url: "data:text/plain,no" }));
+    verifyRejected("negative-result", (filePath, launch) => {
+      writeAtomicJson(
+        filePath,
+        validCanonicalResult(launch, {
+          playback_results: [
+            {
+              index: 0,
+              id: "episode-2",
+              position_ms: -1,
+              duration_ms: 48_000,
+              completed: false,
+            },
+          ],
+        }),
+      );
+    });
+    verifyRejected("bad-index", (filePath, launch) => {
+      writeAtomicJson(
+        filePath,
+        validCanonicalResult(launch, { current_index: 1 }),
+      );
     });
     verifyRejected("oversized-result", (filePath) => {
       fs.writeFileSync(filePath, Buffer.alloc(MAX_RESULT_BYTES + 1, 0x20));

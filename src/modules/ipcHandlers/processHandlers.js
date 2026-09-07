@@ -178,6 +178,7 @@ function registerProcessHandlers() {
         ) {
           try {
             sessionLaunch = uaPlayerSessionBridge.prepareLaunch({
+              executablePath: resolvedCmd,
               sessionId: preparedSession.sessionId,
               payload: preparedSession.payload,
               positionalUrl:
@@ -190,11 +191,22 @@ function registerProcessHandlers() {
             spawnArgs = sessionLaunch.args;
           } catch {
             sessionLaunch = null;
-            spawnArgs = args;
+            spawnArgs =
+              Array.isArray(args) && args.length === 1
+                ? ["--url", args[0]]
+                : args;
             console.warn(
               "⚠️ Не вдалося підготувати сеанс UA Player; використовується звичайний запуск URL",
             );
           }
+        } else if (
+          playerFinder.isUaPlayerPath(resolvedCmd) &&
+          Array.isArray(args) &&
+          args.length === 1 &&
+          typeof args[0] === "string" &&
+          !args[0].startsWith("--")
+        ) {
+          spawnArgs = ["--url", args[0]];
         }
 
         const spawnOptions = { ...(opts || {}) };

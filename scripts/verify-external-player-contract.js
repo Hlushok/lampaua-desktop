@@ -630,10 +630,8 @@ async function verifyUaPlayerMainProcessContract() {
       launches.push(state);
       return {
         args: [
-          "--session-json",
-          `C:\\Temp\\${options.sessionId}\\session.json`,
-          "--result-file",
-          `C:\\Temp\\${options.sessionId}\\result.json`,
+          "--payload-file",
+          `C:\\Users\\Contract\\AppData\\Local\\LampaUA\\PlayerBridge\\v1\\11111111-1111-4111-8111-111111111111\\request.json`,
         ],
         cleanup() {
           if (state.cleaned) return;
@@ -717,9 +715,10 @@ async function verifyUaPlayerMainProcessContract() {
   assert.equal(children.length, 1);
   assert.equal(launches.length, 1);
   assert.equal(launches[0].options.owner, owner);
-  assert.deepEqual(spawnCalls[0].args.slice(0, 2), [
-    "--session-json",
-    "C:\\Temp\\main-session\\session.json",
+  assert.equal(launches[0].options.executablePath, executable);
+  assert.deepEqual(spawnCalls[0].args, [
+    "--payload-file",
+    "C:\\Users\\Contract\\AppData\\Local\\LampaUA\\PlayerBridge\\v1\\11111111-1111-4111-8111-111111111111\\request.json",
   ]);
 
   killHandler({ sender: intruder }, "exact-player", "SIGTERM");
@@ -805,7 +804,7 @@ async function verifyUaPlayerMainProcessContract() {
       uaPlayerSession: { ...session, sessionId: "fallback-session" },
     },
   );
-  assert.deepEqual(spawnCalls[3].args, [session.positionalUrl]);
+  assert.deepEqual(spawnCalls[3].args, ["--url", session.positionalUrl]);
   children[3].emit("close", 0, null);
   assert.equal(
     fallbackOwner.sent.some(

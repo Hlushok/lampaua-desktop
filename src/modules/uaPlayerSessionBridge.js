@@ -1,9 +1,13 @@
 const crypto = require("node:crypto");
+const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
 const SESSION_SCHEMA = "lampaua-player-session-v1";
 const RESULT_SCHEMA = "lampaua-player-result-v1";
+const CANONICAL_RESULT_SCHEMA = "lampaua.player.playback-result";
+const STAGE_RESULT_SCHEMA = "lampaua.player.stage-result";
+const STAGE_COMMAND = "--stage-lampaua-session";
 const MAX_SESSION_BYTES = 4 * 1024 * 1024;
 const MAX_RESULT_BYTES = 1024 * 1024;
 const MAX_ITEMS = 256;
@@ -21,13 +25,11 @@ const ALLOWED_URL_PROTOCOLS = new Set([
   "tcp:",
   "udp:",
 ]);
-const ALLOWED_END_REASONS = new Set([
-  "ended",
+const ALLOWED_CANONICAL_STATUSES = new Set([
+  "completed",
   "failed",
-  "playing",
   "replaced",
   "stopped",
-  "user",
 ]);
 
 function isObject(value) {
@@ -341,56 +343,223 @@ function validateResultNumber(value, fieldName) {
   return value;
 }
 
-function normalizeResultEntry(raw, itemCount, includeSchema) {
-  if (!isObject(raw)) throw new Error("Result entry is invalid");
-  const endBy = boundedText(ownValue(raw, "end_by"), 32);
-  if (!endBy || !ALLOWED_END_REASONS.has(endBy)) {
-    throw new Error("Result end_by is invalid");
-  }
-  const url = normalizedUrl(ownValue(raw, "url"), "result", true);
-  const position = validateResultNumber(ownValue(raw, "position"), "position");
-  const duration = validateResultNumber(ownValue(raw, "duration"), "duration");
-  if (position > duration) throw new Error("Result position exceeds duration");
-  const playlistIndex = validateResultNumber(
-    ownValue(raw, "playlist_index"),
-    "playlist_index",
-  );
-  if (playlistIndex >= itemCount) {
-    throw new Error("Result playlist_index is out of range");
-  }
-
-  const result = {};
-  if (includeSchema) result.schema = RESULT_SCHEMA;
-  result.end_by = endBy;
-  result.url = url;
-  result.position = position;
-  result.duration = duration;
-  result.playlist_index = playlistIndex;
-  return result;
+function sourceUrl(item) {
+  if (typeof item?.url === "string") return item.url;
+  if (typeof item?.resolver_url === "string") return item.resolver_url;
+  const quality = isObject(item?.quality) ? Object.values(item.quality) : [];
+  return quality.find((value) => typeof value === "string") || "";
 }
 
-function normalizeResult(raw, itemCount) {
-  if (!isObject(raw) || ownValue(raw, "schema") !== RESULT_SCHEMA) {
-    throw new Error(`Result schema must be ${RESULT_SCHEMA}`);
+function mapCanonicalEndReason(status, completed, isCurrent) {
+  if (completed) return "ended";
+  if (!isCurrent) return "playing";
+  return {
+    completed: "ended",
+    failed: "failed",
+    replaced: "replaced",
+    stopped: "user",
+  }[status];
+}
+
+function normalizeCanonicalResult(raw, state) {
+  if (
+    !isObject(raw) ||
+    ownValue(raw, "schema") !== CANONICAL_RESULT_SCHEMA ||
+    ownValue(raw, "version") !== 1 ||
+    ownValue(raw, "request_id") !== state.requestId ||
+    ownValue(raw, "nonce") !== state.nonce
+  ) {
+    throw new Error("Canonical result correlation is invalid");
   }
-  const result = normalizeResultEntry(raw, itemCount, true);
-  const rawPlaybackResults = ownValue(raw, "playback_results");
-  if (rawPlaybackResults !== undefined && !Array.isArray(rawPlaybackResults)) {
-    throw new Error("Result playback_results is invalid");
+  const status = boundedText(ownValue(raw, "status"), 32);
+  if (!status || !ALLOWED_CANONICAL_STATUSES.has(status)) {
+    throw new Error("Canonical result status is invalid");
   }
-  if ((rawPlaybackResults?.length || 0) > MAX_ITEMS) {
-    throw new Error(`Result playback_results exceeds ${MAX_ITEMS} items`);
+  const currentIndex = validateResultNumber(
+    ownValue(raw, "current_index"),
+    "current_index",
+  );
+  if (currentIndex >= state.items.length) {
+    throw new Error("Canonical result current_index is out of range");
+  }
+  const rawItems = ownValue(raw, "playback_results");
+  if (!Array.isArray(rawItems) || rawItems.length > state.items.length) {
+    throw new Error("Canonical playback_results is invalid");
   }
 
   const byIndex = new Map();
-  for (const rawEntry of rawPlaybackResults || []) {
-    const entry = normalizeResultEntry(rawEntry, itemCount, false);
-    byIndex.set(entry.playlist_index, entry);
+  for (const rawItem of rawItems) {
+    if (!isObject(rawItem)) throw new Error("Canonical result item is invalid");
+    const index = validateResultNumber(ownValue(rawItem, "index"), "index");
+    if (index >= state.items.length || byIndex.has(index)) {
+      throw new Error("Canonical result item index is invalid");
+    }
+    const position = validateResultNumber(
+      ownValue(rawItem, "position_ms"),
+      "position_ms",
+    );
+    const durationValue = ownValue(rawItem, "duration_ms");
+    const duration =
+      durationValue === null || durationValue === undefined
+        ? 0
+        : validateResultNumber(durationValue, "duration_ms");
+    if (duration > 0 && position > duration) {
+      throw new Error("Canonical result position exceeds duration");
+    }
+    if (
+      typeof ownValue(rawItem, "completed") !== "boolean" ||
+      (typeof rawItem.id === "string" &&
+        typeof state.items[index].id === "string" &&
+        rawItem.id !== state.items[index].id)
+    ) {
+      throw new Error("Canonical result item identity is invalid");
+    }
+
+    byIndex.set(index, {
+      end_by: mapCanonicalEndReason(
+        status,
+        rawItem.completed,
+        index === currentIndex,
+      ),
+      url: sourceUrl(state.items[index]),
+      position,
+      duration,
+      playlist_index: index,
+    });
   }
-  result.playback_results = Array.from(byIndex.values()).sort(
-    (left, right) => left.playlist_index - right.playlist_index,
+  const current = byIndex.get(currentIndex);
+  if (!current) throw new Error("Canonical current result item is missing");
+  return {
+    schema: RESULT_SCHEMA,
+    ...current,
+    playback_results: Array.from(byIndex.values()).sort(
+      (left, right) => left.playlist_index - right.playlist_index,
+    ),
+  };
+}
+
+function canonicalUuidV4(value) {
+  return (
+    typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+      value,
+    )
   );
-  return result;
+}
+
+function canonicalNonce(value) {
+  if (typeof value !== "string" || !/^[A-Za-z0-9_-]{22}$/.test(value)) {
+    return false;
+  }
+  try {
+    const bytes = Buffer.from(value, "base64url");
+    return bytes.length === 16 && bytes.toString("base64url") === value;
+  } catch {
+    return false;
+  }
+}
+
+function normalizedAbsolutePath(value, fieldName) {
+  if (typeof value !== "string" || !path.isAbsolute(value)) {
+    throw new Error(`${fieldName} path is invalid`);
+  }
+  return path.resolve(value);
+}
+
+function equalPath(left, right) {
+  const leftValue = path.resolve(left);
+  const rightValue = path.resolve(right);
+  return process.platform === "win32"
+    ? leftValue.toLowerCase() === rightValue.toLowerCase()
+    : leftValue === rightValue;
+}
+
+function validateBridgeRoot(value, protectedRoot) {
+  const returnedRoot = normalizedAbsolutePath(value, "bridge root");
+  const expectedRoot = normalizedAbsolutePath(protectedRoot, "bridge root");
+  if (equalPath(returnedRoot, expectedRoot)) return returnedRoot;
+
+  const localApplicationData = process.env.LOCALAPPDATA;
+  if (process.platform !== "win32" || !localApplicationData) {
+    throw new Error("UA Player staging bridge root is invalid");
+  }
+  const packagesRoot = path.join(
+    path.resolve(localApplicationData),
+    "Packages",
+  );
+  const relative = path.relative(packagesRoot, returnedRoot);
+  const segments = relative.split(path.sep).filter(Boolean);
+  if (
+    relative === "" ||
+    path.isAbsolute(relative) ||
+    segments.includes("..") ||
+    segments.length !== 6 ||
+    !/^[A-Za-z0-9._-]{1,255}$/.test(segments[0]) ||
+    segments[1] !== "LocalCache" ||
+    segments[2] !== "Local" ||
+    segments[3] !== "LampaUA" ||
+    segments[4] !== "PlayerBridge" ||
+    segments[5] !== "v1"
+  ) {
+    throw new Error("UA Player staging bridge root is invalid");
+  }
+  return returnedRoot;
+}
+
+function validateStageResult(raw, sessionId, protectedRoot) {
+  if (
+    !isObject(raw) ||
+    raw.schema !== STAGE_RESULT_SCHEMA ||
+    raw.version !== 1 ||
+    raw.session_id !== sessionId ||
+    !canonicalUuidV4(raw.request_id) ||
+    !canonicalNonce(raw.nonce)
+  ) {
+    throw new Error("UA Player staging result is invalid");
+  }
+  const root = validateBridgeRoot(raw.bridge_root, protectedRoot);
+  const sessionDirectory = path.join(root, raw.request_id);
+  const requestPath = normalizedAbsolutePath(raw.request_path, "request");
+  const resultPath = normalizedAbsolutePath(raw.result_path, "result");
+  if (
+    !equalPath(requestPath, path.join(sessionDirectory, "request.json")) ||
+    !equalPath(resultPath, path.join(sessionDirectory, "result.json")) ||
+    !fs.existsSync(requestPath) ||
+    fs.lstatSync(requestPath).isSymbolicLink()
+  ) {
+    throw new Error("UA Player staging paths are invalid");
+  }
+  return {
+    nonce: raw.nonce,
+    requestId: raw.request_id,
+    requestPath,
+    resultPath,
+    root,
+    sessionDirectory,
+  };
+}
+
+function stageWithUaPlayer(executablePath, sessionPath) {
+  if (typeof executablePath !== "string" || !path.isAbsolute(executablePath)) {
+    throw new Error("UA Player executable path is invalid");
+  }
+  const outcome = spawnSync(executablePath, [STAGE_COMMAND, sessionPath], {
+    encoding: "utf8",
+    maxBuffer: MAX_RESULT_BYTES,
+    shell: false,
+    timeout: 15_000,
+    windowsHide: true,
+  });
+  if (
+    outcome.error ||
+    outcome.signal ||
+    outcome.status !== 0 ||
+    typeof outcome.stdout !== "string" ||
+    Buffer.byteLength(outcome.stdout) > MAX_RESULT_BYTES
+  ) {
+    throw new Error("UA Player staging process failed");
+  }
+  return JSON.parse(outcome.stdout);
 }
 
 function writeAtomicFile(filePath, bytes) {
@@ -442,9 +611,21 @@ function readBoundedJson(filePath) {
   }
 }
 
-function createUaPlayerSessionBridge({ tempRoot } = {}) {
+function createUaPlayerSessionBridge({
+  tempRoot,
+  protectedRoot = process.env.LOCALAPPDATA
+    ? path.join(process.env.LOCALAPPDATA, "LampaUA", "PlayerBridge", "v1")
+    : undefined,
+  stageProcess = stageWithUaPlayer,
+} = {}) {
   if (typeof tempRoot !== "string" || !path.isAbsolute(tempRoot)) {
     throw new Error("UA Player session temp root must be absolute");
+  }
+  if (typeof protectedRoot !== "string" || !path.isAbsolute(protectedRoot)) {
+    throw new Error("UA Player protected bridge root must be absolute");
+  }
+  if (typeof stageProcess !== "function") {
+    throw new Error("UA Player staging process must be callable");
   }
   const active = new Set();
 
@@ -453,12 +634,34 @@ function createUaPlayerSessionBridge({ tempRoot } = {}) {
     state.cleaned = true;
     active.delete(state);
     fs.rmSync(state.directory, { recursive: true, force: true });
+    if (state.protectedSessionDirectory) {
+      try {
+        const expected = path.join(state.bridgeRoot, state.requestId);
+        if (equalPath(state.protectedSessionDirectory, expected)) {
+          fs.rmSync(state.protectedSessionDirectory, {
+            recursive: true,
+            force: true,
+          });
+          fs.rmSync(path.join(state.bridgeRoot, `.lease-${state.requestId}`), {
+            force: true,
+          });
+        }
+      } catch {
+        // The player janitor owns any session still locked during renderer teardown.
+      }
+    }
   }
 
-  function prepareLaunch({ sessionId, payload, positionalUrl, owner } = {}) {
+  function prepareLaunch({
+    executablePath,
+    sessionId,
+    payload,
+    positionalUrl,
+    owner,
+  } = {}) {
     if (payload === undefined || payload === null) {
       return {
-        args: positionalUrl ? [positionalUrl] : [],
+        args: positionalUrl ? ["--url", positionalUrl] : [],
         cleanup() {},
         finish() {
           return null;
@@ -482,16 +685,30 @@ function createUaPlayerSessionBridge({ tempRoot } = {}) {
       directory,
       finished: false,
       itemCount: normalized.items.length,
+      items: normalized.items,
       owner,
+      bridgeRoot: null,
+      protectedSessionDirectory: null,
+      requestId: null,
+      nonce: null,
     };
     active.add(state);
 
     try {
       const sessionPath = path.join(directory, "session.json");
-      const resultPath = path.join(directory, "result.json");
       writeAtomicFile(sessionPath, bytes);
+      const staged = validateStageResult(
+        stageProcess(executablePath, sessionPath),
+        sessionId,
+        protectedRoot,
+      );
+      state.bridgeRoot = staged.root;
+      state.protectedSessionDirectory = staged.sessionDirectory;
+      state.requestId = staged.requestId;
+      state.nonce = staged.nonce;
+      fs.rmSync(directory, { recursive: true, force: true });
       return {
-        args: ["--session-json", sessionPath, "--result-file", resultPath],
+        args: ["--payload-file", staged.requestPath],
         cleanup() {
           cleanupState(state);
         },
@@ -499,9 +716,9 @@ function createUaPlayerSessionBridge({ tempRoot } = {}) {
           if (state.finished) return null;
           state.finished = true;
           try {
-            const rawResult = readBoundedJson(resultPath);
+            const rawResult = readBoundedJson(staged.resultPath);
             return rawResult
-              ? normalizeResult(rawResult, state.itemCount)
+              ? normalizeCanonicalResult(rawResult, state)
               : null;
           } catch {
             return null;
@@ -510,6 +727,10 @@ function createUaPlayerSessionBridge({ tempRoot } = {}) {
           }
         },
         sessionId,
+        requestId: staged.requestId,
+        nonce: staged.nonce,
+        requestPath: staged.requestPath,
+        resultPath: staged.resultPath,
         usesSession: true,
       };
     } catch (error) {
