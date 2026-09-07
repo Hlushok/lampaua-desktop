@@ -62,6 +62,12 @@
     "appId": "com.lampaua.desktop",
     "productName": "LampaUa",
     "artifactName": "lampaua-${arch}-${version}.${ext}",
+    "files": [
+      "assets/**/*",
+      "src/**/*",
+      "package.json",
+      "LICENSE"
+    ],
     "linux": {
       "target": [
         {

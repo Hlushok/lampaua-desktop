@@ -5,6 +5,16 @@ const path = require("node:path");
 
 const projectRoot = path.resolve(__dirname, "..");
 
+function verifyPackageInputBoundary() {
+  const manifest = require(path.join(projectRoot, "package.json"));
+  assert.deepEqual(manifest.build.files, [
+    "assets/**/*",
+    "src/**/*",
+    "package.json",
+    "LICENSE",
+  ]);
+}
+
 function withMockedModules(mocks, callback) {
   const originalLoad = Module._load;
 
@@ -830,6 +840,7 @@ async function verifyUaPlayerMainProcessContract() {
 }
 
 async function main() {
+  verifyPackageInputBoundary();
   await verifyPlayerFinderContract();
   verifyPreloadContract();
   await verifyMainOnlyPlayerAuthorizationStore();
