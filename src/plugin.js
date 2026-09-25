@@ -42,6 +42,30 @@
     }
   }
 
+  function applyTrustedPlayerSelection(playerPath) {
+    const selectedPath = textValue(playerPath);
+    if (!selectedPath) return false;
+
+    if (window.Lampa?.Storage?.set) {
+      window.Lampa.Storage.set("player_nw_path", selectedPath);
+      window.Lampa.Storage.set("player_torrent", "other");
+    } else {
+      window.localStorage.setItem("player_nw_path", selectedPath);
+      window.localStorage.setItem("player_torrent", "other");
+    }
+
+    const pathField = $('div[data-name="player_nw_path"]');
+    if (pathField.length) {
+      if (window.Lampa?.Params?.update) {
+        window.Lampa.Params.update(pathField);
+      } else {
+        pathField.find(".settings-param__value").text(selectedPath);
+      }
+    }
+
+    return true;
+  }
+
   function selectedPlayerIsUaPlayer() {
     const selectedPath = textValue(storageField("player_nw_path"));
     if (!selectedPath) return false;
@@ -75,55 +99,74 @@
 
   function copyQualities(value) {
     const result = {};
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
+    if (!value || typeof value !== "object") {
       return result;
     }
-    for (const [label, item] of Object.entries(value)) {
-      const rawUrl =
-        typeof item === "string" ? item : ownValue(item, "url", "src");
-      const url = toLampaPlayUrl(rawUrl);
-      if (label.trim() && url) result[label] = url;
-    }
-    return result;
-  }
-
-  function lampaSelectedQualityUrl(data) {
-    const quality = ownValue(data, "quality");
-    if (!quality || typeof quality !== "object" || Array.isArray(quality)) {
-      return undefined;
-    }
-    const entries = Object.entries(quality);
-    if (entries.length <= 1) return undefined;
-    const preferredHeight = Number.parseInt(
-      storageField("video_quality_default"),
-      10,
-    );
-    if (!Number.isFinite(preferredHeight)) return undefined;
+    const entries = Array.isArray(value)
+      ? value.map((item) => [
+          textValue(ownValue(item, "label", "name", "display_name", "id")),
+          item,
+        ])
+      : Object.entries(value);
     for (const [label, item] of entries) {
       const rawUrl =
-        typeof item === "string" ? item : ownValue(item, "url", "src");
-      if (Number.parseInt(label, 10) === preferredHeight && textValue(rawUrl)) {
-        return rawUrl;
+        typeof item === "string" ? item : ownValue(item, "url", "uri", "src");
+      const url = toLampaPlayUrl(rawUrl);
+      if (!label || !label.trim() || !url) continue;
+      if (typeof item === "string") {
+        result[label] = url;
+        continue;
       }
+      const quality = {
+        url,
+        headers: copyStringMap(ownValue(item, "headers")),
+      };
+      for (const [field, aliases] of [
+        ["id", ["id"]],
+        ["name", ["name", "label", "title"]],
+        ["mime_type", ["mime_type", "mimeType", "content_type"]],
+      ]) {
+        const value = textValue(ownValue(item, ...aliases));
+        if (value) quality[field] = value;
+      }
+      for (const field of ["width", "height", "bitrate"]) {
+        const value = positiveIntegerValue(ownValue(item, field));
+        if (value) quality[field] = value;
+      }
+      result[label] = quality;
     }
-    return undefined;
+    return result;
   }
 
   function copySubtitles(value) {
     if (!Array.isArray(value)) return [];
     return value
       .map((item) => {
+        if (typeof item === "string") return { url: item };
         if (!item || typeof item !== "object" || Array.isArray(item)) {
           return null;
         }
-        const url = textValue(ownValue(item, "url", "file"));
-        if (!url) return null;
-        const subtitle = { url };
+        const url = textValue(ownValue(item, "url", "uri", "src", "file"));
+        const path = textValue(ownValue(item, "path", "local_path"));
+        if (!url && !path) return null;
+        const subtitle = { headers: copyStringMap(ownValue(item, "headers")) };
+        if (url) subtitle.url = url;
+        if (!url && path) subtitle.path = path;
         const label = textValue(ownValue(item, "label", "title", "name"));
         const language = textValue(ownValue(item, "language", "lang"));
         if (label) subtitle.label = label;
         if (language) subtitle.language = language;
-        if (ownValue(item, "default") === true) subtitle.default = true;
+        for (const [field, aliases] of [
+          ["id", ["id"]],
+          ["format", ["format", "extension"]],
+        ]) {
+          const value = textValue(ownValue(item, ...aliases));
+          if (value) subtitle[field] = value;
+        }
+        if (ownValue(item, "default", "is_default", "enabled") === true)
+          subtitle.default = true;
+        if (ownValue(item, "forced", "is_forced") === true)
+          subtitle.forced = true;
         return subtitle;
       })
       .filter(Boolean);
@@ -138,7 +181,7 @@
       const value = ownValue(segment, field);
       if (Number.isFinite(value)) result[field] = value;
     }
-    for (const field of ["kind", "type", "source"]) {
+    for (const field of ["id", "kind", "type", "source", "label", "mode"]) {
       const value = textValue(ownValue(segment, field));
       if (value) result[field] = value;
     }
@@ -159,10 +202,82 @@
     return result;
   }
 
-  function itemSources(primary, fallback) {
-    return [primary, fallback, primary?.card, fallback?.card].filter(
-      (value) => value && typeof value === "object",
+  function firstCopiedValue(sources, keys, copy, hasValue) {
+    for (const source of sources) {
+      for (const key of keys) {
+        const copied = copy(ownValue(source, key));
+        if (hasValue(copied)) return copied;
+      }
+    }
+    return copy(undefined);
+  }
+
+  function hasCopiedSegments(value) {
+    if (Array.isArray(value)) return value.length > 0;
+    if (!value || typeof value !== "object") return false;
+    return Object.values(value).some(
+      (items) => Array.isArray(items) && items.length > 0,
     );
+  }
+
+  function appendPlaybackSource(target, value) {
+    if (Array.isArray(value)) {
+      const first = value.find(
+        (item) => item && typeof item === "object" && !Array.isArray(item),
+      );
+      if (first) target.push(first);
+      return;
+    }
+    if (value && typeof value === "object") target.push(value);
+  }
+
+  function itemPlaybackSources(primary, fallback) {
+    const result = [];
+    for (const source of [primary, fallback]) {
+      appendPlaybackSource(result, source);
+      if (!source || typeof source !== "object" || Array.isArray(source)) {
+        continue;
+      }
+      for (const key of [
+        "stream",
+        "source",
+        "video",
+        "media",
+        "data",
+        "result",
+      ]) {
+        appendPlaybackSource(result, ownValue(source, key));
+      }
+    }
+    return result;
+  }
+
+  function itemSources(primary, fallback) {
+    return [
+      ...itemPlaybackSources(primary, fallback),
+      primary?.card,
+      fallback?.card,
+      primary?.movie,
+      fallback?.movie,
+    ].filter((value) => value && typeof value === "object");
+  }
+
+  function itemMetadataSources(primary, fallback) {
+    return [
+      primary?.card,
+      fallback?.card,
+      primary?.movie,
+      fallback?.movie,
+    ].filter((value) => value && typeof value === "object");
+  }
+
+  function positiveIntegerValue(value) {
+    if (Number.isSafeInteger(value) && value > 0) return value;
+    if (typeof value !== "string" || !/^\d{1,15}$/.test(value.trim())) {
+      return undefined;
+    }
+    const parsed = Number.parseInt(value, 10);
+    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
   }
 
   function firstItemValue(sources, ...keys) {
@@ -175,7 +290,11 @@
 
   function buildUaPlayerItem(primary, fallback, positionMs, fullPlaybackData) {
     const sources = itemSources(primary, fallback);
-    const streamSources = fullPlaybackData ? sources : [primary];
+    const metadataSources = itemMetadataSources(primary, fallback);
+    const streamSources = itemPlaybackSources(
+      primary,
+      fullPlaybackData ? fallback : null,
+    );
     const item = {};
     const url = toLampaPlayUrl(
       firstItemValue(streamSources, "url", "media_url", "stream_url"),
@@ -193,6 +312,7 @@
     const textFields = [
       ["id", ["id"]],
       ["title", ["title", "name"]],
+      ["filename", ["filename", "file_name"]],
       ["mime_type", ["mime_type", "mimeType", "content_type"]],
       ["group", ["group", "group_title"]],
       ["tvg_id", ["tvg_id", "tvg-id"]],
@@ -202,7 +322,10 @@
       ["catchup_source", ["catchup_source", "catchup-source"]],
       ["imdb_id", ["imdb_id", "imdbId"]],
       ["media_type", ["media_type", "mediaType"]],
-      ["original_title", ["original_title", "originalTitle"]],
+      [
+        "original_title",
+        ["original_title", "originalTitle", "original_name", "originalName"],
+      ],
     ];
     for (const [outputName, inputNames] of textFields) {
       const value = textValue(firstItemValue(sources, ...inputNames));
@@ -221,9 +344,30 @@
       const value = firstItemValue(sources, ...inputNames);
       if (Number.isSafeInteger(value) && value > 0) item[outputName] = value;
     }
+    if (!item.tmdb_id) {
+      const metadataId = positiveIntegerValue(
+        firstItemValue(metadataSources, "tmdb_id", "tmdbId", "id"),
+      );
+      if (metadataId) item.tmdb_id = metadataId;
+    }
+    if (!item.year) {
+      const releaseDate = textValue(
+        firstItemValue(
+          metadataSources,
+          "first_air_date",
+          "release_date",
+          "firstAirDate",
+          "releaseDate",
+        ),
+      );
+      const releaseYear = releaseDate?.match(/^(\d{4})(?:-|$)/)?.[1];
+      const parsedYear = positiveIntegerValue(releaseYear);
+      if (parsedYear) item.year = parsedYear;
+    }
     if (firstItemValue(sources, "is_anime", "anime") === true) {
       item.is_anime = true;
     }
+    if (sources.some(isLiveSource)) item.is_live = true;
     if (Number.isSafeInteger(positionMs) && positionMs >= 0) {
       item.position_ms = positionMs;
     }
@@ -232,19 +376,40 @@
     item.resolver_headers = copyStringMap(
       firstItemValue(sources, "resolver_headers"),
     );
-    const playbackSource = fullPlaybackData ? primary : primary || {};
-    item.quality = copyQualities(
-      ownValue(playbackSource, "quality", "qualities"),
+    const playbackSources = itemPlaybackSources(
+      primary,
+      fullPlaybackData ? fallback : null,
     );
-    item.subtitles = copySubtitles(ownValue(playbackSource, "subtitles"));
-    item.segments = copySegments(
-      ownValue(playbackSource, "segments", "_session_segments"),
+    item.quality = firstCopiedValue(
+      playbackSources,
+      ["quality", "qualities"],
+      copyQualities,
+      (value) => Object.keys(value).length > 0,
+    );
+    item.subtitles = firstCopiedValue(
+      playbackSources,
+      ["subtitles"],
+      copySubtitles,
+      (value) => value.length > 0,
+    );
+    item.segments = firstCopiedValue(
+      playbackSources,
+      ["segments", "_session_segments"],
+      copySegments,
+      hasCopiedSegments,
     );
     return item;
   }
 
   function currentTimelinePositionMs(data) {
-    const seconds = ownValue(data?.timeline, "time");
+    let seconds = ownValue(data?.timeline, "time");
+    try {
+      const hash = ownValue(data?.timeline, "hash");
+      const current = hash && Lampa.Timeline?.view?.(hash);
+      if (Number.isFinite(current?.time)) seconds = current.time;
+    } catch {
+      // A provider without Timeline.view still has its original resume time.
+    }
     return Number.isFinite(seconds) && seconds > 0
       ? Math.round(seconds * 1000)
       : 0;
@@ -256,14 +421,18 @@
       : null;
   }
 
-  function buildUaPlayerSession(data) {
+  function isLiveSource(data) {
+    return ["is_live", "is_iptv", "iptv", "iptv_player", "tv"].some(
+      (key) => ownValue(data, key) === true,
+    );
+  }
+
+  function buildUaPlayerSession(data, originalUrl) {
     if (!data || typeof data !== "object") return null;
     const rawPlaylist = Array.isArray(data.playlist) ? data.playlist : [];
     const currentPositionMs = currentTimelinePositionMs(data);
-    const originalCurrentUrl = toLampaPlayUrl(data.url);
+    const originalCurrentUrl = toLampaPlayUrl(originalUrl || data.url);
     const selectedData = Object.assign({}, data);
-    const selectedQualityUrl = lampaSelectedQualityUrl(data);
-    if (selectedQualityUrl) selectedData.url = selectedQualityUrl;
     const currentItem = buildUaPlayerItem(
       selectedData,
       null,
@@ -309,8 +478,8 @@
     if (playlistIndex >= 0 && playlistIndex < sessionEntries.length) {
       const selectedSource = Object.assign(
         {},
-        selectedData,
         playlistEntries[playlistIndex].raw || {},
+        selectedData,
       );
       selectedSource.url = selectedData.url || selectedSource.url;
       sessionEntries[playlistIndex] = {
@@ -381,7 +550,7 @@
     const playerApi = window.electronAPI?.player;
     if (
       !playerApi ||
-      typeof playerApi.prepareUaPlayerSession !== "function" ||
+      typeof playerApi.setUaPlayerSessionProvider !== "function" ||
       typeof playerApi.onUaPlayerResult !== "function" ||
       !Lampa.Player?.listener
     ) {
@@ -389,6 +558,30 @@
     }
     window.uaPlayerSessionIntegrationReady = true;
     const pendingSessions = new Map();
+    const launchRecords = [];
+    const pendingLaunches = new WeakMap();
+    let collectingLaunch = null;
+
+    function newLaunchRecord(data) {
+      let card = data.card || data.movie;
+      if (!card && !isLiveSource(data)) {
+        const activity = Lampa.Activity?.active?.();
+        card = activity?.card || activity?.movie;
+      }
+      return {
+        data,
+        card,
+        originalUrl: data.url,
+        expiresAt: Date.now() + 30_000,
+      };
+    }
+
+    function collectSynchronousMetadata(record) {
+      collectingLaunch = record;
+      queueMicrotask(() => {
+        if (collectingLaunch === record) collectingLaunch = null;
+      });
+    }
 
     function forgetSession(sessionId) {
       const pending = pendingSessions.get(sessionId);
@@ -434,26 +627,79 @@
     }
 
     Lampa.Player.listener.follow("create", (event) => {
-      if (!selectedPlayerIsUaPlayer()) return;
-      const data = event?.data;
-      const session = buildUaPlayerSession(data);
-      if (!session) return;
+      collectingLaunch = null;
+      if (
+        selectedPlayerIsUaPlayer() &&
+        event?.data &&
+        typeof event.data === "object"
+      ) {
+        const record = newLaunchRecord(event.data);
+        pendingLaunches.set(event.data, record);
+        collectSynchronousMetadata(record);
+      }
+    });
+
+    Lampa.Player.listener.follow("external", (data) => {
+      collectingLaunch = null;
+      if (!selectedPlayerIsUaPlayer() || !data || typeof data !== "object")
+        return;
+      const record = pendingLaunches.get(data) || newLaunchRecord(data);
+      pendingLaunches.delete(data);
+      record.expiresAt = Date.now() + 30_000;
+      launchRecords.push(record);
+      while (launchRecords.length > UA_PLAYER_MAX_PENDING_SESSIONS)
+        launchRecords.shift();
+      collectSynchronousMetadata(record);
+      setTimeout(() => {
+        const index = launchRecords.indexOf(record);
+        if (index >= 0) launchRecords.splice(index, 1);
+      }, 0);
+    });
+
+    // Preserve the native calls and their return values. Only calls in this
+    // launch turn can be correlated; an untagged later response might belong
+    // to a previous film and must not be attached to a new session.
+    for (const method of ["playlist", "subtitles"]) {
+      const original = Lampa.Player[method];
+      if (typeof original !== "function") continue;
+      Lampa.Player[method] = function (value) {
+        if (collectingLaunch && Array.isArray(value))
+          collectingLaunch[method] = value;
+        return original.apply(this, arguments);
+      };
+    }
+
+    playerApi.setUaPlayerSessionProvider((args) => {
+      if (
+        !Array.isArray(args) ||
+        args.length !== 1 ||
+        typeof args[0] !== "string"
+      )
+        return null;
+      const index = launchRecords.findIndex((record) => {
+        const url = toLampaPlayUrl(record.data.url);
+        return (
+          record.expiresAt >= Date.now() &&
+          url &&
+          (args[0] === url || args[0] === encodeURI(url))
+        );
+      });
+      if (index < 0) return null;
+      const record = launchRecords.splice(index, 1)[0];
+      const data = {
+        ...record.data,
+        card: record.data.card || record.data.movie || record.card,
+      };
+      for (const method of ["playlist", "subtitles"]) {
+        if (record[method]) data[method] = record[method];
+      }
+      const session = buildUaPlayerSession(data, record.originalUrl);
+      if (!session) return null;
       const { payload, timelineHandlers } = session;
       const sessionId = createUaPlayerSessionId(playerApi);
       const positionalUrl = payload.items[payload.playlist_index]?.url;
-      try {
-        const prepared = playerApi.prepareUaPlayerSession({
-          sessionId,
-          payload,
-          positionalUrl,
-        });
-        if (!prepared) return;
-        rememberSession(sessionId, timelineHandlers);
-      } catch {
-        console.warn(
-          "UA Player: не вдалося підготувати повний сеанс, використовується звичайний запуск URL",
-        );
-      }
+      rememberSession(sessionId, timelineHandlers);
+      return { sessionId, payload, positionalUrl };
     });
 
     playerApi.onUaPlayerResult((message) => {
@@ -1051,6 +1297,31 @@
         en: "Click to select from the found players in your system.",
         uk: "Натисніть, щоб вибрати зі знайдених плеєрів у вашій системі.",
       },
+      app_settings_player_not_found: {
+        ru: "Медиаплееры не найдены!",
+        en: "Media players were not found!",
+        uk: "Медіаплеєри не знайдено!",
+      },
+      app_settings_player_select_title: {
+        ru: "Выберите плеер по умолчанию",
+        en: "Choose the default player",
+        uk: "Виберіть плеєр за замовчуванням",
+      },
+      app_settings_player_selecting: {
+        ru: "Выбор плеера {name}…",
+        en: "Selecting {name}…",
+        uk: "Вибір плеєра {name}…",
+      },
+      app_settings_player_selected: {
+        ru: "Выбран плеер: {name}",
+        en: "Selected player: {name}",
+        uk: "Обрано плеєр: {name}",
+      },
+      app_settings_player_select_error: {
+        ru: "Ошибка при выборе плеера",
+        en: "Could not select the player",
+        uk: "Помилка під час вибору плеєра",
+      },
       app_settings_keyboard_section: {
         ru: "Выбор клавиатуры",
         en: "Keyboard selection",
@@ -1309,7 +1580,11 @@
           Lampa.Loading.stop();
 
           if (!result.success || result.players.length === 0) {
-            Lampa.Noty.show("Медиа плееры не найдены!", "error", 5000);
+            Lampa.Noty.show(
+              Lampa.Lang.translate("app_settings_player_not_found"),
+              "error",
+              5000,
+            );
             return;
           }
 
@@ -1326,21 +1601,41 @@
           }
 
           Lampa.Select.show({
-            title: "Выберите плеер по умолчанию",
+            title: Lampa.Lang.translate("app_settings_player_select_title"),
             items: items,
             onSelect: async (item) => {
-              Lampa.Loading.start(() => {}, `Выбор ${item.title}...`);
+              Lampa.Loading.start(
+                () => {},
+                Lampa.Lang.translate("app_settings_player_selecting").replace(
+                  "{name}",
+                  item.title,
+                ),
+              );
 
               const saveResult =
                 await window.electronAPI.player.setDefaultAndSave(item.value);
 
               Lampa.Loading.stop();
 
-              if (saveResult.success) {
-                Lampa.Noty.show(`Выбран плеер: ${item.title}`, "success", 3000);
+              if (
+                saveResult.success &&
+                applyTrustedPlayerSelection(saveResult.path)
+              ) {
+                Lampa.Noty.show(
+                  Lampa.Lang.translate("app_settings_player_selected").replace(
+                    "{name}",
+                    item.title,
+                  ),
+                  "success",
+                  3000,
+                );
                 Lampa.Settings.update();
               } else {
-                Lampa.Noty.show("Ошибка при выборе плеера", "error", 3000);
+                Lampa.Noty.show(
+                  Lampa.Lang.translate("app_settings_player_select_error"),
+                  "error",
+                  3000,
+                );
               }
 
               Lampa.Controller.toggle("settings_component");
@@ -1999,7 +2294,11 @@
             Lampa.Loading.stop();
 
             if (!result.success || result.players.length === 0) {
-              Lampa.Noty.show("Медиа плееры не найдены!", "error", 5000);
+              Lampa.Noty.show(
+                Lampa.Lang.translate("app_settings_player_not_found"),
+                "error",
+                5000,
+              );
               return;
             }
 
@@ -2015,25 +2314,40 @@
             }
 
             Lampa.Select.show({
-              title: "Выберите плеер по умолчанию",
+              title: Lampa.Lang.translate("app_settings_player_select_title"),
               items: items,
               onSelect: async (item) => {
-                Lampa.Loading.start(() => {}, `Выбор ${item.title}...`);
+                Lampa.Loading.start(
+                  () => {},
+                  Lampa.Lang.translate("app_settings_player_selecting").replace(
+                    "{name}",
+                    item.title,
+                  ),
+                );
 
                 const saveResult =
                   await window.electronAPI.player.setDefaultAndSave(item.value);
 
                 Lampa.Loading.stop();
 
-                if (saveResult.success) {
+                if (
+                  saveResult.success &&
+                  applyTrustedPlayerSelection(saveResult.path)
+                ) {
                   Lampa.Noty.show(
-                    `Выбран плеер: ${item.title}`,
+                    Lampa.Lang.translate(
+                      "app_settings_player_selected",
+                    ).replace("{name}", item.title),
                     "success",
                     3000,
                   );
                   Lampa.Settings.update();
                 } else {
-                  Lampa.Noty.show("Ошибка при выборе плеера", "error", 3000);
+                  Lampa.Noty.show(
+                    Lampa.Lang.translate("app_settings_player_select_error"),
+                    "error",
+                    3000,
+                  );
                 }
 
                 Lampa.Controller.toggle("settings_component");

@@ -331,16 +331,18 @@ class PlayerFinder {
       const serializedPath = JSON.stringify(finalPath);
 
       await mainWindow.webContents.executeJavaScript(`
-        const selectedPlayerPath = ${serializedPath};
-        localStorage.setItem('player_nw_path', selectedPlayerPath);
-        localStorage.setItem('player_torrent', 'other');
-        console.log('App', '✅ player_nw_path сохранен:', selectedPlayerPath);
-        console.log('App', '✅ player_torrent сохранен:', 'other');
+        (() => {
+          const selectedPlayerPath = ${serializedPath};
+          localStorage.setItem('player_nw_path', selectedPlayerPath);
+          localStorage.setItem('player_torrent', 'other');
+          console.log('App', '✅ player_nw_path сохранен:', selectedPlayerPath);
+          console.log('App', '✅ player_torrent сохранен:', 'other');
 
-        if (window.Lampa && window.Lampa.Storage) {
-          window.Lampa.Storage.set('player_nw_path', selectedPlayerPath);
-          window.Lampa.Storage.set('player_torrent', 'other');
-        }
+          if (window.Lampa && window.Lampa.Storage) {
+            window.Lampa.Storage.set('player_nw_path', selectedPlayerPath);
+            window.Lampa.Storage.set('player_torrent', 'other');
+          }
+        })();
       `);
 
       console.log(

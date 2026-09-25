@@ -50,6 +50,9 @@ function registerPlayerHandlers() {
     return playerFinder.getAvailablePlayersList();
   });
   ipcMain.handle("player-get-all-with-details", async () => {
+    // An explicit search from Settings must not reuse the process-lifetime cache.
+    // UA Player can be installed while LampaUa is already running.
+    await playerFinder.findAllPlayers();
     const players = await playerFinder.getAllPlayers();
     const defaultPlayer = await playerFinder.getDefaultPlayer();
 
@@ -71,12 +74,16 @@ function registerPlayerHandlers() {
     const success = await playerFinder.setDefaultPlayer(playerId);
 
     if (success) {
-      // Сохраняем в localStorage Lampa
+      const defaultPlayer = await playerFinder.getDefaultPlayer();
       const saved = await playerFinder.saveToLocalStorage(mainWindow);
-      return { success: true, saved };
+      return {
+        success: saved,
+        saved,
+        path: saved ? defaultPlayer?.path || null : null,
+      };
     }
 
-    return { success: false };
+    return { success: false, saved: false, path: null };
   });
 }
 

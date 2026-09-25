@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
 const Module = require("node:module");
 const path = require("node:path");
+const vm = require("node:vm");
 
 const projectRoot = path.resolve(__dirname, "..");
 
@@ -188,6 +189,102 @@ function verifyPreloadContract() {
     /^[0-9a-f]{8}-[0-9a-f-]{27}$/,
   );
   assert.equal(electronAPI.player.savePath, undefined);
+
+  const pluginSource = require("node:fs").readFileSync(
+    path.join(projectRoot, "src", "plugin.js"),
+    "utf8",
+  );
+  assert.equal(
+    pluginSource.match(/applyTrustedPlayerSelection\(saveResult\.path\)/g)
+      ?.length,
+    2,
+  );
+  for (const hardCodedCallSite of [
+    'Lampa.Noty.show("Медиа плееры не найдены!"',
+    'title: "Выберите плеер по умолчанию"',
+    'Lampa.Noty.show("Ошибка при выборе плеера"',
+    "Lampa.Noty.show(`Выбран плеер:",
+  ]) {
+    assert.equal(pluginSource.includes(hardCodedCallSite), false);
+  }
+  for (const translationKey of [
+    "app_settings_player_not_found",
+    "app_settings_player_select_title",
+    "app_settings_player_selecting",
+    "app_settings_player_selected",
+    "app_settings_player_select_error",
+  ]) {
+    assert.equal(pluginSource.includes(translationKey), true);
+  }
+}
+
+async function verifyPlayerSelectionHandlers() {
+  const ipcMain = createIpcMainMock();
+  const selectedPlayer = {
+    id: "ua_player",
+    name: "UA Player",
+    description: "UA Player for Windows",
+    path: "C:\\Program Files\\UA Player\\UAPlayer.exe",
+  };
+  const mainWindow = { webContents: {} };
+  let refreshCalls = 0;
+  let savedWindow;
+  const playerFinderMock = {
+    async findAllPlayers() {
+      refreshCalls += 1;
+      return new Map([[selectedPlayer.id, selectedPlayer]]);
+    },
+    async getAllPlayers() {
+      return [{ ...selectedPlayer, isDefault: true }];
+    },
+    async getDefaultPlayer() {
+      return selectedPlayer;
+    },
+    async setDefaultPlayer(playerId) {
+      return playerId === selectedPlayer.id;
+    },
+    async saveToLocalStorage(window) {
+      savedWindow = window;
+      return true;
+    },
+    getAvailablePlayersList() {
+      return [];
+    },
+  };
+
+  withMockedModules(
+    {
+      electron: { ipcMain },
+      "../playerFinder": playerFinderMock,
+      "../windowManager": { getMainWindow: () => mainWindow },
+    },
+    () => {
+      freshRequire(
+        path.join(
+          projectRoot,
+          "src",
+          "modules",
+          "ipcHandlers",
+          "playerHandlers.js",
+        ),
+      )();
+    },
+  );
+
+  const listed = await ipcMain.handlers.get("player-get-all-with-details")();
+  assert.equal(refreshCalls, 1);
+  assert.equal(listed.players[0].path, selectedPlayer.path);
+
+  const selected = await ipcMain.handlers.get("player-set-default-and-save")(
+    {},
+    selectedPlayer.id,
+  );
+  assert.deepEqual(selected, {
+    success: true,
+    saved: true,
+    path: selectedPlayer.path,
+  });
+  assert.equal(savedWindow, mainWindow);
 }
 
 function createIpcMainMock() {
@@ -446,11 +543,32 @@ async function verifyPlayerFinderContract() {
     assert.equal(playerFinder.isUaPlayerPath(selectedPath), true);
 
     const scripts = [];
+    const rendererStorage = new Map();
+    const rendererContext = vm.createContext({
+      console: { log() {} },
+      localStorage: {
+        getItem(key) {
+          return rendererStorage.get(key) ?? null;
+        },
+        setItem(key, value) {
+          rendererStorage.set(key, String(value));
+        },
+      },
+      window: {
+        Lampa: {
+          Storage: {
+            set(key, value) {
+              rendererStorage.set(key, String(value));
+            },
+          },
+        },
+      },
+    });
     const mainWindow = {
       webContents: {
         executeJavaScript(script) {
           scripts.push(script);
-          return Promise.resolve();
+          return Promise.resolve(vm.runInContext(script, rendererContext));
         },
       },
     };
@@ -460,6 +578,7 @@ async function verifyPlayerFinderContract() {
     );
     assert.equal(values.get("trustedPlayerPath"), selectedPath);
     assert.equal(scripts.length, 1);
+    assert.equal(rendererStorage.get("player_nw_path"), selectedPath);
 
     assert.equal(
       await playerFinder.saveToLocalStorage(mainWindow, arbitraryPath),
@@ -473,6 +592,7 @@ async function verifyPlayerFinderContract() {
     );
     assert.equal(values.get("trustedPlayerPath"), arbitraryPath);
     assert.equal(scripts.length, 2);
+    assert.equal(rendererStorage.get("player_nw_path"), arbitraryPath);
 
     const missingPath = "D:\\Players\\Missing\\UAPlayer.exe";
     assert.equal(
@@ -843,6 +963,7 @@ async function main() {
   verifyPackageInputBoundary();
   await verifyPlayerFinderContract();
   verifyPreloadContract();
+  await verifyPlayerSelectionHandlers();
   await verifyMainOnlyPlayerAuthorizationStore();
   await verifyMainProcessContract();
   await verifyUaPlayerMainProcessContract();

@@ -5,6 +5,7 @@ const path = require("node:path");
 const UA_PLAYER_SESSION_TTL_MS = 30_000;
 let pendingUaPlayerSession = null;
 let pendingUaPlayerSessionTimer = null;
+let uaPlayerSessionProvider = null;
 
 function clearPendingUaPlayerSession() {
   pendingUaPlayerSession = null;
@@ -61,12 +62,62 @@ contextBridge.exposeInMainWorld("require", (module) => {
     return {
       spawn: (command, args, options) => {
         const id = Math.random().toString(36).substr(2, 9);
-        const uaPlayerSession = takeUaPlayerSession(command);
-        const spawnArguments = [id, command, args, options];
-        if (uaPlayerSession) spawnArguments.push({ uaPlayerSession });
-        ipcRenderer.send("child-process-spawn", ...spawnArguments);
+        let cancelled = false;
+        let cancelSignal = "SIGTERM";
+        let dispatched = false;
+        const lifecycleHandlers = [];
+        const dispatch = () => {
+          if (cancelled) {
+            for (const eventName of ["exit", "close"]) {
+              for (const handler of lifecycleHandlers.filter(
+                (entry) => entry.eventName === eventName,
+              )) {
+                ipcRenderer.removeListener(
+                  handler.channel,
+                  handler.subscription,
+                );
+                handler.callback(null, cancelSignal);
+              }
+            }
+            lifecycleHandlers.length = 0;
+            return;
+          }
+          let uaPlayerSession = takeUaPlayerSession(command);
+          if (
+            uaPlayerSessionProvider &&
+            typeof command === "string" &&
+            path.win32.basename(command).toLowerCase() === "uaplayer.exe"
+          ) {
+            try {
+              uaPlayerSession =
+                uaPlayerSessionProvider(args) || uaPlayerSession;
+            } catch {
+              // Keep the original URL launch available if the renderer adapter fails.
+            }
+          }
+          const spawnArguments = [id, command, args, options];
+          if (uaPlayerSession) spawnArguments.push({ uaPlayerSession });
+          dispatched = true;
+          ipcRenderer.send("child-process-spawn", ...spawnArguments);
+        };
+        // Lampa emits `external` after spawn and may attach a playlist/subtitles
+        // after play() returns. Defer only UA Player, not other native players.
+        if (
+          uaPlayerSessionProvider &&
+          typeof command === "string" &&
+          path.win32.basename(command).toLowerCase() === "uaplayer.exe"
+        ) {
+          setTimeout(dispatch, 0);
+        } else {
+          dispatch();
+        }
         return {
           kill: (signal) => {
+            if (!dispatched) {
+              cancelled = true;
+              cancelSignal = signal || "SIGTERM";
+              return;
+            }
             ipcRenderer.send("child-process-kill", id, signal);
           },
           on: (event, callback) => {
@@ -75,16 +126,17 @@ contextBridge.exposeInMainWorld("require", (module) => {
                 `child-process-spawn-error-${id}`,
                 (event, error) => callback(error),
               );
-            } else if (event === "exit") {
-              ipcRenderer.once(
-                `child-process-spawn-exit-${id}`,
-                (event, code, signal) => callback(code, signal),
-              );
-            } else if (event === "close") {
-              ipcRenderer.once(
-                `child-process-spawn-close-${id}`,
-                (event, code, signal) => callback(code, signal),
-              );
+            } else if (event === "exit" || event === "close") {
+              const channel = `child-process-spawn-${event}-${id}`;
+              const subscription = (ipcEvent, code, signal) =>
+                callback(code, signal);
+              lifecycleHandlers.push({
+                eventName: event,
+                channel,
+                subscription,
+                callback,
+              });
+              ipcRenderer.once(channel, subscription);
             }
           },
           stdout: {
@@ -215,6 +267,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     setDefaultAndSave: (playerId) =>
       ipcRenderer.invoke("player-set-default-and-save", playerId),
     prepareUaPlayerSession,
+    setUaPlayerSessionProvider: (provider) => {
+      if (typeof provider !== "function") return false;
+      uaPlayerSessionProvider = provider;
+      return true;
+    },
     createUaPlayerSessionId: () => crypto.randomUUID(),
     onUaPlayerResult: (callback) => {
       const subscription = (event, value) => callback(value);

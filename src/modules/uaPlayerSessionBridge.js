@@ -127,24 +127,47 @@ function normalizeQualities(item) {
     for (const value of raw) {
       if (!isObject(value)) continue;
       entries.push([
-        ownValue(value, "label", "name"),
-        ownValue(value, "url", "src"),
+        ownValue(value, "label", "name", "display_name", "id"),
+        value,
       ]);
     }
   } else if (isObject(raw)) {
     for (const [label, value] of Object.entries(raw)) {
-      entries.push([
-        label,
-        isObject(value) ? ownValue(value, "url", "src") : value,
-      ]);
+      entries.push([label, value]);
     }
   }
 
-  for (const [rawLabel, rawUrl] of entries.slice(0, MAX_QUALITIES)) {
+  for (const [rawLabel, rawValue] of entries.slice(0, MAX_QUALITIES)) {
     const label = boundedText(rawLabel, 128);
     if (!label) continue;
+    const rawUrl = isObject(rawValue)
+      ? ownValue(rawValue, "url", "uri", "src")
+      : rawValue;
     const url = normalizedUrl(rawUrl, `quality ${label}`, false, false);
-    if (url) result[label] = url;
+    if (!url) continue;
+    if (!isObject(rawValue)) {
+      result[label] = url;
+      continue;
+    }
+
+    const quality = { url };
+    const id = boundedText(ownValue(rawValue, "id"), 128);
+    const name = boundedText(
+      ownValue(rawValue, "name", "display_name", "label"),
+      256,
+    );
+    const mimeType = boundedText(ownValue(rawValue, "mime_type", "mime"), 256);
+    const headers = normalizeHeaders(ownValue(rawValue, "headers"));
+    if (id) quality.id = id;
+    if (name) quality.name = name;
+    if (Object.keys(headers).length > 0) quality.headers = headers;
+    if (mimeType) quality.mime_type = mimeType;
+    for (const field of ["width", "height", "bitrate"]) {
+      const value = integerValue(ownValue(rawValue, field));
+      if (value !== undefined && value > 0) quality[field] = value;
+    }
+    result[label] =
+      Object.keys(quality).length === 1 && quality.url === url ? url : quality;
   }
   return result;
 }
@@ -156,18 +179,33 @@ function normalizeSubtitles(value) {
   for (const raw of value.slice(0, MAX_SUBTITLES)) {
     if (!isObject(raw)) continue;
     const url = normalizedUrl(
-      ownValue(raw, "url", "file"),
+      ownValue(raw, "url", "uri", "src", "file"),
       "subtitle",
       false,
       false,
     );
-    if (!url) continue;
-    const subtitle = { url };
+    const rawPath = boundedText(
+      ownValue(raw, "path", "local_path"),
+      MAX_URL_CHARS,
+    );
+    const localPath =
+      rawPath && path.isAbsolute(rawPath) ? path.resolve(rawPath) : undefined;
+    if ((!url && !localPath) || (url && localPath)) continue;
+    const subtitle = url ? { url } : { path: localPath };
+    const id = boundedText(ownValue(raw, "id"), 256);
     const label = boundedText(ownValue(raw, "label", "title", "name"), 256);
     const language = boundedText(ownValue(raw, "language", "lang"), 32);
+    const format = boundedText(ownValue(raw, "format", "extension"), 32);
+    const headers = normalizeHeaders(ownValue(raw, "headers"));
+    if (id) subtitle.id = id;
     if (label) subtitle.label = label;
     if (language) subtitle.language = language.toLowerCase();
-    if (ownValue(raw, "default") === true) subtitle.default = true;
+    if (format) subtitle.format = format.toLowerCase();
+    subtitle.headers = headers;
+    if (ownValue(raw, "default", "is_default", "enabled") === true) {
+      subtitle.default = true;
+    }
+    if (ownValue(raw, "forced", "is_forced") === true) subtitle.forced = true;
     result.push(subtitle);
   }
   return result;
@@ -186,8 +224,15 @@ function flattenSegments(value) {
   return result;
 }
 
-function normalizeSegments(item) {
-  const raw = ownValue(item, "_session_segments", "segments");
+function hasSegments(value) {
+  if (Array.isArray(value)) return value.length > 0;
+  if (!isObject(value)) return false;
+  return Object.values(value).some(
+    (segments) => Array.isArray(segments) && segments.length > 0,
+  );
+}
+
+function normalizeSegmentValue(raw) {
   const result = [];
 
   for (const segment of flattenSegments(raw).slice(0, MAX_SEGMENTS)) {
@@ -204,9 +249,15 @@ function normalizeSegments(item) {
     const endMs = Math.round(endValue * multiplier);
     if (startMs < 0 || endMs <= startMs) continue;
     const normalized = { start_ms: startMs, end_ms: endMs };
-    const kind = boundedText(ownValue(segment, "kind", "type"), 32);
+    const id = boundedText(ownValue(segment, "id"), 256);
+    const type = boundedText(ownValue(segment, "type", "kind"), 32);
+    const mode = boundedText(ownValue(segment, "mode"), 32);
+    const label = boundedText(ownValue(segment, "label", "title"), 256);
     const source = boundedText(ownValue(segment, "source"), 128);
-    if (kind) normalized.kind = kind;
+    if (id) normalized.id = id;
+    if (type) normalized.type = type;
+    if (mode) normalized.mode = mode;
+    if (label) normalized.label = label;
     if (source) normalized.source = source;
     if (ownValue(segment, "whole_content_ad") === true) {
       normalized.whole_content_ad = true;
@@ -216,10 +267,18 @@ function normalizeSegments(item) {
   return result;
 }
 
+function normalizeSegments(item) {
+  const primary = ownValue(item, "segments");
+  return normalizeSegmentValue(
+    hasSegments(primary) ? primary : ownValue(item, "_session_segments"),
+  );
+}
+
 function copyTextFields(source, target) {
   const fields = [
     ["id", ["id"]],
     ["title", ["title", "name"]],
+    ["filename", ["filename", "file_name"]],
     ["mime_type", ["mime_type", "mimeType", "content_type"]],
     ["group", ["group", "group_title"]],
     ["tvg_id", ["tvg_id", "tvg-id"]],
@@ -283,6 +342,8 @@ function normalizeItem(rawItem, index) {
   copyTextFields(rawItem, item);
   copyIntegerFields(rawItem, item);
   if (ownValue(rawItem, "is_anime", "anime") === true) item.is_anime = true;
+  const isLive = ownValue(rawItem, "is_live", "is_iptv");
+  if (typeof isLive === "boolean") item.is_live = isLive;
   item.headers = normalizeHeaders(ownValue(rawItem, "headers"));
   item.resolver_headers = normalizeHeaders(
     ownValue(rawItem, "resolver_headers"),
@@ -347,7 +408,14 @@ function sourceUrl(item) {
   if (typeof item?.url === "string") return item.url;
   if (typeof item?.resolver_url === "string") return item.resolver_url;
   const quality = isObject(item?.quality) ? Object.values(item.quality) : [];
-  return quality.find((value) => typeof value === "string") || "";
+  for (const value of quality) {
+    if (typeof value === "string") return value;
+    const url = isObject(value)
+      ? ownValue(value, "url", "uri", "src")
+      : undefined;
+    if (typeof url === "string") return url;
+  }
+  return "";
 }
 
 function mapCanonicalEndReason(status, completed, isCurrent) {

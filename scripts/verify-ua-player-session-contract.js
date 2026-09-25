@@ -390,6 +390,7 @@ function verifyPluginContract() {
   const sentEvents = [];
   const preparedSessions = [];
   let resultSubscription;
+  let sessionProvider;
   let selectedPlayerPath = "C:\\Program Files\\UA Player\\UAPlayer.exe";
   const playerListener = {
     follow(eventName, callback) {
@@ -425,8 +426,8 @@ function verifyPluginContract() {
       resultSubscription = callback;
       return () => {};
     },
-    prepareUaPlayerSession(session) {
-      preparedSessions.push(session);
+    setUaPlayerSessionProvider(provider) {
+      sessionProvider = provider;
       return true;
     },
   };
@@ -441,6 +442,7 @@ function verifyPluginContract() {
     clearTimeout() {},
     console: { error() {}, log() {}, warn() {} },
     encodeURIComponent,
+    queueMicrotask() {},
     setTimeout: () => 0,
     window,
   };
@@ -487,34 +489,59 @@ function verifyPluginContract() {
     ],
     season: 1,
     episode: 2,
-    tmdb_id: 123,
-    quality: {
-      "1080p": "https://origin.example.test/episode-2-1080.m3u8",
-      "720p": "https://origin.example.test/episode-2-720.m3u8",
+    card: {
+      id: 125988,
+      name: "Бункер",
+      original_name: "Silo",
+      media_type: "tv",
+      first_air_date: "2023-05-04",
     },
-    subtitles: [
-      {
-        url: "https://subtitles.example.test/episode-2.vtt",
-        label: "Українська",
-        language: "uk",
+    quality: {},
+    subtitles: [],
+    segments: [],
+    stream: {
+      quality: {
+        "1080p": "https://origin.example.test/episode-2-1080.m3u8",
+        "720p": "https://origin.example.test/episode-2-720.m3u8",
       },
-    ],
-    segments: [{ start: 10, end: 20, kind: "intro" }],
+      subtitles: [
+        {
+          url: "https://subtitles.example.test/episode-2.vtt",
+          label: "Українська",
+          language: "uk",
+        },
+      ],
+      segments: [{ start: 10, end: 20, kind: "intro" }],
+    },
   };
 
   listeners.get("create")({ data, abort() {} });
+  assert.equal(preparedSessions.length, 0);
+  // Lampa chooses its final URL after create and before the external event.
+  data.url = data.stream.quality["1080p"];
+  listeners.get("external")(data);
+  preparedSessions.push(
+    sessionProvider([encodeURI(Lampa.Torserver.toPlayUrl(data.url))]),
+  );
   assert.equal(preparedSessions.length, 1);
   const prepared = preparedSessions[0];
   assert.equal(prepared.sessionId, "11111111-1111-4111-8111-111111111111");
   assert.equal(prepared.payload.schema, "lampaua-player-session-v1");
   assert.equal(prepared.payload.playlist_index, 1);
   assert.equal(prepared.payload.items.length, 2);
+  assert.equal(prepared.payload.items[0].tmdb_id, 125988);
+  assert.equal(prepared.payload.items[1].tmdb_id, 125988);
+  assert.equal(prepared.payload.items[1].original_title, "Silo");
+  assert.equal(prepared.payload.items[1].media_type, "tv");
+  assert.equal(prepared.payload.items[1].year, 2023);
   assert.equal(
     prepared.payload.items[1].url,
     "http://localhost:8090/play/https%3A%2F%2Forigin.example.test%2Fepisode-2-1080.m3u8",
   );
   assert.equal(prepared.positionalUrl, prepared.payload.items[1].url);
   assert.equal(prepared.payload.items[1].position_ms, 12_000);
+  assert.deepEqual(Object.keys(prepared.payload.items[0].quality), []);
+  assert.equal(prepared.payload.items[0].subtitles.length, 0);
   assert.equal(
     prepared.payload.items[1].quality["1080p"],
     "http://localhost:8090/play/https%3A%2F%2Forigin.example.test%2Fepisode-2-1080.m3u8",
@@ -566,13 +593,16 @@ function verifyPluginContract() {
   assert.equal(sentEvents.at(-1).value, result);
 
   Lampa.Torserver = {};
-  listeners.get("create")({
-    data: {
-      url: "http://localhost:8090/stream?link=magnet&preload",
-      title: "Торрент",
-      timeline: { handler() {} },
-    },
-  });
+  const torrentData = {
+    url: "http://localhost:8090/stream?link=magnet&preload",
+    title: "Торрент",
+    timeline: { handler() {} },
+  };
+  listeners.get("create")({ data: torrentData });
+  listeners.get("external")(torrentData);
+  preparedSessions.push(
+    sessionProvider([torrentData.url.replace("&preload", "&play")]),
+  );
   assert.equal(
     preparedSessions.at(-1).payload.items[0].url,
     "http://localhost:8090/stream?link=magnet&play",
@@ -582,6 +612,11 @@ function verifyPluginContract() {
   listeners.get("create")({
     data: { url: "https://origin.example.test/not-ua.m3u8" },
   });
+  listeners.get("external")({ url: "https://origin.example.test/not-ua.m3u8" });
+  assert.equal(
+    sessionProvider(["https://origin.example.test/not-ua.m3u8"]),
+    null,
+  );
   assert.equal(preparedSessions.length, 2);
 }
 

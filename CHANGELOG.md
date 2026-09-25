@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.5.19](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.16...v1.5.19) (2026-09-25)
+
+### 🔌 Інтеграція UA Player
+
+- адаптер запускає UA Player після остаточного вибору зовнішнього потоку в LampaUa, не втрачаючи дані через передчасне створення сеансу;
+- до захищеного сеансу передаються доступні LampaUa метадані IPTV, плейлист, таймкод, доріжки, субтитри, якості та сегменти пропуску;
+- оновлено пошук і вибір установленого UA Player та українські повідомлення про результат вибору.
+
+### 🔧 Оновлення
+
+- Windows-реліз публікує `latest.yml` разом із відповідними NSIS-інсталяторами та файлами `.blockmap` для автооновлення.
+
 ## [1.5.16](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.15...v1.5.16) (2026-08-31)
 
 ### ✨ Новые возможности

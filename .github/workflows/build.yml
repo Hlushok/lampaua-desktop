@@ -132,12 +132,43 @@ jobs:
       - name: Build for Windows
         run: yarn run build-win
 
+      - name: Verify Windows update artifacts
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          $manifestPath = "dist/latest.yml"
+          if (-not (Test-Path -LiteralPath $manifestPath)) {
+            throw "Missing Windows update manifest: $manifestPath"
+          }
+
+          $manifest = Get-Content -LiteralPath $manifestPath -Raw
+          $manifestVersion = ($manifest -split "`r?`n" | Select-Object -First 1).Trim()
+          if ($manifestVersion -ne "version: $version") {
+            throw "latest.yml does not describe package version $version"
+          }
+
+          foreach ($arch in @("x64", "ia32", "arm64")) {
+            $installer = "lampaua-$arch-$version.exe"
+            $installerPath = Join-Path "dist" $installer
+            $blockmapPath = "$installerPath.blockmap"
+            if (-not (Test-Path -LiteralPath $installerPath)) {
+              throw "Missing Windows installer: $installerPath"
+            }
+            if (-not (Test-Path -LiteralPath $blockmapPath)) {
+              throw "Missing Windows blockmap: $blockmapPath"
+            }
+            if ($manifest -notmatch [regex]::Escape("url: $installer")) {
+              throw "latest.yml does not include $installer"
+            }
+          }
+
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v6
         with:
           name: lampa-windows
           path: |
             dist/*.exe
+            dist/*.exe.blockmap
             dist/latest.yml
 
   generate-downloads-table:
@@ -293,6 +324,7 @@ jobs:
             lampa-macos/*.dmg
             lampa-macos/latest-mac.yml
             lampa-windows/*.exe
+            lampa-windows/*.exe.blockmap
             lampa-windows/latest.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
