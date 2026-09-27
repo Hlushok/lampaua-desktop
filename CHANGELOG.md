@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.5.20](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.19...v1.5.20) (2026-09-27)
+
+### 🔌 Інтеграція UA Player
+
+- збільшено ліміти передавання IPTV-плейлистів до 20 000 каналів і 16 MiB зі збереженням вибраного каналу;
+- логотипи каналів передаються до UA Player як зображення елементів плейлиста;
+- додано перевірки великих списків і граничного розміру відповіді плеєра.
+
+### 🔧 Синхронізація та сумісність
+
+- усунуто конфлікт автоматичної синхронізації з upstream зі збереженням опису, брендингу й налаштувань LampaUa;
+- інтегровано підтримку запуску SenPlayer з upstream;
+- піднято версію для розповсюдження цих змін через стандартне автооновлення.
+
 ## [1.5.19](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.16...v1.5.19) (2026-09-25)
 
 ### 🔌 Інтеграція UA Player

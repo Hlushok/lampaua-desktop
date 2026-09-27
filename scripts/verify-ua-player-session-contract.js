@@ -12,7 +12,7 @@ const bridgeModulePath = path.join(
   "modules",
   "uaPlayerSessionBridge.js",
 );
-const MAX_RESULT_BYTES = 1024 * 1024;
+const MAX_RESULT_BYTES = 16 * 1024 * 1024;
 
 function createTemporaryRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "lampaua-session-contract-"));
@@ -358,6 +358,12 @@ function verifyResultValidation(createUaPlayerSessionBridge) {
     );
     assert.equal(replaced.finish().end_by, "replaced");
 
+    const atLimit = prepare("result-at-size-limit");
+    const atLimitBytes = Buffer.alloc(MAX_RESULT_BYTES, 0x20);
+    atLimitBytes.write(JSON.stringify(validCanonicalResult(atLimit)));
+    fs.writeFileSync(atLimit.resultPath, atLimitBytes);
+    assert.notEqual(atLimit.finish(), null);
+
     verifyRejected("missing-result", () => {});
     verifyRejected("malformed-result", (filePath) => {
       fs.writeFileSync(filePath, "{not-json");
@@ -396,8 +402,10 @@ function verifyResultValidation(createUaPlayerSessionBridge) {
         validCanonicalResult(launch, { current_index: 1 }),
       );
     });
-    verifyRejected("oversized-result", (filePath) => {
-      fs.writeFileSync(filePath, Buffer.alloc(MAX_RESULT_BYTES + 1, 0x20));
+    verifyRejected("oversized-result", (filePath, launch) => {
+      const oversizedBytes = Buffer.alloc(MAX_RESULT_BYTES + 1, 0x20);
+      oversizedBytes.write(JSON.stringify(validCanonicalResult(launch)));
+      fs.writeFileSync(filePath, oversizedBytes);
     });
   } finally {
     bridge.cleanupAll();
