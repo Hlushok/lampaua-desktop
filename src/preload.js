@@ -273,6 +273,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
       return true;
     },
     createUaPlayerSessionId: () => crypto.randomUUID(),
+    onUaPlayerProgress: (callback) => {
+      const subscription = (event, value) => callback(value);
+      ipcRenderer.on("ua-player-session-progress", subscription);
+      return () =>
+        ipcRenderer.removeListener("ua-player-session-progress", subscription);
+    },
     onUaPlayerResult: (callback) => {
       const subscription = (event, value) => callback(value);
       ipcRenderer.on("ua-player-session-result", subscription);

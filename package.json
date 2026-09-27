@@ -25,6 +25,7 @@
     "lintfix": "eslint . --fix && prettier --write --list-different .",
     "test:external-player-contract": "node scripts/verify-external-player-contract.js",
     "test:ua-player-session-contract": "node scripts/verify-ua-player-session-contract.js",
+    "test:ua-player-progress-contract": "node scripts/verify-ua-player-progress-contract.js",
     "release": "yarn release:patch",
     "release:changelog": "commit-and-tag-version",
     "release:dry": "commit-and-tag-version --dry-run",

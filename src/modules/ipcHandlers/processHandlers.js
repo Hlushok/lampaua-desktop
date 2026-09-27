@@ -223,6 +223,20 @@ function registerProcessHandlers() {
         ensureSenderCleanup(event.sender);
         let closeHandled = false;
         let sessionAborted = false;
+        const sessionMonitor = sessionLaunch?.usesSession
+          ? sessionLaunch.startMonitoring({
+              onProgress: (progress) =>
+                safeSend(event.sender, "ua-player-session-progress", {
+                  sessionId: sessionLaunch.sessionId,
+                  ...progress,
+                }),
+              onResult: (result) =>
+                safeSend(event.sender, "ua-player-session-result", {
+                  sessionId: sessionLaunch.sessionId,
+                  result,
+                }),
+            })
+          : null;
 
         child.on("error", (err) => {
           sessionAborted = true;
@@ -244,14 +258,8 @@ function registerProcessHandlers() {
         child.on("close", (code, signal) => {
           if (closeHandled) return;
           closeHandled = true;
-          if (!sessionAborted && sessionLaunch?.usesSession) {
-            const result = sessionLaunch.finish();
-            if (result) {
-              safeSend(event.sender, "ua-player-session-result", {
-                sessionId: sessionLaunch.sessionId,
-                result,
-              });
-            }
+          if (!sessionAborted && sessionMonitor) {
+            void sessionMonitor.notifyChildClosed({ code, signal });
           } else {
             sessionLaunch?.cleanup();
           }

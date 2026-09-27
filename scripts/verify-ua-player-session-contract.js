@@ -418,6 +418,7 @@ function verifyPluginContract() {
   const sentEvents = [];
   const preparedSessions = [];
   let resultSubscription;
+  let progressSubscription;
   let sessionProvider;
   let selectedPlayerPath = "C:\\Program Files\\UA Player\\UAPlayer.exe";
   const playerListener = {
@@ -454,6 +455,10 @@ function verifyPluginContract() {
       resultSubscription = callback;
       return () => {};
     },
+    onUaPlayerProgress(callback) {
+      progressSubscription = callback;
+      return () => {};
+    },
     setUaPlayerSessionProvider(provider) {
       sessionProvider = provider;
       return true;
@@ -482,6 +487,7 @@ function verifyPluginContract() {
 
   assert.equal(typeof listeners.get("create"), "function");
   assert.equal(typeof resultSubscription, "function");
+  assert.equal(typeof progressSubscription, "function");
 
   let firstTimelineArgs;
   let currentTimelineArgs;
@@ -614,11 +620,69 @@ function verifyPluginContract() {
       },
     ],
   });
+  progressSubscription({
+    sessionId: prepared.sessionId,
+    sequence: 1,
+    playback_results: [
+      {
+        playlist_index: 0,
+        sequence: 1,
+        position: 10_000,
+        duration: 40_000,
+        completed: false,
+      },
+      {
+        playlist_index: 1,
+        sequence: 1,
+        position: 0,
+        duration: 60_000,
+        completed: false,
+      },
+    ],
+  });
+  assert.deepEqual(firstTimelineArgs, [25, 10, 40]);
+  assert.deepEqual(currentTimelineArgs, [0, 0, 60]);
+  progressSubscription({
+    sessionId: prepared.sessionId,
+    sequence: 1,
+    playback_results: [
+      {
+        playlist_index: 1,
+        sequence: 1,
+        position: 30_000,
+        duration: 60_000,
+        completed: false,
+      },
+    ],
+  });
+  assert.deepEqual(
+    currentTimelineArgs,
+    [0, 0, 60],
+    "duplicate progress must not reset a backward seek",
+  );
   resultSubscription({ sessionId: prepared.sessionId, result });
   assert.deepEqual(firstTimelineArgs, [25, 10, 40]);
   assert.deepEqual(currentTimelineArgs, [(20 / 60) * 100, 20, 60]);
   assert.equal(sentEvents.at(-1).eventName, "ua_player_result");
   assert.equal(sentEvents.at(-1).value, result);
+  progressSubscription({
+    sessionId: prepared.sessionId,
+    sequence: 2,
+    playback_results: [
+      {
+        playlist_index: 1,
+        sequence: 2,
+        position: 0,
+        duration: 60_000,
+        completed: false,
+      },
+    ],
+  });
+  assert.deepEqual(
+    currentTimelineArgs,
+    [(20 / 60) * 100, 20, 60],
+    "finalization must retire progress subscription state",
+  );
 
   Lampa.Torserver = {};
   const torrentData = {

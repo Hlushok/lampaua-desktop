@@ -67,7 +67,14 @@ function createIpcRendererMock() {
     on(channel, callback) {
       addListener("on", channel, callback);
     },
-    removeListener() {},
+    removeListener(channel, callback) {
+      listeners.set(
+        channel,
+        (listeners.get(channel) || []).filter(
+          (entry) => entry.callback !== callback,
+        ),
+      );
+    },
     emitFromMain(channel, ...args) {
       const handlers = listeners.get(channel) || [];
       const remaining = [];
@@ -184,6 +191,22 @@ function verifyPreloadContract() {
   });
   assert.equal(receivedResult.sessionId, preparedSession.sessionId);
   assert.equal(typeof unsubscribe, "function");
+  let progressCalls = 0;
+  const unsubscribeProgress = electronAPI.player.onUaPlayerProgress(
+    () => progressCalls++,
+  );
+  ipcRenderer.emitFromMain("ua-player-session-progress", {
+    sessionId: preparedSession.sessionId,
+    sequence: 1,
+    playback_results: [],
+  });
+  unsubscribeProgress();
+  ipcRenderer.emitFromMain("ua-player-session-progress", {
+    sessionId: preparedSession.sessionId,
+    sequence: 2,
+    playback_results: [],
+  });
+  assert.equal(progressCalls, 1);
   assert.match(
     electronAPI.player.createUaPlayerSessionId(),
     /^[0-9a-f]{8}-[0-9a-f-]{27}$/,
@@ -754,11 +777,12 @@ async function verifyUaPlayerMainProcessContract() {
         cleanupCalls: 0,
         cleaned: false,
         finishCalls: 0,
+        monitorStarts: 0,
         finished: false,
         options,
       };
       launches.push(state);
-      return {
+      const launch = {
         args: [
           "--payload-file",
           `C:\\Users\\Contract\\AppData\\Local\\LampaUA\\PlayerBridge\\v1\\11111111-1111-4111-8111-111111111111\\request.json`,
@@ -767,6 +791,16 @@ async function verifyUaPlayerMainProcessContract() {
           if (state.cleaned) return;
           state.cleaned = true;
           state.cleanupCalls += 1;
+        },
+        startMonitoring({ onProgress, onResult }) {
+          state.monitorStarts++;
+          state.progress = onProgress;
+          return {
+            notifyChildClosed() {
+              const result = launch.finish();
+              if (result) onResult(result);
+            },
+          };
         },
         finish() {
           if (state.finished || state.cleaned) return null;
@@ -787,6 +821,7 @@ async function verifyUaPlayerMainProcessContract() {
         sessionId: options.sessionId,
         usesSession: true,
       };
+      return launch;
     },
   };
   const whichMock = async (command) => command;
@@ -846,6 +881,28 @@ async function verifyUaPlayerMainProcessContract() {
   assert.equal(launches.length, 1);
   assert.equal(launches[0].options.owner, owner);
   assert.equal(launches[0].options.executablePath, executable);
+  assert.equal(
+    launches[0].monitorStarts,
+    1,
+    "main must monitor before player exit",
+  );
+  launches[0].progress({
+    sequence: 1,
+    playback_results: [
+      {
+        playlist_index: 0,
+        sequence: 1,
+        position: 10_000,
+        duration: 20_000,
+        completed: false,
+      },
+    ],
+  });
+  const liveProgress = owner.sent.find(
+    (message) => message.channel === "ua-player-session-progress",
+  );
+  assert.equal(liveProgress.args[0].sessionId, session.sessionId);
+  assert.equal(liveProgress.args[0].playback_results[0].position, 10_000);
   assert.deepEqual(spawnCalls[0].args, [
     "--payload-file",
     "C:\\Users\\Contract\\AppData\\Local\\LampaUA\\PlayerBridge\\v1\\11111111-1111-4111-8111-111111111111\\request.json",

@@ -2,6 +2,7 @@ const crypto = require("node:crypto");
 const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
+const { createUaPlayerProgressMonitor } = require("./uaPlayerProgressMonitor");
 
 const SESSION_SCHEMA = "lampaua-player-session-v1";
 const RESULT_SCHEMA = "lampaua-player-result-v1";
@@ -11,6 +12,7 @@ const STAGE_COMMAND = "--stage-lampaua-session";
 const MAX_SESSION_BYTES = 16 * 1024 * 1024;
 const MAX_RESULT_BYTES = 16 * 1024 * 1024;
 const MAX_ITEMS = 20_000;
+const MAX_PENDING_SESSIONS = 32;
 const MAX_HEADERS = 64;
 const MAX_QUALITIES = 32;
 const MAX_SUBTITLES = 64;
@@ -506,6 +508,202 @@ function normalizeCanonicalResult(raw, state) {
   };
 }
 
+function exactFields(value, fields) {
+  return (
+    isObject(value) &&
+    Object.keys(value).length === fields.length &&
+    fields.every((field) => Object.hasOwn(value, field))
+  );
+}
+
+function normalizeProgress(raw, state) {
+  if (
+    !exactFields(raw, [
+      "schema",
+      "version",
+      "request_id",
+      "nonce",
+      "playback_generation",
+      "sequence",
+      "current_index",
+      "playback_results",
+    ]) ||
+    raw.schema !== "lampaua.player.playback-progress" ||
+    raw.version !== 1 ||
+    raw.request_id !== state.requestId ||
+    raw.nonce !== state.nonce
+  )
+    throw new Error("Invalid progress correlation");
+  const generation = validateResultNumber(
+    raw.playback_generation,
+    "generation",
+  );
+  const sequence = validateResultNumber(raw.sequence, "sequence");
+  const current = validateResultNumber(raw.current_index, "current_index");
+  if (
+    !generation ||
+    !sequence ||
+    current >= state.items.length ||
+    !Array.isArray(raw.playback_results) ||
+    !raw.playback_results.length ||
+    raw.playback_results.length > state.items.length
+  )
+    throw new Error("Invalid progress collection");
+  const seen = new Set();
+  const rows = raw.playback_results.map((row) => {
+    if (
+      !exactFields(row, [
+        "index",
+        ...(Object.hasOwn(row ?? {}, "id") ? ["id"] : []),
+        "sequence",
+        "position_ms",
+        "duration_ms",
+        "completed",
+      ])
+    )
+      throw new Error("Invalid progress row");
+    const index = validateResultNumber(row.index, "index");
+    const rowSequence = validateResultNumber(row.sequence, "row sequence");
+    const position = validateResultNumber(row.position_ms, "position");
+    const duration = validateResultNumber(row.duration_ms, "duration");
+    if (
+      index >= state.items.length ||
+      seen.has(index) ||
+      !rowSequence ||
+      rowSequence > sequence ||
+      !duration ||
+      position > duration ||
+      typeof row.completed !== "boolean" ||
+      (row.id ?? null) !== (state.items[index].id ?? null) ||
+      state.items[index].is_live === true
+    )
+      throw new Error("Invalid progress identity or values");
+    seen.add(index);
+    return {
+      playlist_index: index,
+      sequence: rowSequence,
+      position,
+      duration,
+      completed: row.completed,
+    };
+  });
+  if (!seen.has(current) || !rows.some((row) => row.sequence === sequence))
+    throw new Error("Missing current progress");
+  return { generation, sequence, playback_results: rows };
+}
+
+function sameIdentity(left, right) {
+  return left.dev === right.dev && left.ino === right.ino;
+}
+
+function captureProtectedPaths(staged) {
+  const paths = [];
+  let ancestor = staged.root;
+  while (true) {
+    paths.push(ancestor);
+    const parent = path.dirname(ancestor);
+    if (parent === ancestor) break;
+    ancestor = parent;
+  }
+  paths.push(staged.sessionDirectory, staged.requestPath);
+  return paths.map((filePath) => {
+    const info = fs.lstatSync(filePath);
+    const isRequest = equalPath(filePath, staged.requestPath);
+    if (
+      info.isSymbolicLink() ||
+      (isRequest ? !info.isFile() || info.nlink !== 1 : !info.isDirectory()) ||
+      !equalPath(fs.realpathSync(filePath), filePath)
+    )
+      throw new Error("Unsafe bridge path");
+    return { filePath, info, isRequest };
+  });
+}
+
+function protectedPathsIntact(state) {
+  if (!state.pathIdentities) return false;
+  try {
+    return state.pathIdentities.every(({ filePath, info, isRequest }) => {
+      const current = fs.lstatSync(filePath);
+      return (
+        !current.isSymbolicLink() &&
+        sameIdentity(info, current) &&
+        (isRequest
+          ? current.isFile() && current.nlink === 1
+          : current.isDirectory()) &&
+        equalPath(fs.realpathSync(filePath), filePath)
+      );
+    });
+  } catch {
+    return false;
+  }
+}
+
+async function readProtectedJson(
+  state,
+  leaf,
+  normalize,
+  cacheUnchanged = false,
+) {
+  if (state.cleaned || !protectedPathsIntact(state)) return null;
+  const filePath = path.join(state.protectedSessionDirectory, leaf);
+  let handle;
+  try {
+    const before = await fs.promises.lstat(filePath);
+    if (
+      !before.isFile() ||
+      before.isSymbolicLink() ||
+      before.nlink !== 1 ||
+      before.size <= 0 ||
+      before.size > MAX_RESULT_BYTES
+    )
+      return null;
+    const stamp = `${before.dev}:${before.ino}:${before.size}:${before.mtimeMs}:${before.ctimeMs}`;
+    if (cacheUnchanged && stamp === state.progressStamp) return null;
+    handle = await fs.promises.open(
+      filePath,
+      fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0),
+    );
+    const opened = await handle.stat();
+    if (
+      !sameIdentity(before, opened) ||
+      opened.nlink !== 1 ||
+      opened.size !== before.size ||
+      !opened.isFile()
+    )
+      return null;
+    const bytes = Buffer.alloc(opened.size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const { bytesRead } = await handle.read(
+        bytes,
+        offset,
+        bytes.length - offset,
+        offset,
+      );
+      if (!bytesRead) return null;
+      offset += bytesRead;
+    }
+    const after = await handle.stat();
+    const pathAfter = await fs.promises.lstat(filePath);
+    if (
+      state.cleaned ||
+      !protectedPathsIntact(state) ||
+      after.nlink !== 1 ||
+      pathAfter.isSymbolicLink() ||
+      !sameIdentity(after, pathAfter) ||
+      after.size !== before.size ||
+      after.mtimeMs !== before.mtimeMs
+    )
+      return null;
+    if (cacheUnchanged) state.progressStamp = stamp;
+    return normalize(JSON.parse(bytes.toString("utf8")), state);
+  } catch {
+    return null;
+  } finally {
+    await handle?.close();
+  }
+}
+
 function canonicalUuidV4(value) {
   return (
     typeof value === "string" &&
@@ -685,6 +883,9 @@ function createUaPlayerSessionBridge({
     ? path.join(process.env.LOCALAPPDATA, "LampaUA", "PlayerBridge", "v1")
     : undefined,
   stageProcess = stageWithUaPlayer,
+  now = Date.now,
+  schedule = setTimeout,
+  cancel = clearTimeout,
 } = {}) {
   if (typeof tempRoot !== "string" || !path.isAbsolute(tempRoot)) {
     throw new Error("UA Player session temp root must be absolute");
@@ -700,12 +901,16 @@ function createUaPlayerSessionBridge({
   function cleanupState(state) {
     if (state.cleaned) return;
     state.cleaned = true;
+    state.monitor?.stop();
     active.delete(state);
     fs.rmSync(state.directory, { recursive: true, force: true });
     if (state.protectedSessionDirectory) {
       try {
         const expected = path.join(state.bridgeRoot, state.requestId);
-        if (equalPath(state.protectedSessionDirectory, expected)) {
+        if (
+          equalPath(state.protectedSessionDirectory, expected) &&
+          protectedPathsIntact(state)
+        ) {
           fs.rmSync(state.protectedSessionDirectory, {
             recursive: true,
             force: true,
@@ -744,6 +949,8 @@ function createUaPlayerSessionBridge({
     if (bytes.length > MAX_SESSION_BYTES) {
       throw new Error("UA Player session exceeds 16 MiB");
     }
+    while (active.size >= MAX_PENDING_SESSIONS)
+      cleanupState(active.values().next().value);
 
     fs.mkdirSync(tempRoot, { recursive: true, mode: 0o700 });
     const directory = fs.mkdtempSync(path.join(tempRoot, "lampaua-player-"));
@@ -774,17 +981,51 @@ function createUaPlayerSessionBridge({
       state.protectedSessionDirectory = staged.sessionDirectory;
       state.requestId = staged.requestId;
       state.nonce = staged.nonce;
+      state.pathIdentities = captureProtectedPaths(staged);
       fs.rmSync(directory, { recursive: true, force: true });
       return {
         args: ["--payload-file", staged.requestPath],
         cleanup() {
           cleanupState(state);
         },
+        startMonitoring({ onProgress, onResult } = {}) {
+          if (state.cleaned || state.finished) return null;
+          if (!state.monitor) {
+            state.monitor = createUaPlayerProgressMonitor({
+              readSnapshot: () =>
+                readProtectedJson(
+                  state,
+                  "progress.json",
+                  normalizeProgress,
+                  true,
+                ),
+              readFinalResult: () =>
+                readProtectedJson(
+                  state,
+                  "result.json",
+                  normalizeCanonicalResult,
+                ),
+              onProgress,
+              onFinalResult: (result) => {
+                state.finished = true;
+                onResult?.(result);
+              },
+              onDispose: () => cleanupState(state),
+              now,
+              schedule,
+              cancel,
+            });
+            state.monitor.start();
+          }
+          return state.monitor;
+        },
         finish() {
-          if (state.finished) return null;
+          if (state.finished || state.cleaned) return null;
           state.finished = true;
           try {
-            const rawResult = readBoundedJson(staged.resultPath);
+            const rawResult = protectedPathsIntact(state)
+              ? readBoundedJson(staged.resultPath)
+              : null;
             return rawResult
               ? normalizeCanonicalResult(rawResult, state)
               : null;

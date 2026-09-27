@@ -600,10 +600,15 @@
         () => forgetSession(sessionId),
         UA_PLAYER_PENDING_TTL_MS,
       );
-      pendingSessions.set(sessionId, { timelineHandlers, timeout });
+      pendingSessions.set(sessionId, {
+        timelineHandlers,
+        timeout,
+        sequence: 0,
+        rowSequences: new Map(),
+      });
     }
 
-    function applyTimelineResult(handler, result) {
+    function applyTimelineResult(handler, result, allowZero = false) {
       if (typeof handler !== "function" || !result) return false;
       const position = Number.isFinite(result.position)
         ? Math.max(0, result.position)
@@ -612,7 +617,7 @@
         ? Math.max(0, result.duration)
         : 0;
       const boundedPosition = duration > 0 ? Math.min(position, duration) : 0;
-      if (duration <= 0 || boundedPosition <= 0) return false;
+      if (duration <= 0 || (!allowZero && boundedPosition <= 0)) return false;
       const percent = Math.max(
         0,
         Math.min(100, (boundedPosition / duration) * 100),
@@ -700,6 +705,37 @@
       const positionalUrl = payload.items[payload.playlist_index]?.url;
       rememberSession(sessionId, timelineHandlers);
       return { sessionId, payload, positionalUrl };
+    });
+
+    playerApi.onUaPlayerProgress?.((message) => {
+      const pending = pendingSessions.get(message?.sessionId);
+      if (
+        !pending ||
+        !Number.isSafeInteger(message.sequence) ||
+        message.sequence <= pending.sequence ||
+        !Array.isArray(message.playback_results)
+      )
+        return;
+      pending.sequence = message.sequence;
+      for (const row of message.playback_results) {
+        const index = row?.playlist_index;
+        if (
+          !Number.isSafeInteger(index) ||
+          index < 0 ||
+          index >= pending.timelineHandlers.length ||
+          !Number.isSafeInteger(row.sequence) ||
+          row.sequence <= (pending.rowSequences.get(index) || 0) ||
+          row.sequence > message.sequence ||
+          !Number.isSafeInteger(row.position) ||
+          row.position < 0 ||
+          !Number.isSafeInteger(row.duration) ||
+          row.duration <= 0 ||
+          row.position > row.duration
+        )
+          continue;
+        if (applyTimelineResult(pending.timelineHandlers[index], row, true))
+          pending.rowSequences.set(index, row.sequence);
+      }
     });
 
     playerApi.onUaPlayerResult((message) => {
