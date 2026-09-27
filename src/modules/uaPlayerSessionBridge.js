@@ -8,9 +8,9 @@ const RESULT_SCHEMA = "lampaua-player-result-v1";
 const CANONICAL_RESULT_SCHEMA = "lampaua.player.playback-result";
 const STAGE_RESULT_SCHEMA = "lampaua.player.stage-result";
 const STAGE_COMMAND = "--stage-lampaua-session";
-const MAX_SESSION_BYTES = 4 * 1024 * 1024;
-const MAX_RESULT_BYTES = 1024 * 1024;
-const MAX_ITEMS = 256;
+const MAX_SESSION_BYTES = 16 * 1024 * 1024;
+const MAX_RESULT_BYTES = 16 * 1024 * 1024;
+const MAX_ITEMS = 20_000;
 const MAX_HEADERS = 64;
 const MAX_QUALITIES = 32;
 const MAX_SUBTITLES = 64;
@@ -742,7 +742,7 @@ function createUaPlayerSessionBridge({
     const normalized = normalizeSession(sessionId, payload, positionalUrl);
     const bytes = Buffer.from(JSON.stringify(normalized));
     if (bytes.length > MAX_SESSION_BYTES) {
-      throw new Error("UA Player session exceeds 4 MiB");
+      throw new Error("UA Player session exceeds 16 MiB");
     }
 
     fs.mkdirSync(tempRoot, { recursive: true, mode: 0o700 });

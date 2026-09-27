@@ -203,6 +203,26 @@ function verifySessionCreation(createUaPlayerSessionBridge) {
     assert.equal(written.items[0].subtitles[0].secret, undefined);
     assert.equal(written.items[0]._session_segments[0].start_ms, 10_000);
 
+    const largeItems = Array.from({ length: 3_500 }, (_, index) => ({
+      url: `https://iptv.example.test/${index}.m3u8`,
+      name: `Channel ${index}`,
+      group: `Group ${index % 20}`,
+      is_live: true,
+    }));
+    const large = bridge.prepareLaunch({
+      sessionId: "session-large-iptv",
+      executablePath,
+      payload: {
+        schema: "lampaua-player-session-v1",
+        playlist_index: 2_345,
+        items: largeItems,
+      },
+      owner,
+    });
+    assert.equal(stage.calls[2].legacy.items.length, 3_500);
+    assert.equal(stage.calls[2].legacy.playlist_index, 2_345);
+    large.cleanup();
+
     first.cleanup();
     first.cleanup();
     assert.equal(fs.existsSync(path.dirname(first.requestPath)), false);
@@ -228,13 +248,13 @@ function verifySessionCreation(createUaPlayerSessionBridge) {
           sessionId: "too-many",
           payload: {
             schema: "lampaua-player-session-v1",
-            items: Array.from({ length: 257 }, (_, index) => ({
+            items: Array.from({ length: 20_001 }, (_, index) => ({
               url: `https://stream.example.test/${index}`,
             })),
           },
           owner,
         }),
-      /256/,
+      /20000/,
     );
 
     const largeHeader = "x".repeat(16_000);
@@ -244,7 +264,7 @@ function verifySessionCreation(createUaPlayerSessionBridge) {
           sessionId: "too-large",
           payload: {
             schema: "lampaua-player-session-v1",
-            items: Array.from({ length: 256 }, (_, index) => ({
+            items: Array.from({ length: 300 }, (_, index) => ({
               url: `https://stream.example.test/${index}`,
               headers: Object.fromEntries(
                 Array.from({ length: 4 }, (unused, headerIndex) => [
@@ -256,7 +276,7 @@ function verifySessionCreation(createUaPlayerSessionBridge) {
           },
           owner,
         }),
-      /4 MiB/,
+      /16 MiB/,
     );
   } finally {
     bridge.cleanupAll();
@@ -596,6 +616,7 @@ function verifyPluginContract() {
   const torrentData = {
     url: "http://localhost:8090/stream?link=magnet&preload",
     title: "Торрент",
+    logo: "https://images.example.test/channel-logo.png",
     timeline: { handler() {} },
   };
   listeners.get("create")({ data: torrentData });
@@ -606,6 +627,10 @@ function verifyPluginContract() {
   assert.equal(
     preparedSessions.at(-1).payload.items[0].url,
     "http://localhost:8090/stream?link=magnet&play",
+  );
+  assert.equal(
+    preparedSessions.at(-1).payload.items[0].thumbnail,
+    torrentData.logo,
   );
 
   selectedPlayerPath = "C:\\Tools\\VLC\\vlc.exe";

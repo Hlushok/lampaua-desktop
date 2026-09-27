@@ -11,7 +11,7 @@
   };
   const UA_PLAYER_SESSION_SCHEMA = "lampaua-player-session-v1";
   const UA_PLAYER_RESULT_SCHEMA = "lampaua-player-result-v1";
-  const UA_PLAYER_MAX_ITEMS = 256;
+  const UA_PLAYER_MAX_ITEMS = 20_000;
   const UA_PLAYER_MAX_PENDING_SESSIONS = 32;
   const UA_PLAYER_PENDING_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -303,7 +303,7 @@
       firstItemValue(streamSources, "resolver_url", "resolver", "call_url"),
     );
     const thumbnail = textValue(
-      firstItemValue(sources, "thumbnail", "poster", "image"),
+      firstItemValue(sources, "thumbnail", "poster", "image", "logo"),
     );
     if (url) item.url = url;
     if (resolverUrl) item.resolver_url = resolverUrl;
