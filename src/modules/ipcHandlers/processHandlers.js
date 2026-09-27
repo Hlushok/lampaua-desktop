@@ -30,6 +30,7 @@ const WHITELIST = {
     "elmedia player",
     "movist",
     "infuse",
+    "senplayer",
     "celluloid",
     "haruna",
     "dragon",

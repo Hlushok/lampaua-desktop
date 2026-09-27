@@ -240,7 +240,7 @@ function setupNavigationHandlers(mainWindow) {
     }
 
     // исправление запуска плееров на MacOS
-    const allowedProtocols = ["mpv:", "iina:", "infuse:"];
+    const allowedProtocols = ["mpv:", "iina:", "infuse:", "senplayer:"];
     if (allowedProtocols.includes(parsedUrl.protocol)) {
       return;
     }
