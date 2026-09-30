@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.5.21](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.20...v1.5.21) (2026-09-30)
+
+### Linux
+
+- виправлено категорію AppImage на стандартну `AudioVideo`, щоб каталог AppImageHub прийняв ярлик застосунку.
+
 ## [1.5.20](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.19...v1.5.20) (2026-09-27)
 
 ### 🔌 Інтеграція UA Player

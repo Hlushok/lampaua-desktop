@@ -1,7 +1,7 @@
 {
   "name": "lampaua-desktop",
   "productName": "LampaUa",
-  "version": "1.5.20",
+  "version": "1.5.21",
   "description": "Десктопний клієнт LampaUa",
   "repository": {
     "type": "git",
@@ -88,7 +88,7 @@
         "AppImage"
       ],
       "icon": "assets/linux.icns",
-      "category": "Multimedia"
+      "category": "AudioVideo"
     },
     "mac": {
       "category": "public.app-category.utilities",
