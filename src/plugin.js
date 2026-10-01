@@ -306,6 +306,10 @@
       firstItemValue(sources, "thumbnail", "poster", "image", "logo"),
     );
     if (url) item.url = url;
+    const reserveUrl = toLampaPlayUrl(
+      firstItemValue(streamSources, "url_reserve"),
+    );
+    if (reserveUrl) item.url_reserve = reserveUrl;
     if (resolverUrl) item.resolver_url = resolverUrl;
     if (thumbnail) item.thumbnail = thumbnail;
 

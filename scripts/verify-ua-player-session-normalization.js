@@ -61,6 +61,7 @@ function verifyRichMetadataNormalization() {
         items: [
           {
             url: "https://stream.example.test/live.m3u8",
+            url_reserve: "https://proxy.example.test/live.m3u8?token=protected",
             is_iptv: true,
             return_result: true,
             quality: {
@@ -145,6 +146,10 @@ function verifyRichMetadataNormalization() {
     assert.equal(stage.calls.length, 1);
     const [live, explicitSegments] = stage.calls[0].legacy.items;
     assert.equal(live.is_live, true);
+    assert.equal(
+      live.url_reserve,
+      "https://proxy.example.test/live.m3u8?token=protected",
+    );
     assert.deepEqual(live.quality["1080p"], {
       id: "full-hd",
       name: "Full HD",
@@ -206,6 +211,30 @@ function verifyRichMetadataNormalization() {
       JSON.stringify(stage.calls[0].legacy).includes("must-not-cross"),
       false,
     );
+    for (const [index, urlReserve] of [
+      "file:///C:/private.mp4",
+      "rtsp://proxy.example.test/live",
+      "https://user:password@proxy.example.test/live.m3u8",
+    ].entries()) {
+      assert.throws(
+        () =>
+          bridge.prepareLaunch({
+            executablePath: path.join(temporaryRoot, "UAPlayer.exe"),
+            sessionId: `invalid-reserve-${index}`,
+            payload: {
+              schema: "lampaua-player-session-v1",
+              items: [
+                {
+                  url: "https://stream.example.test/live.m3u8",
+                  url_reserve: urlReserve,
+                },
+              ],
+            },
+            owner: {},
+          }),
+        /reserve|not allowed/i,
+      );
+    }
   } finally {
     bridge.cleanupAll();
     fs.rmSync(temporaryRoot, { recursive: true, force: true });

@@ -332,6 +332,16 @@ function normalizeItem(rawItem, index) {
     ownValue(rawItem, "resolver_url", "resolver", "call_url"),
     `playlist resolver ${index + 1}`,
   );
+  const reserveUrl = normalizedUrl(
+    ownValue(rawItem, "url_reserve"),
+    `playlist reserve ${index + 1}`,
+  );
+  if (reserveUrl) {
+    if (!/^https?:\/\//i.test(reserveUrl)) {
+      throw new Error(`Playlist reserve ${index + 1} must use HTTP or HTTPS`);
+    }
+    item.url_reserve = reserveUrl;
+  }
   const thumbnail = normalizedUrl(
     ownValue(rawItem, "thumbnail", "poster", "image"),
     `playlist thumbnail ${index + 1}`,

@@ -274,6 +274,7 @@ assert.equal(spawns()[8].args.length, 4);
 
 dispatch({
   url: "https://stream.example.test/rich.m3u8",
+  url_reserve: "https://proxy.example.test/rich.m3u8",
   quality: {
     "4K": {
       url: "https://stream.example.test/4k.m3u8",
@@ -300,6 +301,7 @@ dispatch({
 });
 flushTurn();
 const rich = sessionAt(9).payload.items[0];
+assert.equal(rich.url_reserve, "https://proxy.example.test/rich.m3u8");
 assert.equal(rich.quality["4K"].width, 3840);
 assert.equal(
   rich.quality["4K"].headers.Referer,
