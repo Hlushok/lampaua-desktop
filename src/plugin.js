@@ -1033,7 +1033,7 @@
             <!-- 100₽ -->
             <div class="donate-qr-item">
               <div class="qr-code">
-                <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADIAQMAAACXljzdAAAABlBMVEX///8AAABVwtN+AAAACXBIWXMAAA7EAAAOxAGVKw4bAAAB+UlEQVRYhc2XUY7DIAxELXEAjsBFUUHiojkCB0DxesbJtvvRzzVJ1TTh9WOEPbYR+Xo1VV2SjmZ3POtME79nGKmmopZxJNXD9Ez7nVh7xZGiB56a3aGq239r1vkYwu8qPXfB/m0g4uqajil5zGDCyK2ymLH2lpd8xnQnYV5bViGzKhWPz4wPILePu+f2pL4/Dv9vYjrg69LN3yJkVNgfQIQrjXTZe5ppusOiSHNPQZXCWVBnei2vo0jCzljusrpwb3pemSq3EykDlYbuGqjIXIfqKFJNGRiih4gN6wz49kBCX5Mxb02ncfTG7QR+70XpejjdYpbxv1cYkYIdMmKZ07OaKquEV0yjCN4WeyIqf/qN3H7iPfueapJPNdljGkMsTw70AngbcYPKfvXG3aTeH3ZuuI6u59QZQ9iPjsbe4JXZ4sbOFEZsd9gbLIsWtaEv9Hw+gFR27PZ2Peeczpk8iIhPdvAYXI/VK+OjSIGj5PK2Tp8crEM+ggzmVPLOcM8W+YwjyGzT55PDYneSy9txhLUFNXiy8iqe5AGEl0evsGPOxrjFET+XYLarzB1UP8xWZxihszg/LK71zPny9vZecp+ooR89068ZTQZrH+oOHa760dFjiPrkwJORn80eQbwqc3Lwcz3W17sv/DvxvKY+Rqypn+DOB5Cv1w83JXZzhKriPAAAAABJRU5ErkJggg=="
+                <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJYAAACWAQMAAAAGz+OhAAAABlBMVEX///8AAABVwtN+AAAACXBIWXMAAA7EAAAOxAGVKw4bAAABtElEQVRIibWWMa7DIBBEx6Kg5AbxRaL4Wi4iYSmFr4WVi5AbUFIg75/F/3+lSBUw1fqlIMwOswAflhcR2KdINltMll+5ic3A6NYAlzHxxwA0Mr+PgHmlbI7N0jnMCc8hjzDK2oXxMBdkv0my5zDVKk8vAW541+9Lpr1065O63G9swn9/e7LDcGWQfJ9iejfhd8zLPkq+DiIFWlxcf2bLEHmOHfRLlDXwDzQxGPbSspSF2vPLoTvzwju0GPbXbOrxV2pjVmg7T49b6oJ52tGf+ccObavLhoWtIdDCZupCj9N3yxSdSKQuvRklivSKenKoRWpkNf/IrATqYuoenRnPAeZVdOpJanU5tPqaQaPaU3JbqMsq1ZOdmaW1GXv0JFOFxqmebGOa2SwNMztP0fVnfgESzwGRHbIW1aqFzbyOaVbrLbwzqNnUnWGKGlqSPf1Ns6dG5sOYfPkTSGKd532ZLmq/15eMBldqY8fc0jaCmcp5LujOdP7C6746FxbTzPQNorPWPnhx1DQnMfn1JI1z9LeV0Sq2aC8p0AmsvnM4z3EfuOd1TG3s6GWp4c0yHG+GvuzD+gFtMmcOwaoT6AAAAABJRU5ErkJggg=="
                      alt="QR код 100₽">
               </div>
               <div class="donate-amount">100₽</div>
@@ -1050,7 +1050,7 @@
             <!-- 250₽ -->
             <div class="donate-qr-item">
               <div class="qr-code">
-                <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADIAQMAAACXljzdAAAABlBMVEX///8AAABVwtN+AAAACXBIWXMAAA7EAAAOxAGVKw4bAAACCElEQVRYhc2YUY7DIAxELXEAjsBFUYPERTkCB0DxesbJbvejnzVBSpvk9cPCnrGpyMd1qOqSNA77xL3ONPF9hpFqUdTSR1IdFs+074l3rzhSdODusE9E1ey3Net8DOG1SstNsH8biHh0h/Ypuc9gwsytslix9pSXvOd0J2FdW1Whsioj7u8VH0BuHTev7cn4/in828TigK5LM32LkDHC9gQyBPGSLntOM01XWBQxRdP5LCqFshCdxcu6jiHueNXdhXvT8srLf7OZHJcfQ10djsz3iDqKJO2WO/aEgYx16wy4WhyxuqmlubugbrFT2k3b+4lQU2AdkavlLHers1cYMZcparFgB1vGnTnh3RdCSIKzFO+JcP70ltPdpKJvWmV7dSefanLnXBVD5O7ZozJvmO8ae+N+crkhVC/CyYqq94oPIdg3dgd3IKssyxs7UxQxHXtXsvpejA19oeXzAYSKv2YKqp5zTmPmoghmB1BzoKyexeyeGEO8I93a1umTg+T2DMLZCpMF1jVb5DOOyDVXDZ9v0J1Erpk8iPjcAv+DphI7Q+f8u5twedcu7JjzYN7iyHUugaIGagfuh9nqDCM8m8H9bLai42XOl/epbS/hidq1peiZvmY0ce+D71Dhys4UTFxVOBn52ewRBJkzir7p53q8X78n/u8Tr2v+98KMHZz2/k78O8nH9QMC64YNSyIL3gAAAABJRU5ErkJggg=="
+                <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJYAAACWAQMAAAAGz+OhAAAABlBMVEX///8AAABVwtN+AAAACXBIWXMAAA7EAAAOxAGVKw4bAAABr0lEQVRIibWWMa6DMBBEB1G49A3CRRBciwLJSCm4FlEu4tzApQvE/tlF+qJIFRtLieBZwsnM7C7AlxVEBO79SbKPMTne5SI2AZ1fN/iMkZsbUMjC0QFt5McOk3QP8/L+iDy3TtYqjH+mSTm8JLl7mGqVx+jdMuCq349MvfQrvczzQBP+/a3JzsDt+s28XEP4GwtydJL7Th+tFw9fn6E9QMkjGO8o69boZhHbNON89DzY0+2Musw9edxiGX+dBVrGGD369z4gCxjE8UB9FthCWPeacRXNmkARE+oiwrpcuEn9zd+6DBh4VN8I5iaK7E0qZC3zt+4PMxVTG319NmlMJvY+LvZsBicXsbA3Vto+z9RlFc1fdbYAzAs9ZldJwTJZxgaWd/sRR1NFG+ENbB9gLS+zCagJptXvbNKf7xg7qxlYb6rONIqWycCNPEoqZDpi0YNnDFo8UWdPZaaLc4Y6PTlwlpYDp4idc4s2si5F57mgOtP5yz/DaAdrtsXs8g5CccR67B1MJXO8TdPpbylbLX/qpQpUn+l7DluraZ/Qd6mMnV7uKsmLl9v5zlCXfVl/4M9sf0bcBSQAAAAASUVORK5CYII="
                      alt="QR код 250₽">
               </div>
               <div class="donate-amount">250₽</div>
@@ -1067,7 +1067,7 @@
             <!-- 500₽ -->
             <div class="donate-qr-item">
               <div class="qr-code">
-                <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADIAQMAAACXljzdAAAABlBMVEX///8AAABVwtN+AAAACXBIWXMAAA7EAAAOxAGVKw4bAAACBElEQVRYhc2YUY7DIAxELXEAjsBFo4DERTkCB0Dxesa02/3o5zqJ1CbNy4eLx/YQka9HVdUlaVT7xrXONHG+wshhURylj6Q6LJ5p54l7ZxwpOnBV7RtRNXv2yDofQ/hZpeUmWL8biHh0VfuU3GcwYeZWWVSs/cpLPnN6J6GuTVVQ1sGI+6fiA8irjptrezK+PxX+38TiQF2XZvUtQsYI2wMIjrTpst9ppukVFkVMy9Az1kxRWYjO4p1nGEFkzdaG3YVr0/LKi6tzN4Ge1u47HR2Z9/3/xBCoOA3opg5krNtkwKeFEayK1bWyu0C39qxxVP3thBXP7HVErpazjOfOMJI4sZPTrBaVdUJmLors2Ohd0PnTO3P3kz0vt6tJ7mpy374qgkjhXKKGkLcl3g/PBxDXdcPsRvVN0qxvxUcQ1Hz1qmdntrz5zAoj3vMW1omxYS60fD2AmKpKK/pb9fQ5zR1XCOH1oF4Kqh53XddhhJmjcq22dbpzkHdO7ySm6UJX5ZNBtrdA5qII55D5KjqHxekk4p48iJS2/b+i56LzKq7kAYRHQUeWwok5K/MWR3xfgr39Qe2g+8FbXWGEK+P+jvdapr987druJXScnbsAxcz0Y0YTTkT2HVY4942xZL934c7I92aPIOLvhCon5+HeN6+Pt0X/TVzXi7WtPhfZ/a4HkK/HD5YMjtz6GkdnAAAAAElFTkSuQmCC"
+                <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJYAAACWAQMAAAAGz+OhAAAABlBMVEX///8AAABVwtN+AAAACXBIWXMAAA7EAAAOxAGVKw4bAAABt0lEQVRIibWWMW7EIBBFv0XhkhvEF1mtr+XCEpZS+FqO9iLsDSgpLP/8gSRKkSqwVPittAMzf/4A/LECSYyPiBwY06iv3MQWYPL7MXE8Z/14AI0sXBPgSgwLxvQa5vnQ+angexemywwJ7oNpfA2zXOX5qZTf8Tt//2RWS78/nimvdxXhp749WRXcORDrHNNvEf6PBV4T821K3GCbN9+fLQpX7+EYuR+DabyBYR1UwuPNc1Pu4S7F6M3CeYffXPQ5fJjGn6mNAbPqJ42PyguW+UJ/ptJG0zj5fkEXgs+tTMdn9PKS6KkNurORCoebyroOkTzVoE2stPdym3SPQ3lxFqM7WyWTxan3i2dLOLmNBf11UMq5mdhZNNmZqS/BqkkyharTJiar3pz0p7wwz6W+ndlSDMqsNegA+2m5amLrTG9TxrwJ+PamvswpHE3oqq8GBFMj05wRgwqgGaCe+Zo9PZkt+dVV5rk2MtsmVuaW1TObn2ieE92Z3UPWepkmYxFOI6tvkKf1uRqH5qcvYRvqZ1pqfZuZtYq9DyxBL2DlnXMbkuVeZjulNlbfNGc1Vr336puhL/tjfQIsgH7+q6C4JgAAAABJRU5ErkJggg=="
                      alt="QR код 500₽">
               </div>
               <div class="donate-amount">500₽</div>
@@ -1092,9 +1092,9 @@
             let donate_html = Lampa.Template.get("donate_modal", {});
 
             const paymentLinks = {
-              100: "https://auth.robokassa.ru/merchant/Invoice/uJcZeMG59kWFwRlrYKNPfQ?FreeOutSum=100",
-              250: "https://auth.robokassa.ru/merchant/Invoice/uJcZeMG59kWFwRlrYKNPfQ?FreeOutSum=250",
-              500: "https://auth.robokassa.ru/merchant/Invoice/uJcZeMG59kWFwRlrYKNPfQ?FreeOutSum=500",
+              100: "https://auth.robokassa.ru/merchant/Invoice/5d762NejHk-hEAtwYmMgAA",
+              250: "https://auth.robokassa.ru/merchant/Invoice/MgIfH6xn10qeIz2spPb58A",
+              500: "https://auth.robokassa.ru/merchant/Invoice/b4vzffdiNUyeTEy6furqpg",
             };
 
             donate_html.find(".donate-link").on("hover:enter", function () {
