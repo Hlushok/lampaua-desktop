@@ -2880,6 +2880,17 @@
     }
 
     poll(now) {
+      if (!document.hasFocus()) {
+        if (this.buttonStates.size > 0) {
+          for (const [id, state] of this.buttonStates) {
+            this.dispatch("keyup", state.binding);
+          }
+          this.buttonStates.clear();
+        }
+        this.animationFrame = requestAnimationFrame(this.poll);
+        return;
+      }
+
       const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
       for (const gamepad of gamepads) {
         if (!gamepad || !gamepad.connected) continue;
