@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.5.22](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.21...v1.5.22) (2026-10-05)
+
+### 🐛 Исправления
+
+- preserve provider reserve URL in UA Player handoff ([5310894](https://github.com/Hlushok/lampaua-desktop/commit/53108946931fa8a69448cc99eaf5d7b0c9b21665))
+
 ## [1.5.21](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.20...v1.5.21) (2026-09-30)
 
 ### Linux
