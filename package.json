@@ -80,12 +80,12 @@
         "AppImage"
       ],
       "icon": "build/icons/linux",
-      "category": "Multimedia",
+      "category": "AudioVideo",
       "desktop": {
         "entry": {
           "Name": "Lampa",
           "Comment": "Десктопное приложение-клиент для Lampa",
-          "Categories": "Multimedia;",
+          "Categories": "AudioVideo;",
           "StartupWMClass": "lampa-desktop",
           "MimeType": "application/x-lampa"
         }
