@@ -956,14 +956,9 @@
         uk: "Успішно змінено, перезапустіть TorrServer",
       },
       app_settings_ts_status_name: {
-        ru: "Статус",
-        en: "Status",
-        uk: "Статус",
-      },
-      app_settings_ts_version_name: {
-        ru: "Версия",
-        en: "Version",
-        uk: "Версія",
+        ru: "Статус TorrServer",
+        en: "Status TorrServer",
+        uk: "Статус TorrServer",
       },
       app_settings_ts_status_installed_running: {
         ru: "✅ Запущен",
@@ -1157,11 +1152,6 @@
         ru: "Статус GStreamer",
         en: "GStreamer status",
         uk: "Статус GStreamer",
-      },
-      app_settings_ts_gst_version_name: {
-        ru: "Версия GStreamer",
-        en: "GStreamer version",
-        uk: "Версія GStreamer",
       },
       app_settings_ts_version_with_gst: {
         ru: "{version} (с GStreamer)",
@@ -1484,20 +1474,12 @@
     Lampa.Template.add(
       "settings_app_settings_ts",
       `<div>
-        <div class="settings-param" data-static="true" data-name="app_settings_ts_tsStatus">
+        <div class="settings-param" data-static="true" data-name="app_settings_ts_info">
           <div class="settings-param__name">${Lampa.Lang.translate("app_settings_ts_status_name")}</div>
           <div class="settings-param__descr">🔄</div>
         </div>
-        <div class="settings-param" data-static="true" data-name="app_settings_ts_tsVersion">
-          <div class="settings-param__name">${Lampa.Lang.translate("app_settings_ts_version_name")}</div>
-          <div class="settings-param__descr">🔄</div>
-        </div>
-        <div class="settings-param" data-static="true" data-name="app_settings_ts_tsGstStatus">
+        <div class="settings-param" data-static="true" data-name="app_settings_ts_gst">
           <div class="settings-param__name">${Lampa.Lang.translate("app_settings_ts_gst_status_name")}</div>
-          <div class="settings-param__descr">🔄</div>
-        </div>
-        <div class="settings-param" data-static="true" data-name="app_settings_ts_tsGstVersion">
-          <div class="settings-param__name">${Lampa.Lang.translate("app_settings_ts_gst_version_name")}</div>
           <div class="settings-param__descr">🔄</div>
         </div>
       </div>`,
@@ -2816,9 +2798,9 @@
           console.log("🔄 Обновление статуса TorrServer:", status);
 
           // Обновляем версию с информацией о GST
-          const versionElement = $(
-            '[data-name="app_settings_ts_tsVersion"]',
-          ).find(".settings-param__descr");
+          const versionElement = $('[data-name="app_settings_ts_info"]').find(
+            ".settings-param__descr",
+          );
 
           if (status.version !== null) {
             const useGst = status.useGst || false;
@@ -2862,64 +2844,46 @@
             );
           }
 
-          // Обновляем статус
-          $('[data-name="app_settings_ts_tsStatus"]')
-            .find(".settings-param__descr")
-            .text(
-              status.installed
-                ? status.running
-                  ? Lampa.Lang.translate(
-                      "app_settings_ts_status_installed_running",
-                    )
-                  : Lampa.Lang.translate(
-                      "app_settings_ts_status_installed_stopped",
-                    )
-                : Lampa.Lang.translate("app_settings_ts_status_not_installed"),
-            );
+          versionElement.append("<br>");
+          versionElement.append(
+            status.installed
+              ? status.running
+                ? Lampa.Lang.translate(
+                    "app_settings_ts_status_installed_running",
+                  )
+                : Lampa.Lang.translate(
+                    "app_settings_ts_status_installed_stopped",
+                  )
+              : Lampa.Lang.translate("app_settings_ts_status_not_installed"),
+          );
 
           // Обновляем статус GStreamer
-          const gstStatusElement = $(
-            '[data-name="app_settings_ts_tsGstStatus"]',
-          );
-          const gstVersionElement = $(
-            '[data-name="app_settings_ts_tsGstVersion"]',
+          const gstElement = $('[data-name="app_settings_ts_gst"]').find(
+            ".settings-param__descr",
           );
 
-          if (gstStatusElement.length) {
-            if (status.running) {
-              try {
-                const serverInfo =
-                  await window.electronAPI.torrServer.getServerInfo(
-                    status.port,
-                  );
-                const gstText = serverInfo.gstSupported
-                  ? Lampa.Lang.translate("app_settings_ts_gst_enabled")
-                  : Lampa.Lang.translate("app_settings_ts_gst_disabled");
-                gstStatusElement.find(".settings-param__descr").text(gstText);
+          if (status.running) {
+            try {
+              const serverInfo =
+                await window.electronAPI.torrServer.getServerInfo(status.port);
+              const gstText = serverInfo.gstSupported
+                ? Lampa.Lang.translate("app_settings_ts_gst_enabled")
+                : Lampa.Lang.translate("app_settings_ts_gst_disabled");
+              gstElement.text(gstText);
 
-                if (gstVersionElement.length) {
-                  gstVersionElement
-                    .find(".settings-param__descr")
-                    .text(serverInfo.gstreamerVersion || "—");
-                }
-              } catch (error) {
-                console.error("Ошибка получения информации о GST:", error);
-                gstStatusElement
-                  .find(".settings-param__descr")
-                  .text(Lampa.Lang.translate("app_settings_ts_gst_unknown"));
-                if (gstVersionElement.length) {
-                  gstVersionElement.find(".settings-param__descr").text("—");
-                }
-              }
-            } else {
-              // Сервер не запущен
-              gstStatusElement
-                .find(".settings-param__descr")
-                .text(Lampa.Lang.translate("app_settings_ts_gst_unknown"));
-              if (gstVersionElement.length) {
-                gstVersionElement.find(".settings-param__descr").text("—");
-              }
+              gstElement.append("<br>");
+              gstElement.append(serverInfo.gstreamerVersion || "—");
+            } catch (error) {
+              console.error("Ошибка получения информации о GST:", error);
+              gstElement.text(
+                Lampa.Lang.translate("app_settings_ts_gst_unknown"),
+              );
             }
+          } else {
+            // Сервер не запущен
+            gstElement.text(
+              Lampa.Lang.translate("app_settings_ts_gst_unknown"),
+            );
           }
         })
         .catch((error) => {
@@ -3649,6 +3613,17 @@
     }
 
     poll(now) {
+      if (!document.hasFocus()) {
+        if (this.buttonStates.size > 0) {
+          for (const state of this.buttonStates.values()) {
+            this.dispatch("keyup", state.binding);
+          }
+          this.buttonStates.clear();
+        }
+        this.animationFrame = requestAnimationFrame(this.poll);
+        return;
+      }
+
       const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
       for (const gamepad of gamepads) {
         if (!gamepad || !gamepad.connected) continue;
