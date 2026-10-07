@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.5.23](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.22...v1.5.23) (2026-10-07)
+
+### ♻️ Рефакторинг
+
+- изменить блок с информацией о TorrServer ([116e4fa](https://github.com/Hlushok/lampaua-desktop/commit/116e4fa35816765cce6988fcdda171c0536ca047))
+- сделать управление геймпадом, если только окно в фокусе ([653cb7b](https://github.com/Hlushok/lampaua-desktop/commit/653cb7b4f006ce78196da7b6aa11f959d36fad78))
+
 ## [1.5.22](https://github.com/Hlushok/lampaua-desktop/compare/v1.5.21...v1.5.22) (2026-10-05)
 
 ### 🐛 Исправления
