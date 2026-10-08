@@ -59,6 +59,10 @@ PROVENANCE.md and run all contracts. Do not overwrite the subtree blindly.
 For libmpv, pin the SDK/DLL hashes and source revisions, preserve corresponding
 source and notices, regenerate the import library and repeat all media tests.
 Do not select x86-64-v3 unless deliberately dropping baseline CPU support.
+The donor prunes old daily releases. Preserve the exact SDK as a release asset;
+the manifest's verified mirror prevents later builds depending on a deleted
+daily tag. The mirror becomes publicly usable only after the draft/source gate
+is cleared. Update the mirror when deliberately selecting a new SDK.
 
 ## Verification And Publication Gates
 

@@ -18,7 +18,12 @@ function Test-Hash($file, $hash) {
     }
 }
 if (!(Test-Hash $archive $manifest.sha256)) {
-    Invoke-WebRequest -Uri "https://github.com/$($manifest.repository)/releases/download/$($manifest.tag)/$($manifest.asset)" -OutFile $archive
+    try {
+        Invoke-WebRequest -Uri "https://github.com/$($manifest.repository)/releases/download/$($manifest.tag)/$($manifest.asset)" -OutFile $archive
+    } catch {
+        if (!$manifest.mirror) { throw }
+        Invoke-WebRequest -Uri $manifest.mirror -OutFile $archive
+    }
 }
 if (!(Test-Hash $archive $manifest.sha256)) { throw 'libmpv SDK checksum mismatch' }
 if (!(Test-Hash (Join-Path $sdk 'libmpv-2.dll') $manifest.dllSha256)) {

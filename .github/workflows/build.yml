@@ -193,6 +193,20 @@ jobs:
             dist/*.exe.blockmap
             dist/latest.yml
 
+      - name: Preserve pinned libmpv input
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist/runtime-inputs -Force | Out-Null
+          $asset = (Get-Content build/libmpv-runtime.json -Raw | ConvertFrom-Json).asset
+          Copy-Item -LiteralPath .cache/mpv-prototype/libmpv-sdk.7z -Destination "dist/runtime-inputs/$asset"
+
+      - name: Upload pinned runtime input
+        uses: actions/upload-artifact@v6
+        with:
+          name: runtime-inputs
+          compression-level: 0
+          path: dist/runtime-inputs/*.7z
+
   generate-downloads-table:
     runs-on: ubuntu-latest
     needs: [build-linux, build-macos, build-windows]
@@ -360,5 +374,6 @@ jobs:
             lampa-windows/*.exe
             lampa-windows/*.exe.blockmap
             lampa-windows/latest.yml
+            runtime-inputs/*.7z
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
