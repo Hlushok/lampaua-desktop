@@ -85,7 +85,12 @@ Before publishing:
    dependencies, build configuration and licenses. GPL-3.0-or-later was approved
    by the owner for 2.x; changing a label does not satisfy source obligations.
    An upstream URL alone is not a verified complete source bundle.
-7. Commit and push reviewed changes, then tag the exact commit as vX.Y.Z.
+7. Prepare docs/releases/X.Y.Z.md as concise Ukrainian notes for end users:
+   visible changes, platform availability, upgrade guidance and download links.
+   Keep source audits, hashes, build details and publication gates in maintenance
+   documents instead. The release workflow requires this file and never appends
+   the technical changelog or maintainer-only warnings to the release body.
+   Commit and push reviewed changes, then tag the exact commit as vX.Y.Z.
    All gh commands must specify --repo Hlushok/lampaua-desktop because gh's
    inferred repository can otherwise be the upstream donor.
 8. The workflow creates a DRAFT release until the source/distribution gate and

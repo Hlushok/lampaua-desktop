@@ -321,39 +321,22 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-linux, build-macos, build-windows, generate-downloads-table]
     steps:
+      - name: Checkout release notes
+        uses: actions/checkout@v6
+
       - name: Download all artifacts
         uses: actions/download-artifact@v7
 
       - name: Combine release body
+        env:
+          VERSION: ${{ needs.build-linux.outputs.version }}
         run: |
-          cat > release_body.md << 'EOF'
-          ## Чернетка 2.x
-
-          Не публікувати до завершення перевірки відповідних вихідних текстів усіх бібліотек у готовій libmpv DLL. Зміна ліцензії на GPL-3.0-or-later погоджена; вона не замінює комплект джерел. Поточний стабільний канал залишається на 1.5.24.
-
-          ${{ needs.generate-downloads-table.outputs.downloads_section }}
-          EOF
-
-          cat >> release_body.md << 'EOF'
-
-          ## About this fork
-
-          LampaUa Desktop is an unofficial fork of `Kolovatoff/lampa-desktop`, adapted for LampaUa. We changed the app name, default start URL, settings, releases and auto-updates. This project is not an official release of the original Lampa project.
-
-          Original project: https://github.com/Kolovatoff/lampa-desktop
-
-          Codec integration donor: https://github.com/ARST113/lampa-desktop
-          MPV bridge: https://github.com/yscoder/electron-mpv-video
-          Windows x64 includes the tested MPV engine and AC3/EAC3 Electron runtime.
-          Other platforms/architectures retain browser playback; they do not include MPV.
-          EOF
-
-          echo "" >> release_body.md
-
-          cat >> release_body.md << 'EOF'
-          ${{ needs.build-linux.outputs.changelog_body }}
-          EOF
-
+          notes="docs/releases/$VERSION.md"
+          if [ ! -s "$notes" ]; then
+            echo "Missing user-facing release notes: $notes"
+            exit 1
+          fi
+          cp "$notes" release_body.md
           cat release_body.md
 
       - name: Publish to GitHub Release
