@@ -37,6 +37,10 @@ def package(work, root):
     pe = subprocess.check_output([str(prefix), "-p", str(dll)], text=True)
     (destination / "dll-pe.txt").write_text(pe)
     config = json.loads((root / "build/libmpv-source-build.json").read_text())
+    for name in ("mpv", "ffmpeg"):
+        component = next(item for item in receipts if item["name"] == name)
+        if component["revision"] != config[name + "Commit"]:
+            raise ValueError(f"Wrong {name} revision in built SDK")
     manifest = {"configuration": config, "components": receipts, "dllSha256": digest(dll),
                 "repositoryCommit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()}
     (sources / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")

@@ -4,6 +4,12 @@ root="$(pwd)"
 export LAMPAUA_MPV_SCRIPTS="$root/scripts/mpv"
 export LAMPAUA_MPV_SOURCES="$root/.cache/libmpv-own/sources"
 work="$root/.cache/libmpv-own"
+report_failure() {
+  if [ -d "$work/build" ]; then
+    find "$work/build" -name '*-err.log' -type f -size +0c -print -exec tail -n 80 {} \;
+  fi
+}
+trap report_failure ERR
 mkdir -p "$work" "$LAMPAUA_MPV_SOURCES" "$root/dist/libmpv-own"
 readarray -t pins < <(python3 - <<'PY'
 import json
@@ -36,6 +42,11 @@ curl --fail --location --retry 3 \
   "https://raw.githubusercontent.com/microsoft/windows-rs/$metadata_commit/crates/libs/default/Windows.winmd" \
   -o "$LAMPAUA_MPV_SOURCES/windows-metadata/Windows.winmd"
 printf '%s\n' "$metadata_commit" > "$LAMPAUA_MPV_SOURCES/windows-metadata/commit.txt"
+for license in license-apache-2.0 license-mit; do
+  curl --fail --location --retry 3 \
+    "https://raw.githubusercontent.com/microsoft/windows-rs/$metadata_commit/$license" \
+    -o "$LAMPAUA_MPV_SOURCES/windows-metadata/$license"
+done
 python3 "$LAMPAUA_MPV_SCRIPTS/capture_source.py" --name windows-metadata \
   --source "$LAMPAUA_MPV_SOURCES/windows-metadata" \
   --url "https://github.com/microsoft/windows-rs/tree/$metadata_commit" --output "$LAMPAUA_MPV_SOURCES"

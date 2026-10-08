@@ -15,7 +15,7 @@ function(lampaua_capture_source name)
         INDEPENDENT TRUE
         COMMAND python3 "$ENV{LAMPAUA_MPV_SCRIPTS}/capture_source.py"
             --name "${name}" --source "${source}"
-            --repository "${repo}" --url "${url}" --url-hash "${hash}"
+            "--repository=${repo}" "--url=${url}" "--url-hash=${hash}"
             --output "$ENV{LAMPAUA_MPV_SOURCES}"
         LOG TRUE
         COMMENT "Preserving exact unpatched sources: ${name}"
