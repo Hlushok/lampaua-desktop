@@ -19,7 +19,7 @@
     "build-linux": "electron-builder --linux --publish=never",
     "build-mac": "electron-builder --mac --publish=never",
     "build-win": "node scripts/build-win-mpv-test.cjs --release",
-    "build-win-legacy": "electron-builder --win --ia32 --arm64 --publish=never --config.directories.output=dist/legacy",
+    "build-win-legacy": "electron-builder --config build/windows-legacy.cjs --win --publish=never",
     "build-win-ac3": "\"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" -NoProfile -ExecutionPolicy Bypass -File scripts/build-win-ac3.ps1",
     "lint": "yarn lint:eslint && yarn lint:prettier",
     "lint:eslint": "eslint .",

@@ -258,7 +258,7 @@ jobs:
           |-------------|---------------|
           EOF
 
-          windows_x64=$(find lampa-windows -maxdepth 1 -type f -name '*-x64-*.exe' | sort | head -n 1)
+          windows_x64=$(find lampa-windows -maxdepth 1 -type f -name '*-x64-*.exe' ! -name '*-portable.exe' | sort | head -n 1)
           windows_arm64=$(find lampa-windows -maxdepth 1 -type f -name '*-arm64-*.exe' | sort | head -n 1)
           windows_ia32=$(find lampa-windows -maxdepth 1 -type f -name '*-ia32-*.exe' | sort | head -n 1)
 
