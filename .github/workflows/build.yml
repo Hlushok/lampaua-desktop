@@ -129,6 +129,16 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
+      - name: Prepare pinned libmpv SDK and sources
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-libmpv-input-contract.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'libmpv input contract failed' }
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-libmpv.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned libmpv SDK/source preparation failed' }
+
       - name: Build for Windows
         run: yarn run build-win
 
@@ -199,13 +209,23 @@ jobs:
           New-Item -ItemType Directory -Path dist/runtime-inputs -Force | Out-Null
           $asset = (Get-Content build/libmpv-runtime.json -Raw | ConvertFrom-Json).asset
           Copy-Item -LiteralPath .cache/mpv-prototype/libmpv-sdk.7z -Destination "dist/runtime-inputs/$asset"
+          $runtime = Get-Content build/libmpv-runtime.json -Raw | ConvertFrom-Json
+          if ($runtime.sourceAsset) {
+            $source = Join-Path .cache/mpv-prototype $runtime.sourceAsset
+            if ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant() -ne $runtime.sourceSha256) {
+              throw 'Corresponding libmpv sources checksum mismatch'
+            }
+            Copy-Item -LiteralPath $source -Destination "dist/runtime-inputs/$($runtime.sourceAsset)"
+          }
 
       - name: Upload pinned runtime input
         uses: actions/upload-artifact@v6
         with:
           name: runtime-inputs
           compression-level: 0
-          path: dist/runtime-inputs/*.7z
+          path: |
+            dist/runtime-inputs/*.7z
+            dist/runtime-inputs/*.tar.gz
 
   generate-downloads-table:
     runs-on: ubuntu-latest
@@ -358,5 +378,6 @@ jobs:
             lampa-windows/*.exe.blockmap
             lampa-windows/latest.yml
             runtime-inputs/*.7z
+            runtime-inputs/*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

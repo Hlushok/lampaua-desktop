@@ -211,7 +211,10 @@ async function main() {
         hashes[path.relative(stage, file).replaceAll("\\", "/")] = hash(file);
     }
   }
-  for (const directory of ["src", "assets"]) walk(path.join(stage, directory));
+  for (const directory of ["src", "assets", "licenses"])
+    walk(path.join(stage, directory));
+  for (const file of ["LICENSE", "THIRD_PARTY_NOTICES.md"])
+    hashes[file] = hash(path.join(stage, file));
   hashes["package.json"] = hash(path.join(stage, "package.json"));
   fs.writeFileSync(
     path.join(stage, "build-manifest.json"),

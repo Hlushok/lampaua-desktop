@@ -17,15 +17,29 @@ function Test-Hash($file, $hash) {
         $sha.Dispose()
     }
 }
-if (!(Test-Hash $archive $manifest.sha256)) {
-    try {
-        Invoke-WebRequest -Uri "https://github.com/$($manifest.repository)/releases/download/$($manifest.tag)/$($manifest.asset)" -OutFile $archive
-    } catch {
-        if (!$manifest.mirror) { throw }
-        Invoke-WebRequest -Uri $manifest.mirror -OutFile $archive
+function Get-PinnedAsset($asset, $hash, $destination, $mirror) {
+    if ($asset -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]+$') { throw 'Invalid libmpv asset name' }
+    if ($hash -notmatch '^[a-f0-9]{64}$') { throw 'Invalid libmpv asset checksum' }
+    if (Test-Hash $destination $hash) { return }
+    if ($env:GH_TOKEN -and $manifest.repository -eq 'Hlushok/lampaua-desktop') {
+        & gh release download $manifest.tag --repo $manifest.repository --pattern $asset --dir $cache --clobber
+        if ($LASTEXITCODE -ne 0) { throw "Cannot download pinned libmpv asset: $asset" }
+        $download = Join-Path $cache $asset
+        if ($download -ne $destination) { Copy-Item -LiteralPath $download -Destination $destination -Force }
+    } else {
+        try {
+            Invoke-WebRequest -Uri "https://github.com/$($manifest.repository)/releases/download/$($manifest.tag)/$asset" -OutFile $destination
+        } catch {
+            if (!$mirror) { throw }
+            Invoke-WebRequest -Uri $mirror -OutFile $destination
+        }
     }
+    if (!(Test-Hash $destination $hash)) { throw "libmpv asset checksum mismatch: $asset" }
 }
-if (!(Test-Hash $archive $manifest.sha256)) { throw 'libmpv SDK checksum mismatch' }
+Get-PinnedAsset $manifest.asset $manifest.sha256 $archive $manifest.mirror
+if ($manifest.sourceAsset) {
+    Get-PinnedAsset $manifest.sourceAsset $manifest.sourceSha256 (Join-Path $cache $manifest.sourceAsset) $null
+}
 if (!(Test-Hash (Join-Path $sdk 'libmpv-2.dll') $manifest.dllSha256)) {
     New-Item -ItemType Directory -Path $sdk -Force | Out-Null
     $sevenZip = (Get-Command 7z.exe -ErrorAction SilentlyContinue).Source
