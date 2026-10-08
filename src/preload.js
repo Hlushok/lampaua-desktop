@@ -1,6 +1,9 @@
 const { contextBridge, ipcRenderer } = require("electron");
 const crypto = require("node:crypto");
 const path = require("node:path");
+if (require("../package.json").lampauaMpvTest === true) {
+  require("./mpv-runtime/lib/preload/index.cjs").exposeMpvApi();
+}
 
 const UA_PLAYER_SESSION_TTL_MS = 30_000;
 let pendingUaPlayerSession = null;

@@ -8,6 +8,7 @@ const { registerIpcHandlers } = require("./modules/ipcHandlers");
 const torrServerManager = require("./modules/torrServerManager");
 const autoStartManager = require("./modules/autoStartManager");
 const PlayerOptionsInterceptor = require("./modules/playerOptionsInterceptor");
+const { isMpvTest } = require("./modules/mpv/testMode");
 setupAppLifecycle();
 
 // Меняем расположение кеша и т.п. для разработки, чтобы не мешало установленной версии
@@ -70,6 +71,7 @@ app.on("will-quit", async (event) => {
   console.log("🔄 Завершение работы приложения...");
 
   try {
+    if (isMpvTest()) await require("./modules/mpv/manager").disposeMpv();
     console.log("🛑 Остановка TorrServer...");
 
     const stopResult = await Promise.race([

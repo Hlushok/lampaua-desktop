@@ -3,6 +3,7 @@ const path = require("node:path");
 const store = require("./storeManager");
 const { setupPluginHandler } = require("./pluginHandler");
 const { DEFAULT_LAMPA_URL, LEGACY_LAMPA_URL } = require("./lampaUrls");
+const { isMpvTest } = require("./mpv/testMode");
 
 let mainWindow = null;
 
@@ -137,9 +138,30 @@ function createWindow() {
   });
 
   const lampaUrl = store.get("lampaUrl");
-  mainWindow.loadURL(lampaUrl);
-
   setupPluginHandler(mainWindow);
+  if (isMpvTest()) {
+    const window = mainWindow;
+    const { attachMpvWindow, detachMpvWindow } = require("./mpv/manager");
+    let readyToClose = false;
+    window.on("close", (event) => {
+      if (readyToClose) return;
+      event.preventDefault();
+      if (window.mpvClosing) return;
+      window.mpvClosing = true;
+      detachMpvWindow(window)
+        .catch(console.error)
+        .finally(() => {
+          readyToClose = true;
+          if (!window.isDestroyed()) window.close();
+        });
+    });
+    attachMpvWindow(window)
+      .then(() => {
+        if (!window.isDestroyed() && !window.mpvClosing)
+          return window.loadURL(lampaUrl);
+      })
+      .catch(console.error);
+  } else mainWindow.loadURL(lampaUrl);
 
   const saveState = () => {
     if (
