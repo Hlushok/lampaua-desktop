@@ -4,9 +4,15 @@ root="$(pwd)"
 export LAMPAUA_MPV_SCRIPTS="$root/scripts/mpv"
 export LAMPAUA_MPV_SOURCES="$root/.cache/libmpv-own/sources"
 work="$root/.cache/libmpv-own"
+target="${LAMPAUA_MPV_TARGET:-mpv}"
+case "$target" in
+  mpv|ngtcp2) ;;
+  *) printf 'Unsupported build target: %s\n' "$target" >&2; exit 1 ;;
+esac
 report_failure() {
   if [ -d "$work/build" ]; then
     find "$work/build" -name '*-err.log' -type f -size +0c -print -exec tail -n 80 {} \;
+    find "$work/build" -path '*ngtcp2*/CMakeConfigureLog.yaml' -type f -print -exec tail -n 160 {} \;
   fi
 }
 trap report_failure ERR
@@ -60,5 +66,7 @@ cmake -S "$work/recipes" -B "$work/build" -G Ninja \
   -DSINGLE_SOURCE_LOCATION="$work/trees" -DRUSTUP_LOCATION="$work/rust" \
   -DMAKEJOBS=2 -DENABLE_CCACHE=OFF
 cmake --build "$work/build" --target gcc --parallel 1
-cmake --build "$work/build" --target mpv --parallel 1
-python3 "$LAMPAUA_MPV_SCRIPTS/package_build.py" --work "$work" --root "$root"
+cmake --build "$work/build" --target "$target" --parallel 1
+if [ "$target" = mpv ]; then
+  python3 "$LAMPAUA_MPV_SCRIPTS/package_build.py" --work "$work" --root "$root"
+fi

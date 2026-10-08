@@ -2,6 +2,12 @@ name: Build libmpv From Preserved Sources
 
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: "mpv builds the SDK; ngtcp2 only diagnoses the QUIC backend"
+        type: choice
+        options: [mpv, ngtcp2]
+        default: mpv
 
 permissions:
   contents: read
@@ -19,11 +25,14 @@ jobs:
 
       - name: Build baseline Windows x64 libmpv and preserve sources
         shell: bash
+        env:
+          LAMPAUA_MPV_TARGET: ${{ inputs.target }}
         run: |
           python3 scripts/mpv/test_source_capture.py
           bash scripts/mpv/build-libmpv.sh
 
       - name: Upload SDK and corresponding sources for verification
+        if: inputs.target == 'mpv'
         uses: actions/upload-artifact@v6
         with:
           name: lampaua-libmpv-own-x64
@@ -39,6 +48,7 @@ jobs:
           retention-days: 14
           path: |
             .cache/libmpv-own/build/**/*.log
+            .cache/libmpv-own/build/**/CMakeConfigureLog.yaml
             .cache/libmpv-own/build/CMakeCache.txt
             .cache/libmpv-own/sources/*.json
             .cache/libmpv-own/sources/rust-version.txt

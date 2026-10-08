@@ -4,6 +4,10 @@ This is a separate, manually dispatched build. It never publishes a release,
 changes auto-updates, installs the app, or replaces the previously tested DLL.
 The existing runtime manifest remains unchanged until the new DLL passes QA.
 
+The workflow's `ngtcp2` target is a diagnostic build of the compiler and QUIC
+backend only. It preserves CMake probe logs but does not produce a libmpv SDK.
+Only the default `mpv` target can supply a runtime for application acceptance.
+
 ## Inputs And Outputs
 
 `build/libmpv-source-build.json` pins the recipe commit, mpv, FFmpeg, dated Rust
