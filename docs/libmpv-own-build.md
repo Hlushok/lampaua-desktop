@@ -7,6 +7,9 @@ The existing runtime manifest remains unchanged until the new DLL passes QA.
 The workflow's `ngtcp2` target is a diagnostic build of the compiler and QUIC
 backend only. It preserves CMake probe logs but does not produce a libmpv SDK.
 Only the default `mpv` target can supply a runtime for application acceptance.
+The local ngtcp2/curl patch supplements Windows CMake's OpenSSL detection with
+the selected installation's static pkg-config dependencies. They are linked
+after libssl/libcrypto; QUIC/API checks remain enabled and are never preset.
 
 ## Inputs And Outputs
 

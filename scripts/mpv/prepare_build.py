@@ -40,6 +40,17 @@ def prepare(recipes, scripts, config):
     replace_once(recipes / "packages" / "subrandr.cmake", '    CONFIGURE_COMMAND ""',
                  '    CONFIGURE_COMMAND ${EXEC} bash "$ENV{LAMPAUA_MPV_SCRIPTS}/vendor-rust.sh" <SOURCE_DIR>')
     replace_once(recipes / "packages" / "subrandr.cmake", "        LD_PRELOAD=", "        CARGO_NET_OFFLINE=true\n        LD_PRELOAD=")
+    # Move link-only CFLAGS to OpenSSL's static dependency metadata so GNU ld
+    # sees private libraries after libssl/libcrypto.
+    replace_once(recipes / "packages" / "ngtcp2.cmake", "    CONFIGURE_COMMAND",
+                 '    PATCH_COMMAND ${EXEC} python3 "$ENV{LAMPAUA_MPV_SCRIPTS}/patch_static_openssl.py" --source <SOURCE_DIR>\n    CONFIGURE_COMMAND')
+    replace_once(recipes / "packages" / "ngtcp2.cmake",
+                 '        "-DCMAKE_C_FLAGS=\'-lz -lbrotlienc -lbrotlidec -lbrotlicommon -lzstd -lcrypt32\'"\n', "")
+    replace_once(recipes / "packages" / "curl.cmake", "    UPDATE_COMMAND",
+                 '    COMMAND ${EXEC} python3 "$ENV{LAMPAUA_MPV_SCRIPTS}/patch_static_openssl.py" --source <SOURCE_DIR>\n    UPDATE_COMMAND')
+    replace_once(recipes / "packages" / "curl.cmake",
+                 '        "-DCMAKE_C_FLAGS=\'-DNGHTTP3_STATICLIB -DNGHTTP2_STATICLIB -DNGTCP2_STATICLIB -lz -lbrotlienc -lbrotlidec -lbrotlicommon -lzstd -lcrypt32 -lsecur32\'"',
+                 '        "-DCMAKE_C_FLAGS=\'-DNGHTTP3_STATICLIB -DNGHTTP2_STATICLIB -DNGTCP2_STATICLIB\'"')
     # Preserve the second cppwinrt input instead of downloading mutable master
     # during install. The original generated recipe is in the source bundle.
     path = recipes / "toolchain" / "cppwinrt.cmake"
