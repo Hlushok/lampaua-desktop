@@ -2,6 +2,7 @@
 const os = require("os");
 const playerFinder = require("./playerFinder");
 const { existsSync } = require("fs");
+const { isMpvTest } = require("./mpv/testMode");
 
 class LampaInitializer {
   async initialize(mainWindow) {
@@ -25,7 +26,8 @@ class LampaInitializer {
         const app_init_defaults = {
           device_name: '${deviceName}',
           platform: 'electron',
-          player_torrent: 'other',
+          ...${JSON.stringify(isMpvTest() ? { player: "inner" } : {})},
+          player_torrent: ${JSON.stringify(isMpvTest() ? "inner" : "other")},
           poster_size: 'w500',
           torrserver_url: 'http://localhost:8090',
           torrserver_use_link: 'one'
@@ -44,6 +46,12 @@ class LampaInitializer {
 
   async initializePlayerPath(mainWindow) {
     try {
+      if (isMpvTest()) {
+        const selected = await mainWindow.webContents.executeJavaScript(
+          "localStorage.getItem('player_torrent')",
+        );
+        if (selected === "inner" || selected === "lampa") return;
+      }
       if (process.platform === "darwin") {
         console.log(`🍏 MacOS поиск плееров не требуется`);
         return;

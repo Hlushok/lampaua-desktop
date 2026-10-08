@@ -1,8 +1,10 @@
 const { autoUpdater } = require("electron-updater");
 const { dialog, shell } = require("electron");
 const store = require("./storeManager");
+const { isMpvTest } = require("./mpv/testMode");
 
 function setupAutoUpdater() {
+  if (isMpvTest()) return;
   autoUpdater.logger = console;
   autoUpdater.autoDownload = true;
   autoUpdater.disableDifferentialDownload = true;
