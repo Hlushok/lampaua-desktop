@@ -4,6 +4,7 @@ import { defineConfig } from "eslint/config";
 import prettierConfig from "eslint-config-prettier";
 
 export default defineConfig([
+  { ignores: [".cache/**", "dist/**", "third_party/**", ".superpowers/**"] },
   {
     files: ["**/*.{js,mjs,cjs}"],
     plugins: { js },

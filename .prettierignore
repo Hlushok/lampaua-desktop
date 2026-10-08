@@ -2,3 +2,6 @@
 build
 coverage
 dist
+.cache
+.superpowers
+third_party
