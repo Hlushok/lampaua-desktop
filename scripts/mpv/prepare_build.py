@@ -22,10 +22,13 @@ def prepare(recipes, scripts, config):
         replace_once(recipes / folder / "CMakeLists.txt", '    set(SOURCE_LOCATION "")',
                      '    lampaua_capture_source(${package})\n    set(SOURCE_LOCATION "")')
     replace_once(recipes / "CMakeLists.txt", "add_subdirectory(toolchain)",
-                 f'include("{scripts.as_posix()}/capture-source.cmake")\nadd_subdirectory(toolchain)')
+                 'include("$ENV{LAMPAUA_MPV_SCRIPTS}/capture-source.cmake")\nadd_subdirectory(toolchain)')
     for name in ("mpv", "ffmpeg"):
         replace_once(recipes / "packages" / f"{name}.cmake", '    UPDATE_COMMAND ""',
                      f'    GIT_TAG {config[name + "Commit"]}\n    UPDATE_COMMAND ""')
+        replace_once(recipes / "packages" / f"{name}.cmake", '    CONFIGURE_COMMAND',
+                     f'    PATCH_COMMAND python3 "$ENV{{LAMPAUA_MPV_SCRIPTS}}/freeze_version.py" '
+                     f'--name {name} --source <SOURCE_DIR> --receipt "$ENV{{LAMPAUA_MPV_SOURCES}}/{name}.json"\n    CONFIGURE_COMMAND')
     # Do not perform an unrelated floating release lookup while configuring.
     replace_once(recipes / "packages" / "CMakeLists.txt", "    mpv-release\n", "")
     replace_once(recipes / "packages" / "CMakeLists.txt", "    mpv-packaging\n", "")

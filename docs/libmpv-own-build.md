@@ -19,6 +19,10 @@ artifact preserves the unpatched source archives, minimal Git metadata where
 needed for version generation, initialized submodules, Rust standard-library
 sources, vendored Cargo dependencies, Windows metadata input, original recipes,
 configured recipes, patches, scripts, CMake configuration and component receipts.
+Sparse/partial Git inputs are materialized before capture. Recorded MPV/FFmpeg
+version strings are reapplied at the patch step so shallow archives do not change
+embedded versions. Completeness is checked against the GCC/MPV dependency graph,
+including source-only/header inputs, not against configure log presence.
 License files are retained in the source trees. Third-party notices in the app
 must be checked against the resulting component inventory before distribution.
 
@@ -32,8 +36,14 @@ bash scripts/mpv/build-libmpv.sh
 
 For an exact source replay, unpack each component archive, retain its Git
 metadata, and use the recorded revisions rather than current branches. Restore
-the source trees into SINGLE_SOURCE_LOCATION before configuring CMake. Apply the
-included configured recipes and source-capture hooks; restore vendored crates
+the source trees into SINGLE_SOURCE_LOCATION before configuring CMake. Regenerate
+the configured recipes using prepare_build.py and the included original recipes;
+set LAMPAUA_MPV_SCRIPTS and LAMPAUA_MPV_SOURCES for the new location. The original
+CMakeCache is evidence, not a relocatable cache to copy into the replay. URL-based
+projects need their captured trees remapped into the source directories reported
+by the newly configured ExternalProject graph. Suppress their download/extraction
+commands in the replay recipes before configuring; otherwise ExternalProject
+extraction deletes and replaces the restored tree. Restore vendored crates
 and Windows.winmd from this bundle. Use the recorded Rust toolchain, GCC recipe
 and CMakeCache build options. Do not invoke the donor's floating `update` target.
 Host build tools are identified by the pinned container; the container is still

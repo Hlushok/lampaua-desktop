@@ -7,8 +7,11 @@ import subprocess
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from capture_source import capture, digest, run
+from freeze_version import freeze
+from package_build import validate_sources
 
 
 class SourceCaptureTests(unittest.TestCase):
@@ -74,6 +77,61 @@ class SourceCaptureTests(unittest.TestCase):
         (self.source / "code.c").write_text("int uncommitted;\n")
         with self.assertRaises(subprocess.CalledProcessError):
             capture(self.args)
+
+    def test_partial_sparse_clone_materializes_omitted_blobs(self):
+        (self.source / "omitted.txt").write_bytes(b"must be included\n" * 10000)
+        (self.source / ".gitattributes").write_text("omitted.txt export-ignore\n")
+        self.initialize_git()
+        origin = self.root / "origin.git"
+        run("git", "clone", "--bare", str(self.source), str(origin))
+        run("git", "-C", str(origin), "config", "uploadpack.allowFilter", "true")
+        sparse = self.root / "sparse"
+        run("git", "clone", "--filter=blob:none", "--no-checkout", origin.as_uri(), str(sparse))
+        run("git", "-C", str(sparse), "sparse-checkout", "set", "--no-cone", "/code.c")
+        run("git", "-C", str(sparse), "checkout")
+        missing = run("git", "-C", str(sparse), "rev-list", "--objects", "--missing=print", "HEAD")
+        self.assertTrue(any(line.startswith("?") for line in missing.splitlines()))
+        self.args.source = str(sparse)
+
+        def local_transport(*args, **kwargs):
+            if args[-3:] == ("remote", "get-url", "origin"):
+                return self.args.repository
+            return run(*args, **kwargs)
+
+        # Keep the regression fully offline; only the recorded public URL is
+        # mocked, not the partial-clone object transport or archive operation.
+        with patch("capture_source.run", side_effect=local_transport):
+            result = capture(self.args)
+        with tarfile.open(Path(self.args.output) / result["archive"]) as bundle:
+            self.assertEqual(bundle.extractfile("example/omitted.txt").read(), (self.source / "omitted.txt").read_bytes())
+
+    def test_source_only_dependency_is_required(self):
+        output = self.root / "metadata"
+        projects = output / "projects"
+        projects.mkdir(parents=True)
+        for name, dependencies, has_source in (("gcc", [], False), ("mpv", ["glad"], False), ("glad", [], True)):
+            (projects / f"{name}.json").write_text(json.dumps({"hasSource": has_source, "dependencies": dependencies}))
+        with self.assertRaisesRegex(ValueError, "Uncaptured dependency: glad"):
+            validate_sources(output, [])
+        (output / "glad.tar.gz").write_bytes(b"source fixture")
+        receipt = {"name": "glad", "archive": "glad.tar.gz", "sha256": digest(output / "glad.tar.gz")}
+        self.assertEqual(validate_sources(output, [receipt]), ["gcc", "glad", "mpv"])
+        (projects / "cppwinrt.json").write_text(json.dumps({"hasSource": True, "dependencies": []}))
+        with self.assertRaisesRegex(ValueError, "Uncaptured dependency: cppwinrt"):
+            validate_sources(output, [receipt], ["cppwinrt"])
+
+    def test_frozen_versions_survive_shallow_history(self):
+        version = "v0.41.0-42-g012345678"
+        receipt = self.root / "mpv.json"
+        receipt.write_text(json.dumps({"sourceVersion": version}))
+        common = self.source / "common"
+        common.mkdir()
+        (common / "meson.build").write_text('git_cmd = [sys.argv[1], "describe"]\n')
+        freeze("mpv", self.source, receipt)
+        self.assertEqual((self.source / "lampaua-source-version.txt").read_text().strip(), version)
+        self.assertIn("sys.exit(0)", (common / "meson.build").read_text())
+        freeze("ffmpeg", self.source, receipt)
+        self.assertEqual((self.source / "FF_VERSION").read_text().strip(), version)
 
 
 if __name__ == "__main__":

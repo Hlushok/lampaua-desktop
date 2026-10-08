@@ -27,6 +27,8 @@ python3 "$LAMPAUA_MPV_SCRIPTS/capture_source.py" --name build-recipes \
 export RUSTUP_HOME="$work/rust/.rustup"
 export CARGO_HOME="$work/rust/.cargo"
 export PATH="$CARGO_HOME/bin:$PATH"
+export GIT_COMMITTER_NAME="LampaUa Build"
+export GIT_COMMITTER_EMAIL="build@lampaua.invalid"
 curl --fail --location --retry 3 https://sh.rustup.rs -o "$work/rustup-init.sh"
 sh "$work/rustup-init.sh" -y --no-modify-path --profile minimal \
   --default-toolchain "${pins[2]}" --target x86_64-pc-windows-gnu --component rust-src

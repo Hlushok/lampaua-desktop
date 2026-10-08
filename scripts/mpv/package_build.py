@@ -10,6 +10,41 @@ import tarfile
 from capture_source import digest
 
 
+def validate_sources(sources, receipts, downloaded=()):
+    names = {item["name"] for item in receipts}
+    projects = {p.stem: json.loads(p.read_text()) for p in (sources / "projects").glob("*.json")}
+    visited = set()
+
+    def visit(name):
+        if name in visited:
+            return
+        if name not in projects:
+            # ExternalProject dependencies can address a step target, e.g.
+            # gcc-install, instead of its parent project.
+            parents = [p for p in projects if name.startswith(p + "-")]
+            if not parents:
+                raise ValueError(f"Unknown source dependency: {name}")
+            name = max(parents, key=len)
+        visited.add(name)
+        item = projects[name]
+        if item["hasSource"] and name not in names:
+            raise ValueError(f"Uncaptured dependency: {name}")
+        for dependency in item["dependencies"]:
+            visit(dependency)
+
+    for root in ("gcc", "mpv"):
+        visit(root)
+    # Custom ExternalProject steps can add inputs outside _EP_DEPENDS (the
+    # compiler's final stage is one). Check actual download stamps as well.
+    for name in downloaded:
+        if name in projects:
+            visit(name)
+    for item in receipts:
+        if digest(sources / item["archive"]) != item["sha256"]:
+            raise ValueError(f"Changed source archive: {item['name']}")
+    return sorted(visited)
+
+
 def package(work, root):
     sources = work / "sources"
     receipts = [json.loads(path.read_text()) for path in sorted(sources.glob("*.json"))]
@@ -17,23 +52,15 @@ def package(work, root):
     for required in ("mpv", "ffmpeg", "gcc", "gcc-binutils", "mingw-w64", "subrandr-crates", "rust-standard-library", "windows-metadata"):
         if required not in names:
             raise ValueError(f"Missing source receipt: {required}")
-    for item in receipts:
-        if digest(sources / item["archive"]) != item["sha256"]:
-            raise ValueError(f"Changed source archive: {item['name']}")
-    # Every downloaded source target must have a before-patch snapshot. Source-
-    # less aliases (mingw headers/CRT etc.) consume the archived parent tree.
-    for project in (sources / "projects").glob("*.json"):
-        name = project.stem
-        built = any((work / "build").rglob(f"{name}-configure-*.log"))
-        if built and name not in names:
-            raise ValueError(f"Uncaptured dependency: {name}")
+    downloaded = {p.name.removesuffix("-download") for p in (work / "build").rglob("*-download")}
+    closure = validate_sources(sources, receipts, downloaded)
     destination = root / "dist/libmpv-own"
     sdk_dirs = list((work / "build").glob("mpv-dev-x86_64-*-git-*"))
     if len(sdk_dirs) != 1:
         raise ValueError("Expected exactly one SDK")
     sdk = sdk_dirs[0]
     dll = sdk / "libmpv-2.dll"
-    prefix = work / "build/install/bin/x86_64-w64-mingw32-objdump"
+    prefix = work / "build/install/bin/cross-objdump"
     pe = subprocess.check_output([str(prefix), "-p", str(dll)], text=True)
     (destination / "dll-pe.txt").write_text(pe)
     config = json.loads((root / "build/libmpv-source-build.json").read_text())
@@ -41,7 +68,7 @@ def package(work, root):
         component = next(item for item in receipts if item["name"] == name)
         if component["revision"] != config[name + "Commit"]:
             raise ValueError(f"Wrong {name} revision in built SDK")
-    manifest = {"configuration": config, "components": receipts, "dllSha256": digest(dll),
+    manifest = {"configuration": config, "dependencyClosure": closure, "components": receipts, "dllSha256": digest(dll),
                 "repositoryCommit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()}
     (sources / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     shutil.copytree(root / "scripts/mpv", sources / "build-scripts", ignore=shutil.ignore_patterns("__pycache__"))
