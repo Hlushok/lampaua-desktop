@@ -57,5 +57,6 @@ cmake -S "$work/recipes" -B "$work/build" -G Ninja \
   -DCOMPILER_TOOLCHAIN=gcc -DGCC_ARCH=x86-64 -DTARGET_ARCH=x86_64-w64-mingw32 \
   -DSINGLE_SOURCE_LOCATION="$work/trees" -DRUSTUP_LOCATION="$work/rust" \
   -DMAKEJOBS=2 -DENABLE_CCACHE=OFF
+cmake --build "$work/build" --target gcc --parallel 1
 cmake --build "$work/build" --target mpv --parallel 1
 python3 "$LAMPAUA_MPV_SCRIPTS/package_build.py" --work "$work" --root "$root"
