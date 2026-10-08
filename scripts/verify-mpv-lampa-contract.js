@@ -23,6 +23,15 @@ class Element extends EventTarget {
     this.dispatchEvent(
       new CustomEvent("mpv-event", { detail: { type: "file-loaded" } }),
     );
+    this.dispatchEvent(
+      new CustomEvent("mpv-event", {
+        detail: {
+          type: "property-change",
+          name: "track-list",
+          data: [{ id: 10, type: "video" }],
+        },
+      }),
+    );
   }
   async play() {
     this.calls.push(["play"]);
@@ -118,6 +127,12 @@ async function main() {
   assert.equal(ended, 0);
   event("eof-reached", true);
   assert.equal(ended, 1);
+  event("time-pos", 10);
+  event("demuxer-cache-duration", 15);
+  assert.ok(
+    video.buffered.start(0) < video.currentTime,
+    "Lampa requires the buffered interval to include the current position",
+  );
   await video.destroy();
   await video.destroy();
   event("time-pos", 100);
@@ -125,6 +140,8 @@ async function main() {
   assert.equal(surface.calls.filter(([k]) => k === "destroy").length, 1);
   const late = createMpvVideo(() => {});
   const lateSurface = late.children[0];
+  let lateLoaded = 0;
+  late.addEventListener("loadeddata", () => lateLoaded++);
   lateSurface.open = async (url) => lateSurface.calls.push(["open", url]);
   late.src = "http://example.org/late";
   late.currentTime = 17;
@@ -134,6 +151,11 @@ async function main() {
   const lateEvent = (detail) =>
     lateSurface.dispatchEvent(new CustomEvent("mpv-event", { detail }));
   lateEvent({ type: "file-loaded" });
+  assert.equal(
+    lateLoaded,
+    0,
+    "Loadeddata must wait for track metadata so Lampa restores saved selections",
+  );
   lateEvent({ type: "property-change", name: "duration", data: 60 });
   lateEvent({
     type: "property-change",
@@ -141,6 +163,7 @@ async function main() {
     data: [{ id: 7, type: "audio", selected: true }],
   });
   await late.flush();
+  assert.equal(lateLoaded, 1);
   assert.ok(
     lateSurface.calls.some(([key, value]) => key === "seek" && value === 17),
   );
@@ -187,10 +210,35 @@ async function main() {
   );
   await following.destroy();
   let registration;
+  let createHook;
   let data = { launch_player: "other", torrent_hash: "hash" };
   const settings = { player: "inner", player_torrent: "inner" };
   const Lampa = {
-    Player: { playdata: () => data, listener: { follow() {} } },
+    Player: {
+      playdata: () => data,
+      listener: {
+        follow(name, callback) {
+          if (name === "create") createHook = callback;
+        },
+      },
+      runas() {},
+      play(input) {
+        createHook({ data: input });
+        const custom = registration.verify(input.url);
+        const external =
+          Lampa.Storage.field(
+            input.torrent_hash ? "player_torrent" : "player",
+          ) === "other";
+        delete input.launch_player;
+        return custom
+          ? "mpv"
+          : external
+            ? "external"
+            : registration.verify(input.url)
+              ? "mpv"
+              : "html";
+      },
+    },
     Storage: { field: (key) => settings[key] },
     PlayerVideo: {
       registerTube: (value) => {
@@ -206,6 +254,26 @@ async function main() {
   assert.equal(registration.verify("http://example.org/video"), false);
   data.launch_player = "inner";
   assert.equal(registration.verify("https://youtube.com/watch?v=abc"), false);
+  settings.player = "inner";
+  settings.player_torrent = "inner";
+  assert.equal(
+    Lampa.Player.play({
+      url: "http://example.org/video",
+      launch_player: "other",
+    }),
+    "external",
+    "Explicit external launch must win through the routing flow, not just the first predicate",
+  );
+  assert.equal(
+    settings.player,
+    "inner",
+    "Per-launch overrides must not persist",
+  );
+  assert.equal(
+    registration.verify("http://example.org/video"),
+    false,
+    "Deleted launch_player must not change the captured route",
+  );
   console.log("MPV Lampa facade and routing contract verified");
 }
 main().catch((error) => {

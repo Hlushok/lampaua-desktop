@@ -526,31 +526,33 @@ export class MpvVideoElement extends HTMLElement {
   }
 
   private async initialize() {
+    const requestedMode = this.getAttribute('render-mode') as RenderMode | null;
     this.canvasRenderer = new Canvas2DRenderer(this.canvas2d);
     this.activeRenderer = this.canvasRenderer;
 
+    if (requestedMode !== 'canvas2d') {
     try {
       this.webglRenderer = new WebGLUploadRenderer(this.webglCanvas);
       this.activeRenderer = this.webglRenderer;
       this.renderMode = 'webgl';
-    } catch (error) {
-      this.emitError(error);
+    } catch {
+      // Optional GPU backends must not fail a working software renderer.
+    }
     }
 
-    if (window._electronMpvVideo.supportsSharedTexture) {
+    if ((!requestedMode || requestedMode === 'shared-texture') && window._electronMpvVideo.supportsSharedTexture) {
       try {
         const sharedRenderer = new SharedTextureWebGpuRenderer(this.sharedCanvas);
         await sharedRenderer.prepare();
         this.sharedRenderer = sharedRenderer;
         this.activeSharedRenderer = sharedRenderer;
         this.renderMode = 'shared-texture';
-      } catch (error) {
-        this.emitError(error);
+      } catch {
+        // Keep WebGL/Canvas2D when shared textures are unavailable.
       }
     }
 
-    const requestedMode = (this.getAttribute('render-mode') as RenderMode | null) ?? this.renderMode;
-    this.renderMode = this.resolveRenderMode(requestedMode);
+    this.renderMode = this.resolveRenderMode(requestedMode ?? this.renderMode);
     this.player = await window._electronMpvVideo.create({
       renderMode: this.renderMode,
       width: this.clientWidth || 960,

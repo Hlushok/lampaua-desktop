@@ -324,14 +324,18 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
 
   static void on_mpv_render_update(void* ctx) {
     auto* self = static_cast<MpvPlayer*>(ctx);
-    if (self && self->alive_ && self->update_callback_) {
+    if (!self) return;
+    std::lock_guard<std::mutex> lock(self->callback_mutex_);
+    if (self->alive_ && self->update_callback_) {
       self->update_callback_.NonBlockingCall(call_js_no_args);
     }
   }
 
   static void on_mpv_wakeup(void* ctx) {
     auto* self = static_cast<MpvPlayer*>(ctx);
-    if (self && self->alive_ && self->event_callback_) {
+    if (!self) return;
+    std::lock_guard<std::mutex> lock(self->callback_mutex_);
+    if (self->alive_ && self->event_callback_) {
       self->event_callback_.NonBlockingCall(call_js_no_args);
     }
   }
@@ -435,6 +439,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
 
   Napi::Value SetUpdateCallback(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
+    std::lock_guard<std::mutex> lock(callback_mutex_);
     if (update_callback_) {
       update_callback_.Release();
       update_callback_ = nullptr;
@@ -453,6 +458,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
 
   Napi::Value SetEventCallback(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
+    std::lock_guard<std::mutex> lock(callback_mutex_);
     if (event_callback_) {
       event_callback_.Release();
       event_callback_ = nullptr;
@@ -772,13 +778,17 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
     if (render_context_) {
       set_mpv_render_update_callback(render_context_, nullptr, nullptr);
     }
-    if (update_callback_) {
-      update_callback_.Release();
-      update_callback_ = nullptr;
-    }
-    if (event_callback_) {
-      event_callback_.Release();
-      event_callback_ = nullptr;
+    // Do not hold this lock while unregistering callbacks or destroying mpv.
+    {
+      std::lock_guard<std::mutex> lock(callback_mutex_);
+      if (update_callback_) {
+        update_callback_.Release();
+        update_callback_ = nullptr;
+      }
+      if (event_callback_) {
+        event_callback_.Release();
+        event_callback_ = nullptr;
+      }
     }
     if (render_context_) {
       mpv_render_context_free(render_context_);
@@ -1204,6 +1214,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
   mpv_handle* handle_ = nullptr;
   mpv_render_context* render_context_ = nullptr;
   std::atomic<bool> alive_ = true;
+  std::mutex callback_mutex_;
   Napi::ThreadSafeFunction update_callback_;
   Napi::ThreadSafeFunction event_callback_;
   uint64_t next_observer_id_ = 1;

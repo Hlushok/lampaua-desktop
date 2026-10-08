@@ -12,6 +12,8 @@
     let source = "";
     let dead = false;
     let loaded = false;
+    let metadataReady = false;
+    let announced = false;
     let paused = true;
     let ended = false;
     let time = 0;
@@ -103,13 +105,15 @@
     );
     property("buffered", () => ({
       length: cache > 0 ? 1 : 0,
-      start: () => time,
+      start: () => Math.max(0, time - 0.001),
       end: () => time + cache,
     }));
     video.load = () =>
       queue(async () => {
         if (!source) return;
         loaded = false;
+        metadataReady = false;
+        announced = false;
         ended = false;
         duration = 0;
         time = 0;
@@ -195,6 +199,13 @@
     function onError(event) {
       fail(event.detail);
     }
+    function announceLoaded() {
+      if (!loaded || !metadataReady || announced) return;
+      announced = true;
+      emit("loadeddata");
+      emit("canplay");
+      emit("playing");
+    }
     function onEvent(event) {
       if (dead) return;
       const value = event.detail;
@@ -213,9 +224,7 @@
           pendingSeek = null;
           void queue(() => surface.seek(seconds));
         }
-        emit("loadeddata");
-        emit("canplay");
-        emit("playing");
+        announceLoaded();
       }
       if (value.name === "time-pos" && typeof value.data === "number") {
         time = value.data;
@@ -229,8 +238,11 @@
         paused = Boolean(value.data);
         emit(paused ? "pause" : "playing");
       }
-      if (value.name === "track-list" && Array.isArray(value.data))
+      if (value.name === "track-list" && Array.isArray(value.data)) {
+        metadataReady = value.data.length > 0 || loaded;
         setTracks(value.data);
+        announceLoaded();
+      }
       if (value.name === "demuxer-cache-duration") {
         cache = Math.max(0, Number(value.data) || 0);
         emit("progress");
@@ -260,8 +272,29 @@
     Lampa.__mpvInstalled = true;
     let pending;
     Lampa.Player.listener.follow("create", (event) => {
-      pending = event.data;
+      pending = { ...event.data };
     });
+    // Lampa's desktop route reads the saved field even for launch_player=other.
+    const play = Lampa.Player.play;
+    if (typeof play === "function")
+      Lampa.Player.play = function (data, ...args) {
+        const choice = data?.launch_player;
+        if (!choice) return play.call(this, data, ...args);
+        const field = Lampa.Storage.field;
+        if (choice === "other") {
+          const key = data.torrent_hash ? "player_torrent" : "player";
+          Lampa.Storage.field = function (name, ...rest) {
+            return name === key ? choice : field.call(this, name, ...rest);
+          };
+        }
+        Lampa.Player.runas?.(choice);
+        try {
+          return play.call(this, data, ...args);
+        } finally {
+          Lampa.Storage.field = field;
+          Lampa.Player.runas?.("");
+        }
+      };
     Lampa.PlayerVideo.registerTube({
       name: "LampaUa libmpv",
       verify(src) {

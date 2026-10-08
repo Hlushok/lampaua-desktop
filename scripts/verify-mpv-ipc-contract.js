@@ -145,6 +145,7 @@ async function main() {
     });
     win.isDestroyed = () => false;
     service.attachWindow(win);
+    win.webContents.emit("did-finish-load");
     return win;
   });
   const event = (win) => ({
@@ -207,7 +208,11 @@ async function main() {
     false,
     true,
   );
-  await assert.rejects(call("play", e, nextId), /Unknown|destroy/i);
+  await assert.rejects(call("play", e, nextId), /Unknown|destroy|navigat/i);
+  await assert.rejects(call("create", e), /navigat|document/i);
+  windows[0].webContents.emit("did-finish-load");
+  const newDocument = await call("create", e);
+  await call("destroy", e, newDocument);
   await service.dispose();
   assert.ok(
     controls.some(([name, value]) => name === "speed" && value === 1.5),

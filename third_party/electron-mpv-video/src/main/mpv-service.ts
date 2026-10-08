@@ -69,6 +69,8 @@ type AttachedWindow = {
   window: BrowserWindow
   onClosed: () => void
   onNavigation: (...args: any[]) => void
+  onLoaded: () => void
+  ready: boolean
 }
 
 export type MpvMainOptions = {
@@ -512,11 +514,20 @@ class MpvMainService implements MpvMain {
       void this.destroyOwnerSessions(id)
     }
     const onNavigation = (_event: unknown, _url: unknown, inPlace: unknown, main: unknown) => {
-      if (main === true && inPlace !== true) void this.destroyOwnerSessions(id)
+      if (main === true && inPlace !== true) {
+        const attached = this.windows.get(id)
+        if (attached) attached.ready = false
+        void this.destroyOwnerSessions(id)
+      }
     }
-    this.windows.set(id, { window, onClosed, onNavigation })
+    const onLoaded = () => {
+      const attached = this.windows.get(id)
+      if (attached) attached.ready = true
+    }
+    this.windows.set(id, { window, onClosed, onNavigation, onLoaded, ready: false })
     window.once('closed', onClosed)
     window.webContents.on('did-start-navigation', onNavigation)
+    window.webContents.on('did-finish-load', onLoaded)
   }
 
   async detachWindow(window: BrowserWindow) {
@@ -524,6 +535,7 @@ class MpvMainService implements MpvMain {
     if (attached) {
       attached.window.off('closed', attached.onClosed)
       window.webContents.off('did-start-navigation', attached.onNavigation)
+      window.webContents.off('did-finish-load', attached.onLoaded)
       this.windows.delete(window.webContents.id)
     }
     await this.destroyWindowSessions(window)
@@ -535,7 +547,10 @@ class MpvMainService implements MpvMain {
 
     for (const attached of this.windows.values()) {
       attached.window.off('closed', attached.onClosed)
-      if (!attached.window.webContents.isDestroyed()) attached.window.webContents.off('did-start-navigation', attached.onNavigation)
+      if (!attached.window.webContents.isDestroyed()) {
+        attached.window.webContents.off('did-start-navigation', attached.onNavigation)
+        attached.window.webContents.off('did-finish-load', attached.onLoaded)
+      }
     }
     this.windows.clear()
     for (const name of IPC_CHANNELS) electron.ipcMain.removeHandler(channel(name))
@@ -561,6 +576,7 @@ class MpvMainService implements MpvMain {
     if (!attached || attached.window.isDestroyed()) {
       throw new Error('The sender BrowserWindow is not attached to electron-mpv-video')
     }
+    if (!attached.ready) throw new Error('MPV document is navigating or not loaded')
     return attached.window
   }
 
