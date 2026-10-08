@@ -97,3 +97,4 @@ out/
 .vscode
 dist
 dist-test
+third_party/**/build/

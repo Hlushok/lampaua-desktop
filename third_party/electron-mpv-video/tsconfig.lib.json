@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "types": ["node"],
+    "lib": ["DOM", "DOM.Iterable", "ES2022"]
+  },
+  "include": [
+    "src/main/**/*.ts",
+    "src/preload/**/*.cts",
+    "src/renderer/**/*.ts",
+    "src/shared/**/*.ts"
+  ]
+}

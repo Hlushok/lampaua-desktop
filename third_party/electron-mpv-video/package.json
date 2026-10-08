@@ -1,0 +1,94 @@
+{
+  "name": "electron-mpv-video",
+  "version": "0.1.1",
+  "description": "Bring libmpv's broad video format support to Electron with shared-texture and software rendering pipelines.",
+  "keywords": [
+    "electron",
+    "libmpv",
+    "video",
+    "shared-texture",
+    "software-rendering",
+    "mp4",
+    "h265",
+    "rtsp",
+    "flv"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "install": "npm run build:native",
+    "build:native": "node scripts/libmpv-runtime.mjs check && node-gyp rebuild --directory native/mpv-addon && node scripts/libmpv-runtime.mjs stage",
+    "build:lib": "node scripts/clean-main.mjs && tsc -p tsconfig.lib.json",
+    "build:demo": "vite build",
+    "build": "npm run build:native && npm run build:lib && npm run build:demo",
+    "dev": "npm run build:native && npm run build:lib && vite",
+    "start": "npm run build:lib && npm run build:demo && electron demo",
+    "check": "npm run build:lib && tsc -p demo/tsconfig.json --noEmit && vue-tsc -p demo/renderer/tsconfig.json --noEmit && npm run build:demo",
+    "prepack": "npm run build:lib",
+    "test:electron": "npm run build:lib && electron test/electron-smoke",
+    "test:native": "node scripts/native-smoke.mjs",
+    "test": "npm run check && npm run test:native"
+  },
+  "dependencies": {
+    "node-addon-api": "^8.3.0",
+    "node-gyp": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "electron": "^40.10.5",
+    "typescript": "^5.7.2",
+    "vite": "^8.1.5",
+    "vite-plugin-electron": "^1.1.0",
+    "vue": "^3.5.40",
+    "vue-tsc": "^3.3.8"
+  },
+  "types": "dist/main/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/main/index.d.ts",
+      "import": "./dist/main/index.js",
+      "default": "./dist/main/index.js"
+    },
+    "./main": {
+      "types": "./dist/main/index.d.ts",
+      "import": "./dist/main/index.js",
+      "default": "./dist/main/index.js"
+    },
+    "./preload": {
+      "types": "./dist/preload/index.d.cts",
+      "require": "./dist/preload/index.cjs",
+      "default": "./dist/preload/index.cjs"
+    },
+    "./renderer": {
+      "types": "./dist/renderer/index.d.ts",
+      "import": "./dist/renderer/index.js",
+      "default": "./dist/renderer/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/main",
+    "dist/preload",
+    "dist/renderer",
+    "dist/shared",
+    "scripts/libmpv-runtime.mjs",
+    "scripts/create-libmpv-import-lib.ps1",
+    "native/mpv-addon/binding.gyp",
+    "native/mpv-addon/package.json",
+    "native/mpv-addon/src",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "README.md",
+    "README.zh-CN.md"
+  ],
+  "homepage": "https://github.com/yscoder/electron-mpv-video",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yscoder/electron-mpv-video.git"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  }
+}
