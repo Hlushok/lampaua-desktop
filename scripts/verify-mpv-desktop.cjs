@@ -27,7 +27,7 @@ const files = new Map(
 const streamFixtures = path.join(fixtures, "streams");
 if (fs.existsSync(streamFixtures))
   for (const name of fs.readdirSync(streamFixtures))
-    for (const prefix of ["ytdl", "iptv", "sisi"])
+    for (const prefix of ["ytdl", "native-dash", "iptv", "sisi"])
       files.set(`${prefix}/${name}`, path.join(streamFixtures, name));
 files.set("sisi/video.mp4", path.join(fixtures, "h264-aac.mp4"));
 const requests = [];
@@ -83,6 +83,45 @@ async function main() {
     const request = new URL(req.url, "http://localhost");
     const name = request.pathname.slice(1);
     requests.push({ name, query: request.search, headers: req.headers });
+    if (name.startsWith("ytdl/blocked-dash-")) {
+      res.writeHead(503);
+      res.end();
+      return;
+    }
+    if (name === "stalled.mp4" || name === "stalled.ts") return;
+    if (name === "postload-stall.mp4") {
+      const data = fs.readFileSync(files.get("h264-aac.mp4"));
+      const match = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range || "");
+      const start = match ? Number(match[1]) : 0;
+      const end = match?.[2]
+        ? Math.min(Number(match[2]), data.length - 1)
+        : data.length - 1;
+      res.writeHead(match ? 206 : 200, {
+        "Content-Type": "video/mp4",
+        "Content-Length": end - start + 1,
+        "Accept-Ranges": "bytes",
+        ...(match
+          ? { "Content-Range": `bytes ${start}-${end}/${data.length}` }
+          : {}),
+      });
+      res.write(data.subarray(start, Math.min(start + 524288, end + 1)));
+      return;
+    }
+    if (name === "stalled.m3u8") {
+      res.writeHead(200, { "Content-Type": "application/vnd.apple.mpegurl" });
+      res.end(
+        "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:14\n#EXTINF:14,\nstalled.ts\n#EXT-X-ENDLIST\n",
+      );
+      return;
+    }
+    if (
+      name.startsWith("native-dash/dash-") &&
+      !/^bytes=\d+-\d+$/.test(req.headers.range || "")
+    ) {
+      res.writeHead(503);
+      res.end("Bounded ranges required by the synthetic Ytdl proxy");
+      return;
+    }
     if (
       name.startsWith("sisi/") &&
       (req.headers.referer !== "https://provider.test/watch" ||
@@ -93,12 +132,23 @@ async function main() {
       res.end();
       return;
     }
-    if (name === "ytdl/manifest") {
+    if (name === "ytdl/manifest" || name === "native-dash/manifest.mpd") {
       const quality = request.searchParams.get("quality");
-      if (["720", "1080"].includes(quality)) {
+      if (["720", "1080", "blocked"].includes(quality)) {
         res.writeHead(200, { "Content-Type": "application/dash+xml" });
         res.end(
-          fs.readFileSync(path.join(streamFixtures, `dash-${quality}.mpd`)),
+          fs
+            .readFileSync(
+              path.join(
+                streamFixtures,
+                `dash-${quality === "blocked" ? "720" : quality}.mpd`,
+              ),
+              "utf8",
+            )
+            .replaceAll(
+              "dash-720-",
+              quality === "blocked" ? "blocked-dash-720-" : "dash-720-",
+            ),
         );
       } else if (quality === "local") {
         res.writeHead(200, { "Content-Type": "application/dash+xml" });
@@ -118,6 +168,15 @@ async function main() {
           .readFileSync(path.join(streamFixtures, "channel.m3u8"), "utf8")
           .replace("#EXT-X-PLAYLIST-TYPE:VOD\n", "")
           .replace("#EXT-X-ENDLIST", ""),
+      );
+      return;
+    }
+    if (name === "lite/iptvportal/api/stream") {
+      res.writeHead(200, { "Content-Type": "application/vnd.apple.mpegurl" });
+      res.end(
+        fs
+          .readFileSync(path.join(streamFixtures, "channel.m3u8"), "utf8")
+          .replaceAll("channel-", "/iptv/channel-"),
       );
       return;
     }
@@ -180,7 +239,9 @@ async function main() {
   child = spawn(
     path.resolve(exe),
     [
-      `--mpv-test-run=${runId}`,
+      ...(process.argv.includes("--release")
+        ? [`--user-data-dir=${path.join(output, "profile")}`]
+        : [`--mpv-test-run=${runId}`]),
       `--remote-debugging-port=${debugPort}`,
       "--remote-debugging-address=127.0.0.1",
     ],
@@ -297,7 +358,10 @@ async function main() {
       "window.__native={};window.__lifecycle=[];for(const name of ['create','start','destroy'])Lampa.Player.listener.follow(name,()=>__lifecycle.push({name,stack:new Error().stack})); document.addEventListener('mpv-event', e=>{if(e.detail.name)__native[e.detail.name]=e.detail.data},true); Lampa.Storage.set('player_normalization',false); Lampa.Storage.set('player','inner'); Lampa.Storage.set('player_torrent','inner')",
     );
   await instrument();
-  if (!process.argv.includes("--offline-only")) {
+  if (
+    !process.argv.includes("--offline-only") &&
+    !process.argv.includes("--network-only")
+  ) {
     await evaluate(
       `window.__externalLaunches=0;window.__savedPath=Lampa.Storage.field('player_nw_path');Lampa.Player.listener.follow('external',()=>__externalLaunches++);Lampa.Storage.set('player_nw_path','C:/Contract/nonexistent-test-player.exe');Lampa.Player.play({url:${JSON.stringify(`${base}/h264-aac.mp4`)},title:'External routing contract',launch_player:'other'})`,
     );
@@ -334,6 +398,89 @@ async function main() {
     );
     assert.ok(info.duration > 10, JSON.stringify(info));
     results.push({ media: name, ...info });
+  }
+  async function checkNetworkCancellation(
+    name,
+    requestName = name,
+    afterPlayback = false,
+  ) {
+    await evaluate(
+      `Lampa.Player.close();Lampa.Player.play({url:${JSON.stringify(`${base}/${name}`)},title:'Stalled network test',launch_player:'inner'})`,
+    );
+    if (afterPlayback) {
+      await wait(
+        "Lampa.PlayerVideo.video()?.currentTime>1",
+        "playback before stalled segment",
+        30_000,
+      );
+      await evaluate("Lampa.PlayerVideo.to(9);Lampa.PlayerVideo.play()");
+    }
+    for (let i = 0; i < 50; i++) {
+      if (requests.some((entry) => entry.name === requestName)) break;
+      await sleep(100);
+    }
+    assert.ok(requests.some((entry) => entry.name === requestName));
+    const pingStart = Date.now();
+    await evaluate("electronAPI.getAppVersion()");
+    assert.ok(Date.now() - pingStart < 2000, "Main process blocked on network");
+    await evaluate("Lampa.Player.close()");
+    const recoveryStart = Date.now();
+    await play("h264-aac.mp4");
+    assert.ok(
+      Date.now() - recoveryStart < 8000,
+      "Stalled source blocked recovery",
+    );
+    results.push({
+      stalledNetworkCancelled: name,
+      afterPlayback,
+      recoveryMs: Date.now() - recoveryStart,
+    });
+  }
+  if (process.argv.includes("--iptv-proxy-only")) {
+    await play(
+      `lite/iptvportal/api/stream?target=${Buffer.from("http://provider.test/live/video.m3u8").toString("base64url")}&sig=synthetic`,
+      null,
+      { iptv: true },
+    );
+    await screenshot("iptv-proxy-hls");
+    await evaluate("Lampa.Player.close();electronAPI.closeApp()");
+    await Promise.race([
+      exit,
+      sleep(12000).then(() => {
+        throw new Error("App did not close after proxy HLS");
+      }),
+    ]);
+    assert.equal(exitCode, 0);
+    assert.deepEqual(
+      profileSnapshot(),
+      productionBefore,
+      "Production profile metadata changed",
+    );
+    fs.writeFileSync(
+      path.join(output, "results.json"),
+      JSON.stringify({ exe, runId, ok: true, results }, null, 2),
+    );
+    console.log("IPTV proxy HLS passed", output);
+    return;
+  }
+  if (process.argv.includes("--network-only")) {
+    await checkNetworkCancellation("stalled.mp4");
+    await checkNetworkCancellation("stalled.m3u8", "stalled.ts");
+    await checkNetworkCancellation("postload-stall.mp4", undefined, true);
+    await evaluate("electronAPI.closeApp()");
+    await Promise.race([
+      exit,
+      sleep(12_000).then(() => {
+        throw new Error("App did not close after network test");
+      }),
+    ]);
+    assert.equal(exitCode, 0);
+    fs.writeFileSync(
+      path.join(output, "results.json"),
+      JSON.stringify({ exe, runId, ok: true, results }, null, 2),
+    );
+    console.log("Network cancellation passed", output);
+    return;
   }
   if (!process.argv.includes("--offline-only")) {
     for (const name of [
@@ -404,9 +551,10 @@ async function main() {
     await wait("Boolean(window.dashjs)", "browser DASH library available");
     const dash720 = `${base}/ytdl/manifest?quality=720&token=synthetic%2Btoken`;
     const dash1080 = `${base}/ytdl/manifest?quality=1080&token=synthetic%2Btoken`;
+    const dashBlocked = `${base}/ytdl/manifest?quality=blocked`;
     await evaluate(`(()=>{
       let dashPlayer=null,originalPlayerVideoUrl=null;
-      const dashFallbacks=${JSON.stringify({ [dash720]: `${base}/h264-aac.mp4`, [dash1080]: `${base}/h264-aac.mp4` })};
+      const dashFallbacks=${JSON.stringify({ [dash720]: `${base}/h264-aac.mp4`, [dash1080]: `${base}/h264-aac.mp4`, [dashBlocked]: `${base}/h264-aac.mp4` })};
       ${functions.map((node) => ytdlSource.slice(node.start, node.end)).join("\n")}
       window.__ytdlWarnings=[];const notify=Lampa.Noty.show;
       Lampa.Noty.show=function(message,...args){if(String(message).includes('DASH'))__ytdlWarnings.push(message);return notify.call(this,message,...args)};
@@ -424,16 +572,19 @@ async function main() {
     });
     await wait(
       "Lampa.PlayerVideo.video().videoWidth===1280",
-      "native DASH 720p video",
+      "browser DASH 720p video",
     );
     await evaluate(
       `window.__native={};Lampa.PlayerPanel.listener.send('quality',{name:'1080p',url:${JSON.stringify(dash1080)}})`,
     );
     await wait(
-      `Lampa.PlayerVideo.video()?.currentTime>0.6 && Lampa.PlayerVideo.video().videoWidth===1920 && Lampa.PlayerVideo.video().src===${JSON.stringify(dash1080)}`,
-      "native DASH quality switch to 1080p",
+      "Lampa.PlayerVideo.video()?.currentTime>0.6 && Lampa.PlayerVideo.video().videoWidth===1920 && Lampa.PlayerVideo.video().nodeName==='VIDEO'",
+      "browser DASH quality switch to 1080p",
     );
-    assert.match(await evaluate("__native['audio-codec']"), /AAC/);
+    assert.equal(
+      await evaluate("document.querySelectorAll('mpv-video').length"),
+      0,
+    );
     assert.deepEqual(await evaluate("__ytdlWarnings"), []);
     await evaluate("Lampa.PlayerVideo.pause()");
     await sleep(600);
@@ -469,10 +620,43 @@ async function main() {
       separateAudioVideo: true,
       pauseSeek: true,
       fallback360p: false,
+      engine: "browser DASH",
     });
+    await evaluate(
+      `Lampa.Player.close();Lampa.Player.play({url:${JSON.stringify(dashBlocked)},title:'DASH network failure',launch_player:'inner'})`,
+    );
+    for (
+      let i = 0;
+      i < 100 &&
+      !requests.some((entry) => entry.name.startsWith("ytdl/blocked-dash-"));
+      i++
+    )
+      await sleep(100);
+    assert.ok(
+      requests.some((entry) => entry.name.startsWith("ytdl/blocked-dash-")),
+    );
+    assert.equal(await evaluate("Lampa.PlayerVideo.video().nodeName"), "VIDEO");
+    assert.equal(
+      await evaluate("document.querySelectorAll('mpv-video').length"),
+      0,
+    );
+    const dashRecoveryStart = Date.now();
+    await evaluate("electronAPI.getAppVersion();Lampa.Player.close()");
+    await play("h264-aac.mp4");
+    assert.ok(
+      Date.now() - dashRecoveryStart < 8000,
+      "Failed browser DASH blocked native playback recovery",
+    );
+    results.push({
+      failedBrowserDashCancelled: true,
+      recoveryMs: Date.now() - dashRecoveryStart,
+    });
+    await play("native-dash/manifest.mpd?quality=1080");
+    assert.match(await evaluate("__native['audio-codec']"), /AAC/);
+    results.push({ genericNativeDash: true, boundedRanges: true });
     for (const name of [
-      "ytdl/manifest?quality=missing",
-      "ytdl/manifest?quality=local",
+      "native-dash/manifest.mpd?quality=missing",
+      "native-dash/manifest.mpd?quality=local",
       "iptv/local.m3u8",
       "sisi/video.mp4",
     ]) {
@@ -480,12 +664,22 @@ async function main() {
         `Lampa.Player.close();Lampa.Player.play({url:${JSON.stringify(`${base}/${name}`)},title:'Expected stream failure',launch_player:'inner'})`,
       );
       await wait(
-        "Lampa.PlayerVideo.video()?.error?.code===3",
+        "Boolean(Lampa.PlayerVideo.video()?.error)",
         `expected error ${name}`,
       );
-      results.push({ negative: name, expectedFailure: true });
+      const error = await evaluate("Lampa.PlayerVideo.video().error");
+      if (name.includes("missing"))
+        assert.deepEqual(error, { code: 2, message: "HTTP 404" });
+      if (name === "sisi/video.mp4")
+        assert.deepEqual(error, { code: 2, message: "HTTP 403" });
+      results.push({ negative: name, expectedFailure: true, error });
     }
     await play("iptv/channel.m3u8", null, { iptv: true });
+    await play(
+      `lite/iptvportal/api/stream?target=${Buffer.from("http://provider.test/live/video.m3u8").toString("base64url")}&sig=synthetic`,
+      null,
+      { iptv: true },
+    );
     await play("iptv/channel.ts", null, { iptv: true });
     await evaluate(
       `Lampa.Player.close();Lampa.Player.play({url:${JSON.stringify(`${base}/iptv/live.m3u8`)},title:'IPTV non-ending HLS',iptv:true,launch_player:'inner'})`,
@@ -526,6 +720,9 @@ async function main() {
       headersForwarded: true,
       headersClearedForNextSource: true,
     });
+    await checkNetworkCancellation("stalled.mp4");
+    await checkNetworkCancellation("stalled.m3u8", "stalled.ts");
+    await checkNetworkCancellation("postload-stall.mp4", undefined, true);
     await play("tracks-subs.mkv", { track: 1, sub: 0 });
     await wait(
       "Lampa.PlayerVideo.video().audioTracks.length===2 && Lampa.PlayerVideo.video().textTracks.length===1",

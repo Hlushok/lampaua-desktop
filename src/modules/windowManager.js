@@ -3,7 +3,7 @@ const path = require("node:path");
 const store = require("./storeManager");
 const { setupPluginHandler } = require("./pluginHandler");
 const { DEFAULT_LAMPA_URL, LEGACY_LAMPA_URL } = require("./lampaUrls");
-const { isMpvTest } = require("./mpv/testMode");
+const { isMpvEnabled } = require("./mpv/testMode");
 
 let mainWindow = null;
 
@@ -139,7 +139,7 @@ function createWindow() {
 
   const lampaUrl = store.get("lampaUrl");
   setupPluginHandler(mainWindow);
-  if (isMpvTest()) {
+  if (isMpvEnabled()) {
     const window = mainWindow;
     const { attachMpvWindow, detachMpvWindow } = require("./mpv/manager");
     let readyToClose = false;

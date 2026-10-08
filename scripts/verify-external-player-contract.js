@@ -13,6 +13,8 @@ function verifyPackageInputBoundary() {
     "src/**/*",
     "package.json",
     "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "licenses/**/*",
   ]);
 }
 

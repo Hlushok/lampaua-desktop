@@ -1,6 +1,18 @@
 const { app } = require("electron");
 const path = require("node:path");
 
+// Apply an explicit QA/development profile before electron-store is imported.
+const profileArgument = process.argv.find((arg) =>
+  arg.startsWith("--user-data-dir="),
+);
+if (profileArgument) {
+  const profile = path.resolve(
+    profileArgument.slice("--user-data-dir=".length),
+  );
+  app.setPath("userData", profile);
+  app.setPath("sessionData", profile);
+}
+
 const { setupAppLifecycle, gotTheLock } = require("./modules/appLifecycle");
 const { createWindow } = require("./modules/windowManager");
 const { setupAutoUpdater } = require("./modules/autoUpdater");
@@ -8,7 +20,7 @@ const { registerIpcHandlers } = require("./modules/ipcHandlers");
 const torrServerManager = require("./modules/torrServerManager");
 const autoStartManager = require("./modules/autoStartManager");
 const PlayerOptionsInterceptor = require("./modules/playerOptionsInterceptor");
-const { isMpvTest } = require("./modules/mpv/testMode");
+const { isMpvEnabled } = require("./modules/mpv/testMode");
 setupAppLifecycle();
 
 // Меняем расположение кеша и т.п. для разработки, чтобы не мешало установленной версии
@@ -71,7 +83,7 @@ app.on("will-quit", async (event) => {
   console.log("🔄 Завершение работы приложения...");
 
   try {
-    if (isMpvTest()) await require("./modules/mpv/manager").disposeMpv();
+    if (isMpvEnabled()) await require("./modules/mpv/manager").disposeMpv();
     console.log("🛑 Остановка TorrServer...");
 
     const stopResult = await Promise.race([

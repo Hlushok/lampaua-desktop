@@ -170,10 +170,36 @@ async function main() {
     ["https://example.org/ytdl/manifest?token=keep", "dash"],
     ["https://example.org/live/channel.m3u8", "hls"],
     ["https://example.org/channel.mpd", "dash"],
+    [
+      `https://kinohub.uk/lite/iptvportal/api/stream?playlist=test&target=${Buffer.from("http://provider.test/live/video.m3u8").toString("base64url")}&sig=preserve`,
+      "hls",
+    ],
+    [
+      `http://lampaua.mooo.com/lite/iptvportal/api/stream?target=${Buffer.from("https://provider.test/live/video.m3u8?auth=keep").toString("base64url")}`,
+      "hls",
+    ],
+    [
+      `https://kinohub.uk/lite/iptvportal/api/stream?target=${Buffer.from("http://provider.test/live/channel.ts").toString("base64url")}`,
+      "auto",
+    ],
+    [
+      `https://kinohub.uk/lite/iptvportal/api/stream?target=${Buffer.from("file:///C:/secret.m3u8").toString("base64url")}`,
+      "auto",
+    ],
+    ["https://kinohub.uk/lite/iptvportal/api/stream?target=invalid!", "auto"],
+    [
+      `https://kinohub.uk/not-the-portal?target=${Buffer.from("https://provider.test/video.m3u8").toString("base64url")}`,
+      "auto",
+    ],
     ["https://example.org/file.mp4", "auto"],
   ]) {
     await call("open", e, id, source);
     assert.equal(controls.at(-2)[1], expected);
+    assert.equal(
+      controls.at(-3)[1],
+      source,
+      "Signed playback URL must not be rewritten",
+    );
   }
   await call("open", e, id, "https://example.org/protected", {
     Referer: "https://example.org/",

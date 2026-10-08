@@ -1,7 +1,7 @@
 {
   "name": "lampaua-desktop",
   "productName": "LampaUa",
-  "version": "1.5.24",
+  "version": "2.0.0",
   "description": "Десктопний клієнт LampaUa",
   "repository": {
     "type": "git",
@@ -18,7 +18,8 @@
     "dev": "electron . --dev",
     "build-linux": "electron-builder --linux --publish=never",
     "build-mac": "electron-builder --mac --publish=never",
-    "build-win": "electron-builder --win --publish=never",
+    "build-win": "node scripts/build-win-mpv-test.cjs --release",
+    "build-win-legacy": "electron-builder --win --ia32 --arm64 --publish=never --config.directories.output=dist/legacy",
     "build-win-ac3": "\"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" -NoProfile -ExecutionPolicy Bypass -File scripts/build-win-ac3.ps1",
     "lint": "yarn lint:eslint && yarn lint:prettier",
     "lint:eslint": "eslint .",
@@ -46,20 +47,26 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@types/node": "22.20.0",
     "commit-and-tag-version": "13.2.1",
     "electron": "43.7.5",
     "electron-builder": "26.15.3",
     "eslint": "10.11.0",
     "eslint-config-prettier": "10.1.8",
     "globals": "17.12.0",
+    "node-addon-api": "8.9.0",
+    "node-gyp": "12.4.0",
     "prettier": "3.9.9",
-    "rcedit": "5.0.2"
+    "rcedit": "5.0.2",
+    "rolldown": "1.1.5",
+    "typescript": "5.9.3",
+    "yaml": "2.8.1"
   },
   "author": {
     "name": "yumata, Kolovatoff, Hlushok",
     "email": "stpuh2@gmail.com"
   },
-  "license": "GPL-2.0",
+  "license": "GPL-3.0-or-later",
   "build": {
     "appId": "com.lampaua.desktop",
     "productName": "LampaUa",
@@ -68,7 +75,9 @@
       "assets/**/*",
       "src/**/*",
       "package.json",
-      "LICENSE"
+      "LICENSE",
+      "THIRD_PARTY_NOTICES.md",
+      "licenses/**/*"
     ],
     "linux": {
       "target": [

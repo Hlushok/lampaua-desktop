@@ -77,6 +77,7 @@ export type MpvMainOptions = {
   addonPath?: string
   authorize?: (event: IpcMainInvokeEvent) => boolean
   normalizeSource?: (source: unknown) => string
+  diagnostic?: (type: string, data: { playerId?: string; error?: string; format?: string }) => void
 }
 
 export type MpvMain = {
@@ -164,7 +165,23 @@ function normalizeHeaders(value: unknown): string[] {
 }
 
 function manifestFormat(source: string): 'auto' | 'dash' | 'hls' {
-  const pathname = new URL(source).pathname.toLowerCase()
+  const url = new URL(source)
+  let pathname = url.pathname.toLowerCase()
+  // The portal signs an extensionless proxy URL. Inspect its encoded target
+  // only to select the demuxer; keep the signed playback URL unchanged.
+  if (pathname === '/lite/iptvportal/api/stream') {
+    const target = url.searchParams.get('target')
+    if (target && /^[A-Za-z0-9_+\/-]+={0,2}$/.test(target)) {
+      try {
+        const upstream = new URL(Buffer.from(target, 'base64url').toString('utf8'))
+        if (upstream.protocol === 'http:' || upstream.protocol === 'https:') {
+          pathname = upstream.pathname.toLowerCase()
+        }
+      } catch {
+        // Unknown targets retain ordinary automatic format detection.
+      }
+    }
+  }
   if (pathname === '/ytdl/manifest' || pathname.endsWith('.mpd')) return 'dash'
   if (pathname.endsWith('.m3u8')) return 'hls'
   return 'auto'
@@ -198,6 +215,7 @@ class PlayerSession {
     private readonly nativeModule: NativeModule,
     private readonly onDestroyed: (id: string) => void,
     options: { pipeline: RenderPipeline; renderSize: RenderSize },
+    private readonly diagnostic: NonNullable<MpvMainOptions['diagnostic']> = () => {},
   ) {
     this.pipeline = options.pipeline
     if (this.pipeline === 'shared-texture' && !supportsSharedTexturePipeline()) {
@@ -215,7 +233,9 @@ class PlayerSession {
   open(source: string, headers: string[]) {
     this.assertAlive()
     this.tracks = []
-    this.player.open(source, headers, manifestFormat(source))
+    const format = manifestFormat(source)
+    this.diagnostic('open', {playerId: this.id, format})
+    this.player.open(source, headers, format)
     this.source = source
     this.headers = headers
     this.currentTime = 0
@@ -335,10 +355,12 @@ class PlayerSession {
   destroy() {
     if (this.destroyPromise) return this.destroyPromise
     this.destroyed = true
+    this.diagnostic('destroy-start', {playerId: this.id})
     this.stopCallbacks()
     this.destroyPromise = this.operations.then(async () => {
       await this.waitForFramePump()
       this.player.destroy()
+      this.diagnostic('destroy-complete', {playerId: this.id})
     }).finally(() => this.onDestroyed(this.id))
     return this.destroyPromise
   }
@@ -384,6 +406,9 @@ class PlayerSession {
   private sendEvent(event: NativeEvent) {
     if (this.destroyed) return
     this.trackEvent(event)
+    if (['file-loaded', 'end-file'].includes(event.type)) {
+      this.diagnostic(event.type, {playerId: this.id, error: event.error})
+    }
     if (this.window.isDestroyed()) return
     this.window.webContents.send(channel('player:event'), {
       playerId: this.id,
@@ -396,6 +421,7 @@ class PlayerSession {
   }
 
   private sendError(type: 'render-error' | 'event-error', error: unknown) {
+    this.diagnostic(type, {playerId: this.id})
     if (this.window.isDestroyed()) return
     this.window.webContents.send(channel('player:event'), {
       playerId: this.id,
@@ -648,6 +674,7 @@ class MpvMainService implements MpvMain {
           pipeline: normalizePipeline(options.pipeline ?? 'software'),
           renderSize: normalizeRenderSize(options.renderSize ?? { width: 960, height: 540 }),
         },
+        this.options.diagnostic,
       )
       this.sessions.set(session.id, session)
       return session.id

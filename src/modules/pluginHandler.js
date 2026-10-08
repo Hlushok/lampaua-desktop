@@ -1,11 +1,11 @@
 const { readFileSync } = require("fs");
 const path = require("node:path");
 const lampaInitializer = require("./lampaInitializer");
-const { isMpvTest } = require("./mpv/testMode");
+const { isMpvEnabled } = require("./mpv/testMode");
 
 function setupPluginHandler(mainWindow) {
   let generation = 0;
-  if (isMpvTest()) {
+  if (isMpvEnabled()) {
     mainWindow.webContents.on(
       "did-start-navigation",
       (_event, _url, inPlace, main) => {
@@ -16,13 +16,13 @@ function setupPluginHandler(mainWindow) {
   mainWindow.webContents.on("did-finish-load", async () => {
     const current = generation;
     const cancelled = () =>
-      isMpvTest() &&
+      isMpvEnabled() &&
       (generation !== current ||
         mainWindow.isDestroyed() ||
         mainWindow.mpvClosing);
     try {
       await waitForLampaReady(mainWindow, cancelled);
-      const initializationWindow = isMpvTest()
+      const initializationWindow = isMpvEnabled()
         ? {
             webContents: {
               executeJavaScript(...args) {
@@ -35,7 +35,7 @@ function setupPluginHandler(mainWindow) {
         : mainWindow;
       await lampaInitializer.initialize(initializationWindow);
       if (cancelled()) return;
-      if (isMpvTest()) {
+      if (isMpvEnabled()) {
         const code = readFileSync(
           path.join(__dirname, "../mpv-runtime/renderer.js"),
           "utf8",
@@ -54,7 +54,7 @@ async function waitForLampaReady(mainWindow, cancelled = () => false) {
   return new Promise((resolve, reject) => {
     const check = async () => {
       if (
-        isMpvTest() &&
+        isMpvEnabled() &&
         (cancelled() ||
           mainWindow.isDestroyed() ||
           mainWindow.mpvClosing ||

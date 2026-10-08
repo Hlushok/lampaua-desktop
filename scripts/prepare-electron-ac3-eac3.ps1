@@ -39,6 +39,9 @@ if (!(Test-Checksum $archive $manifest.sha256)) {
 }
 
 if (Test-Path -LiteralPath $runtime) {
+    $resolvedRuntime = [System.IO.Path]::GetFullPath($runtime)
+    $expectedRuntime = [System.IO.Path]::GetFullPath((Join-Path $projectRoot '.cache/electron-ac3-eac3'))
+    if ($resolvedRuntime -ne $expectedRuntime) { throw 'Unsafe Electron cache path' }
     Remove-Item -LiteralPath $runtime -Recurse -Force
 }
 

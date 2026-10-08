@@ -1,5 +1,8 @@
 # Desktop MPV Test: Ytdl DASH Compatibility
 
+Historical `mpv.3` results. The current builder produces `mpv.6`; see the
+[real-stream transport follow-up](2026-10-08-desktop-mpv-real-stream-fix.md).
+
 ## Scope
 
 Local follow-up to the full-app `1.5.24-mpv.2` prototype. Preserve the ordinary

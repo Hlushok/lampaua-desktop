@@ -1,6 +1,6 @@
 (function () {
   let cleanup = Promise.resolve();
-  const ytdlPrefix = "lampaua-mpv-ytdl:";
+  let browserDashDepth = 0;
 
   function isYtdlManifest(src) {
     if (typeof src !== "string") return false;
@@ -16,32 +16,24 @@
     }
   }
 
-  function nativeSource(src) {
-    if (typeof src === "string" && src.startsWith(ytdlPrefix)) {
-      try {
-        const original = decodeURIComponent(atob(src.slice(ytdlPrefix.length)));
-        return isYtdlManifest(original) ? original : "";
-      } catch {
-        return "";
-      }
-    }
-    return String(src || "");
-  }
-
-  function installYtdlRoute(Lampa, verify) {
+  function installYtdlRoute(Lampa) {
     const player = Lampa.PlayerVideo;
     const descriptor = Object.getOwnPropertyDescriptor(player, "url");
     if (descriptor && !descriptor.configurable)
       throw new Error("Cannot install the MPV Ytdl route");
-    // Ytdl delegates unknown sources. Keep its browser wrapper out of native
-    // playback, including when the plugin wraps PlayerVideo.url after startup.
+    // Ytdl creates its DOM video via a progressive fallback before attaching
+    // dash.js. Exclude that nested call too, regardless of plugin load order.
     const wrap = (delegate) =>
       typeof delegate !== "function"
         ? delegate
         : function (src, ...args) {
-            if (isYtdlManifest(src) && verify(src))
-              src = ytdlPrefix + btoa(encodeURIComponent(src));
-            return delegate.call(this, src, ...args);
+            const browserDash = isYtdlManifest(src);
+            if (browserDash) browserDashDepth++;
+            try {
+              return delegate.call(this, src, ...args);
+            } finally {
+              if (browserDash) browserDashDepth--;
+            }
           };
     let route = wrap(player.url);
     Object.defineProperty(player, "url", {
@@ -84,7 +76,8 @@
     };
     const fail = (error) => {
       if (dead) return;
-      video.error = { code: 3, message: error?.message || String(error) };
+      const message = error?.message || String(error);
+      video.error = { code: /^HTTP [45]\d{2}$/.test(message) ? 2 : 3, message };
       emit("error");
     };
     function queue(operation) {
@@ -100,7 +93,7 @@
       "src",
       () => source,
       (value) => {
-        source = nativeSource(value);
+        source = String(value || "");
       },
     );
     property(
@@ -351,9 +344,10 @@
     const registration = {
       name: "LampaUa libmpv",
       verify(src) {
+        if (browserDashDepth > 0 || isYtdlManifest(src)) return false;
         let url;
         try {
-          url = new URL(nativeSource(src));
+          url = new URL(src);
         } catch {
           return false;
         }
@@ -383,7 +377,7 @@
       },
     };
     Lampa.PlayerVideo.registerTube(registration);
-    installYtdlRoute(Lampa, registration.verify);
+    installYtdlRoute(Lampa);
   }
   window.LampaUaMpvAdapter = { createMpvVideo, installLampaMpvAdapter };
 })();

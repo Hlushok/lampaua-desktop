@@ -1,0 +1,10 @@
+{
+  "repository": "shinchiro/mpv-winbuild-cmake",
+  "tag": "20261008",
+  "asset": "mpv-dev-x86_64-20261008-git-36bf3d5290.7z",
+  "sha256": "1e94b722d9d1b701406250c73ee37d73cd0045cdf47bdd7a54f2bea1b513465f",
+  "dllSha256": "bde5eb098b65b0908be4176c2f331bab25a101881a9232b8beef0c0d3ab8ad87",
+  "mpvCommit": "36bf3d5290",
+  "ffmpegCommit": "5d4755f7d",
+  "sourceRun": "https://github.com/shinchiro/mpv-winbuild-cmake/actions/runs/37705360264"
+}

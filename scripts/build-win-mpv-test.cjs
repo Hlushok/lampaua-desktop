@@ -5,6 +5,7 @@ const { execFileSync } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
 const { createRequire } = require("node:module");
 const root = path.resolve(__dirname, "..");
+const release = process.argv.includes("--release");
 const cache = path.join(root, ".cache/mpv-desktop-test");
 const prototype = path.join(root, ".cache/mpv-prototype");
 const vendor = path.join(root, "third_party/electron-mpv-video");
@@ -61,41 +62,60 @@ function stageDependencies(stage, dependencies) {
   for (const name of Object.keys(dependencies)) add(name, root, stage);
 }
 async function main() {
+  if (release) {
+    for (const script of [
+      "prepare-electron-ac3-eac3.ps1",
+      "prepare-libmpv.ps1",
+    ])
+      run("powershell.exe", [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        path.join(root, "scripts", script),
+      ]);
+  }
   fs.mkdirSync(cache, { recursive: true });
+  const electronRuntime = require("../build/electron-runtime-ac3-eac3.json");
+  const electronDirectory = path.join(root, ".cache/electron-ac3-eac3");
+  if (
+    hash(path.join(root, ".cache/electron-runtime-ac3-eac3.zip")) !==
+    electronRuntime.sha256
+  )
+    throw new Error("Production Electron archive hash mismatch");
   const electronInputs = {
     "electron.exe":
-      "9c9f11c8601c0165ffba7c3a3394b5106502ccc297e0be8b828b3f5e7421ba07",
-    "ffmpeg.dll":
-      "af461f247e8bd008eee24e9954be9a6aed6402c50d716e16fab2b8a774ed98fa",
+      "93f9eacd8ca3ff42c6683700f8a680f6d68f31554f3c764752a2329dfd71a85f",
+    "ffmpeg.dll": electronRuntime.ffmpegSha256,
     "vulkan-1.dll":
-      "f7d669b9239cd7a460d609cb60c202dccac5253ffaf68131cc09c969fe59334a",
+      "3e427037630adaea22465209ce82137df58b2bd067cae31fa27d2db14a677103",
   };
   for (const [file, digest] of Object.entries(electronInputs))
-    if (hash(path.join(prototype, "electron", file)) !== digest)
-      throw new Error(`Official Electron input hash mismatch: ${file}`);
-  const expectedSdk =
-    "1e94b722d9d1b701406250c73ee37d73cd0045cdf47bdd7a54f2bea1b513465f";
+    if (hash(path.join(electronDirectory, file)) !== digest)
+      throw new Error(`Production Electron input hash mismatch: ${file}`);
+  run(process.execPath, [
+    path.join(root, "scripts/verify-electron-runtime.cjs"),
+    path.join(electronDirectory, "electron.exe"),
+    path.join(electronDirectory, "ffmpeg.dll"),
+  ]);
+  const mpvRuntime = require("../build/libmpv-runtime.json");
+  const expectedSdk = mpvRuntime.sha256;
   if (hash(path.join(prototype, "libmpv-sdk.7z")) !== expectedSdk)
     throw new Error("SDK archive hash mismatch");
   const dll = path.join(prototype, "sdk/libmpv-2.dll");
-  if (
-    hash(dll) !==
-    "bde5eb098b65b0908be4176c2f331bab25a101881a9232b8beef0c0d3ab8ad87"
-  )
+  if (hash(dll) !== mpvRuntime.dllSha256)
     throw new Error("libmpv DLL hash mismatch");
-  const dependencies = path.join(
-    prototype,
-    "vendor/electron-mpv-video/node_modules",
-  );
+  const dependencies = path.join(root, "node_modules");
   const env = {
     ...process.env,
     NODE_PATH: dependencies,
     MPV_INCLUDE_DIR: path.join(prototype, "sdk/include"),
     MPV_LIB: path.join(prototype, "sdk/lib/mpv.lib"),
-    NODE_GYP_FORCE_PYTHON:
-      process.env.NODE_GYP_FORCE_PYTHON ||
-      "C:/Users/stpuh/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe",
   };
+  const localPython =
+    "C:/Users/stpuh/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe";
+  if (!env.NODE_GYP_FORCE_PYTHON && fs.existsSync(localPython))
+    env.NODE_GYP_FORCE_PYTHON = localPython;
   run(
     process.execPath,
     [
@@ -103,7 +123,7 @@ async function main() {
       "rebuild",
       "--directory",
       path.join(vendor, "native/mpv-addon"),
-      "--target=43.7.5",
+      `--target=${electronRuntime.version}`,
       "--dist-url=https://electronjs.org/headers",
       `--devdir=${path.join(prototype, "headers")}`,
     ],
@@ -117,7 +137,13 @@ async function main() {
     path.join(cache, "lib"),
   ]);
   const stage = path.join(cache, `package-${Date.now()}`);
-  for (const file of ["src", "assets", "LICENSE"])
+  for (const file of [
+    "src",
+    "assets",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "licenses",
+  ])
     copy(path.join(root, file), path.join(stage, file));
   const runtime = path.join(stage, "src/mpv-runtime");
   copy(path.join(cache, "lib"), path.join(runtime, "lib"));
@@ -155,11 +181,12 @@ async function main() {
   const original = require("../package.json");
   const pkg = {
     ...original,
-    name: "lampaua-desktop-mpv-test",
-    productName: "LampaUa Desktop MPV Test",
-    version: "1.5.24-mpv.3",
-    main: "src/mpv-test-main.js",
-    lampauaMpvTest: true,
+    name: release ? original.name : "lampaua-desktop-mpv-test",
+    productName: release ? original.productName : "LampaUa Desktop MPV Test",
+    version: release ? original.version : "1.5.24-mpv.6",
+    main: release ? original.main : "src/mpv-test-main.js",
+    lampauaMpvTest: !release,
+    lampauaMpv: true,
     private: true,
   };
   for (const key of [
@@ -190,12 +217,13 @@ async function main() {
     path.join(stage, "build-manifest.json"),
     JSON.stringify(
       {
-        electron: "43.7.5",
-        electronArchiveSha256:
-          "7acfa0646793f912ff983c8db8c3a145dc18ee40fe3d11a01840fd59cb76e5a2",
+        electron: electronRuntime.version,
+        electronArchiveSha256: electronRuntime.sha256,
+        electronSource: electronRuntime,
         electronInputs,
         vendorCommit: "4944079b4133715848ea3c3bdaf99742b8c68406",
         sdkSha256: expectedSdk,
+        mpvSource: mpvRuntime,
         hashes,
       },
       null,
@@ -206,12 +234,22 @@ async function main() {
     path.join(cache, "stage-latest.json"),
     JSON.stringify({ stage }, null, 2),
   );
-  run(process.execPath, [path.join(root, "scripts/verify-mpv-staging.js")]);
+  run(process.execPath, [
+    path.join(root, "scripts/verify-mpv-staging.js"),
+    ...(release ? ["--release"] : []),
+  ]);
   if (process.argv.includes("--stage-only")) return;
   const { build, Platform, Arch } = require("electron-builder");
-  const output = path.join(root, "dist/mpv-desktop-test");
+  const output = path.join(
+    root,
+    release ? "dist/release-x64" : "dist/mpv-desktop-test",
+  );
   const targets = Platform.WINDOWS.createTarget(
-    process.argv.includes("--unpacked") ? "dir" : "portable",
+    process.argv.includes("--unpacked")
+      ? "dir"
+      : release
+        ? ["nsis", "portable"]
+        : "portable",
     Arch.x64,
   );
   const artifacts = await build({
@@ -219,23 +257,43 @@ async function main() {
     targets,
     publish: "never",
     config: {
-      appId: "com.lampaua.desktop.mpvtest",
-      productName: "LampaUa Desktop MPV Test",
-      electronVersion: "43.7.5",
-      electronDist: path.join(prototype, "electron"),
+      ...(release ? original.build : {}),
+      appId: release ? original.build.appId : "com.lampaua.desktop.mpvtest",
+      productName: pkg.productName,
+      electronVersion: electronRuntime.version,
+      electronDist: electronDirectory,
       directories: { app: stage, output },
       files: ["**/*"],
       asar: false,
       npmRebuild: false,
-      publish: null,
-      artifactName: "lampaua-desktop-${arch}-${version}-portable.${ext}",
+      publish: release ? original.build.publish : null,
+      artifactName: release
+        ? original.build.artifactName
+        : "lampaua-desktop-${arch}-${version}-portable.${ext}",
       win: {
-        target: [{ target: "portable", arch: ["x64"] }],
+        ...(release ? original.build.win : {}),
+        target: [{ target: "nsis", arch: ["x64"] }],
         icon: path.join(root, "assets/win.ico"),
         signExecutable: false,
       },
-      portable: { requestExecutionLevel: "user" },
+      portable: {
+        requestExecutionLevel: "user",
+        artifactName: release
+          ? "lampaua-${arch}-${version}-portable.${ext}"
+          : "lampaua-desktop-${arch}-${version}-portable.${ext}",
+      },
       afterPack(context) {
+        if (release) {
+          process.env.RCEDIT_PATH = path.join(
+            root,
+            "node_modules/rcedit/bin/rcedit-x64.exe",
+          );
+          run(process.env.RCEDIT_PATH, [
+            path.join(context.appOutDir, "LampaUa.exe"),
+            "--set-icon",
+            path.join(root, "assets/win.ico"),
+          ]);
+        }
         for (const [file, expected] of Object.entries(hashes))
           if (
             hash(path.join(context.appOutDir, "resources/app", file)) !==
@@ -244,6 +302,11 @@ async function main() {
             throw new Error(`Packaged hash mismatch: ${file}`);
         if (!fs.existsSync(path.join(context.appOutDir, "vulkan-1.dll")))
           throw new Error("Vulkan runtime missing");
+        if (
+          hash(path.join(context.appOutDir, "ffmpeg.dll")) !==
+          electronRuntime.ffmpegSha256
+        )
+          throw new Error("Production FFmpeg runtime was replaced");
       },
     },
   });

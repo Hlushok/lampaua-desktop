@@ -135,6 +135,23 @@ async function main() {
     video.buffered.start(0) < video.currentTime,
     "Lampa requires the buffered interval to include the current position",
   );
+  surface.dispatchEvent(
+    new CustomEvent("mpv-event", {
+      detail: { type: "end-file", error: "HTTP 503" },
+    }),
+  );
+  assert.equal(
+    video.error.code,
+    2,
+    "HTTP errors are network failures, not decode failures",
+  );
+  assert.equal(video.error.message, "HTTP 503");
+  surface.dispatchEvent(
+    new CustomEvent("mpv-event", {
+      detail: { type: "end-file", error: "unrecognized file format" },
+    }),
+  );
+  assert.equal(video.error.code, 3);
   await video.destroy();
   await video.destroy();
   event("time-pos", 100);

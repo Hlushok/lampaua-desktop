@@ -1,0 +1,34 @@
+name: Validate desktop changes
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Install locked dependencies
+        run: |
+          corepack enable
+          corepack yarn install --immutable
+      - name: Compile MPV service for contract tests
+        run: node node_modules/typescript/bin/tsc -p third_party/electron-mpv-video/tsconfig.lib.json --outDir .cache/mpv-desktop-test/lib
+      - name: Syntax, contracts and formatting
+        run: |
+          node --check src/main.js
+          node --check src/preload.js
+          node --check src/plugin.js
+          for test in verify-release-contract verify-external-player-contract verify-ua-player-dispatch-contract verify-ua-player-progress-contract verify-ua-player-session-contract verify-mpv-test-isolation verify-mpv-ytdl-contract verify-mpv-renderer-contract verify-mpv-lampa-contract verify-mpv-ipc-contract verify-mpv-diagnostics; do
+            node "scripts/$test.js"
+          done
+          corepack yarn lint
+          node scripts/verify-windows-updates.cjs

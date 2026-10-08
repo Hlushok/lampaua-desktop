@@ -10,9 +10,19 @@ assert.ok(
 );
 const { stage } = JSON.parse(fs.readFileSync(descriptor));
 const pkg = JSON.parse(fs.readFileSync(path.join(stage, "package.json")));
-assert.equal(pkg.main, "src/mpv-test-main.js");
-assert.equal(pkg.version, "1.5.24-mpv.3");
-assert.equal(pkg.lampauaMpvTest, true);
+const release = process.argv.includes("--release");
+assert.equal(pkg.main, release ? "src/main.js" : "src/mpv-test-main.js");
+assert.equal(
+  pkg.version,
+  release ? require("../package.json").version : "1.5.24-mpv.6",
+);
+assert.equal(pkg.lampauaMpvTest, !release);
+assert.equal(pkg.lampauaMpv, true);
+if (release) {
+  assert.equal(pkg.name, "lampaua-desktop");
+  assert.equal(pkg.productName, "LampaUa");
+  assert.equal(pkg.license, "GPL-3.0-or-later");
+}
 assert.equal(pkg.build, undefined);
 for (const file of [
   "src/main.js",
@@ -30,6 +40,13 @@ for (const name of Object.keys(pkg.dependencies))
   assert.ok(resolve.resolve(name).startsWith(stage), name);
 const manifest = JSON.parse(
   fs.readFileSync(path.join(stage, "build-manifest.json")),
+);
+const productionRuntime = require("../build/electron-runtime-ac3-eac3.json");
+assert.equal(manifest.electron, productionRuntime.version);
+assert.equal(manifest.electronArchiveSha256, productionRuntime.sha256);
+assert.equal(
+  manifest.electronInputs["ffmpeg.dll"],
+  productionRuntime.ffmpegSha256,
 );
 for (const [file, expected] of Object.entries(manifest.hashes))
   assert.equal(

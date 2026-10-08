@@ -6,7 +6,9 @@ release, installation over the production app, Lampac edit or VPS change.
 
 This is the historical `mpv.2` result. The current builder includes the subsequent
 [Ytdl DASH/IPTV/SISI compatibility fix](2026-10-08-desktop-mpv-ytdl-dash.md)
-and produces `mpv.3`; the artifact and acceptance evidence below describe `mpv.2`.
+and [real-stream transport follow-up](2026-10-08-desktop-mpv-real-stream-fix.md)
+and [extensionless IPTV follow-up](2026-10-08-desktop-mpv-iptv-proxy-fix.md)
+and produces `mpv.6`; the artifact and acceptance evidence below describe `mpv.2`.
 
 ## Artifact
 

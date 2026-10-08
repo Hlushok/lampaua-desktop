@@ -132,6 +132,28 @@ jobs:
       - name: Build for Windows
         run: yarn run build-win
 
+      - name: Build other Windows architectures
+        run: yarn run build-win-legacy
+
+      - name: Merge architecture-specific update metadata
+        run: node scripts/merge-windows-updates.cjs
+
+      - name: Verify production MPV package and contracts
+        shell: pwsh
+        run: |
+          node scripts/verify-mpv-staging.js --release
+          if ($LASTEXITCODE -ne 0) { throw 'MPV staging verification failed' }
+          node scripts/verify-release-contract.js
+          if ($LASTEXITCODE -ne 0) { throw 'Release contract failed' }
+          node scripts/verify-windows-updates.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Windows updater manifest contract failed' }
+          foreach ($test in @('verify-external-player-contract.js', 'verify-ua-player-dispatch-contract.js', 'verify-ua-player-progress-contract.js', 'verify-ua-player-session-contract.js', 'verify-mpv-ytdl-contract.js', 'verify-mpv-test-isolation.js', 'verify-mpv-renderer-contract.js', 'verify-mpv-lampa-contract.js', 'verify-mpv-ipc-contract.js', 'verify-mpv-diagnostics.js')) {
+            node "scripts/$test"
+            if ($LASTEXITCODE -ne 0) { throw "Contract failed: $test" }
+          }
+          yarn lint
+          if ($LASTEXITCODE -ne 0) { throw 'Lint failed' }
+
       - name: Verify Windows update artifacts
         shell: pwsh
         run: |
@@ -291,6 +313,10 @@ jobs:
       - name: Combine release body
         run: |
           cat > release_body.md << 'EOF'
+          ## Чернетка 2.x
+
+          Не публікувати до завершення перевірки відповідних вихідних текстів усіх бібліотек у готовій libmpv DLL. Зміна ліцензії на GPL-3.0-or-later погоджена; вона не замінює комплект джерел. Поточний стабільний канал залишається на 1.5.24.
+
           ${{ needs.generate-downloads-table.outputs.downloads_section }}
           EOF
 
@@ -301,6 +327,11 @@ jobs:
           LampaUa Desktop is an unofficial fork of `Kolovatoff/lampa-desktop`, adapted for LampaUa. We changed the app name, default start URL, settings, releases and auto-updates. This project is not an official release of the original Lampa project.
 
           Original project: https://github.com/Kolovatoff/lampa-desktop
+
+          Codec integration donor: https://github.com/ARST113/lampa-desktop
+          MPV bridge: https://github.com/yscoder/electron-mpv-video
+          Windows x64 includes the tested MPV engine and AC3/EAC3 Electron runtime.
+          Other platforms/architectures retain browser playback; they do not include MPV.
           EOF
 
           echo "" >> release_body.md
@@ -314,6 +345,9 @@ jobs:
       - name: Publish to GitHub Release
         uses: softprops/action-gh-release@v3
         with:
+          # Keep binary distribution closed until corresponding third-party sources
+          # have been preserved and the release-maintenance checklist is complete.
+          draft: true
           tag_name: ${{ github.ref_name }}
           body_path: release_body.md
           files: |

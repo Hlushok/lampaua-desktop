@@ -1,7 +1,13 @@
 const { contextBridge, ipcRenderer } = require("electron");
 const crypto = require("node:crypto");
 const path = require("node:path");
-if (require("../package.json").lampauaMpvTest === true) {
+const packageInfo = require("../package.json");
+if (
+  packageInfo.lampauaMpvTest === true ||
+  (packageInfo.lampauaMpv === true &&
+    process.platform === "win32" &&
+    process.arch === "x64")
+) {
   require("./mpv-runtime/lib/preload/index.cjs").exposeMpvApi();
 }
 

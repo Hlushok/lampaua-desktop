@@ -42,7 +42,25 @@ async function main() {
     ),
   );
   assert.equal(mode.isMpvTest(), true);
+  assert.equal(mode.isMpvEnabled(), true);
   assert.equal(load("src/modules/mpv/testMode.js", {}).isMpvTest(), false);
+  for (const [platform, arch, expected] of [
+    ["win32", "x64", true],
+    ["win32", "arm64", false],
+    ["win32", "ia32", false],
+    ["linux", "x64", false],
+    ["darwin", "arm64", false],
+  ]) {
+    const production = load(
+      "src/modules/mpv/testMode.js",
+      {
+        "../../../package.json": { lampauaMpv: true },
+      },
+      { process: { platform, arch, argv: [] } },
+    );
+    assert.equal(production.isMpvTest(), false);
+    assert.equal(production.isMpvEnabled(), expected);
+  }
   const bad = load(
     "src/modules/mpv/testMode.js",
     { "../../../package.json": { lampauaMpvTest: true } },
@@ -94,7 +112,7 @@ async function main() {
     setItem: (key, value) => data.set(key, value),
   };
   const initializer = load("src/modules/lampaInitializer.js", {
-    "./mpv/testMode": { isMpvTest: () => true },
+    "./mpv/testMode": { isMpvEnabled: () => true },
     "./playerFinder": {
       findAllPlayers: () => {
         throw new Error("inner selection must not discover players");

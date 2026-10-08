@@ -192,6 +192,11 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
       throw_mpv_error(env, "mpv_initialize", ret);
       return;
     }
+    ret = mpv_request_log_messages(handle_, "error");
+    if (ret < 0) {
+      throw_mpv_error(env, "request error logs", ret);
+      return;
+    }
 
     observe("time-pos", MPV_FORMAT_DOUBLE);
     observe("duration", MPV_FORMAT_DOUBLE);
@@ -348,6 +353,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
       return env.Undefined();
     }
     std::string path = info[0].As<Napi::String>().Utf8Value();
+    http_error_ = 0;
     std::string format = "auto";
     if (info.Length() > 2) {
       if (!info[2].IsString()) {
@@ -404,7 +410,10 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
     for (const auto& option : std::vector<std::pair<const char*, const char*>>{
         {"demuxer", manifest ? "lavf" : ""},
         {"demuxer-lavf-format", manifest ? format.c_str() : ""},
-        {"access-references", manifest ? "yes" : "no"}}) {
+        {"access-references", manifest ? "yes" : "no"},
+        // The Ytdl proxy rejects open-ended track requests. Let curl advance
+        // through bounded ranges instead of requesting the complete remainder.
+        {"curl-max-request-size", format == "dash" ? "1048576" : "0"}}) {
       int ret = mpv_set_property_string(handle_, option.first, option.second);
       if (ret < 0) {
         throw_mpv_error(env, option.first, ret);
@@ -774,10 +783,23 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
     Napi::Env env = info.Env();
     Napi::Array events = Napi::Array::New(env);
     uint32_t index = 0;
+    std::vector<Napi::Object> failed_end_events;
 
     while (handle_) {
       mpv_event* event = mpv_wait_event(handle_, 0);
       if (!event || event->event_id == MPV_EVENT_NONE) break;
+      if (event->event_id == MPV_EVENT_FILE_LOADED) http_error_ = 0;
+      if (event->event_id == MPV_EVENT_LOG_MESSAGE && event->data) {
+        auto* log = static_cast<mpv_event_log_message*>(event->data);
+        const std::string text = log->text ? log->text : "";
+        const auto position = text.find("HTTP error ");
+        if (position != std::string::npos) {
+          const long status = std::strtol(text.c_str() + position + 11, nullptr, 10);
+          if (status >= 400 && status < 600) http_error_ = static_cast<int>(status);
+        }
+        // Keep URLs, credentials and arbitrary provider messages native-only.
+        continue;
+      }
 
       Napi::Object item = Napi::Object::New(env);
       item.Set("id", static_cast<int>(event->event_id));
@@ -789,7 +811,10 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
       if (event->event_id == MPV_EVENT_END_FILE && event->data) {
         auto* end = static_cast<mpv_event_end_file*>(event->data);
         item.Set("reason", static_cast<int>(end->reason));
-        if (end->error < 0) item.Set("error", mpv_error_text(end->error));
+        if (end->error < 0) {
+          item.Set("error", mpv_error_text(end->error));
+          failed_end_events.push_back(item);
+        }
       }
 
       if (event->event_id == MPV_EVENT_PROPERTY_CHANGE && event->data) {
@@ -824,6 +849,11 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
       }
 
       events.Set(index++, item);
+    }
+
+    // mpv can drain buffered curl logs after the corresponding end-file event.
+    if (http_error_) {
+      for (auto& item : failed_end_events) item.Set("error", "HTTP " + std::to_string(http_error_));
     }
 
     return events;
@@ -1276,6 +1306,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
 #endif
 
   mpv_handle* handle_ = nullptr;
+  int http_error_ = 0;
   mpv_render_context* render_context_ = nullptr;
   std::atomic<bool> alive_ = true;
   std::mutex callback_mutex_;

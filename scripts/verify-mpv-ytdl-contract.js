@@ -84,6 +84,7 @@ async function verify(order) {
     Lampa.PlayerVideo.url = function (src, ...args) {
       if (!(typeof src === "string" && src.includes("/ytdl/manifest?")))
         return original.call(this, src, ...args);
+      if (src.includes("quality=throw")) throw new Error("Ytdl test failure");
       const fallback = "https://kinohub.uk/ytdl/media?fallback=360";
       original.call(this, fallback);
       try {
@@ -105,17 +106,26 @@ async function verify(order) {
   if (order === "after") installLegacyYtdl();
   current = { launch_player: "inner" };
   create({ data: current });
-  for (const quality of ["720", "1080"]) {
+  for (const quality of ["720", "1080", "2160"]) {
     const src = `https://kinohub.uk/ytdl/manifest?url=a%2Fb%3D&token=keep%2Bthis&quality=${quality}&origin=youtube.com%2Fwatch`;
     const result = Lampa.PlayerVideo.url(src, "preserved-argument");
-    assert.equal(result, "core-result", `${order}: delegate return value`);
+    assert.equal(result, undefined, `${order}: plugin return value`);
     assert.equal(warnings.length, 0, `${order}: no 360p fallback`);
-    assert.equal(dashCalls.length, 0, `${order}: no browser DASH on MPV`);
-    assert.equal(video.src, src, `${order}: native source and auth preserved`);
-    await video.flush();
-    assert.deepEqual(video.child.calls, [["open", src]]);
-    assert.equal(coreCalls.at(-1)[1], "preserved-argument");
-    await video.destroy();
+    assert.equal(
+      dashCalls.at(-1),
+      src,
+      `${order}: DASH source and auth preserved`,
+    );
+    assert.equal(
+      video.nodeName,
+      "VIDEO",
+      `${order}: real DOM video for dash.js`,
+    );
+    assert.equal(
+      video.child,
+      undefined,
+      `${order}: no native session for Ytdl DASH`,
+    );
   }
   current = { launch_player: "other" };
   create({ data: current });
@@ -123,16 +133,37 @@ async function verify(order) {
   Lampa.PlayerVideo.url(browserDash);
   assert.deepEqual(
     dashCalls,
-    [browserDash],
+    [
+      ...["720", "1080", "2160"].map(
+        (quality) =>
+          `https://kinohub.uk/ytdl/manifest?url=a%2Fb%3D&token=keep%2Bthis&quality=${quality}&origin=youtube.com%2Fwatch`,
+      ),
+      browserDash,
+    ],
     "Non-MPV DASH must stay unchanged",
   );
   assert.equal(video.nodeName, "VIDEO");
   assert.equal(warnings.length, 0);
   current = { launch_player: "inner" };
   create({ data: current });
+  assert.throws(
+    () =>
+      Lampa.PlayerVideo.url("https://kinohub.uk/ytdl/manifest?quality=throw"),
+    /Ytdl test failure/,
+  );
   const generic = "https://example.org/generic.mpd";
-  Lampa.PlayerVideo.url(generic);
-  assert.equal(coreCalls.at(-1)[0], generic, "Only Ytdl DASH is rewritten");
+  assert.equal(Lampa.PlayerVideo.url(generic, "preserved"), "core-result");
+  assert.deepEqual(
+    coreCalls.at(-1),
+    [generic, "preserved"],
+    "Other delegates preserved after a plugin error",
+  );
+  await video.flush();
+  assert.deepEqual(
+    video.child.calls,
+    [["open", generic]],
+    "Generic DASH stays native",
+  );
   await video.destroy();
   const mpv = tubes.at(-1);
   for (const invalid of [
@@ -145,7 +176,9 @@ async function verify(order) {
 (async () => {
   await verify("before");
   await verify("after");
-  console.log("MPV Ytdl DASH routing and plugin load-order contract verified");
+  console.log(
+    "Ytdl browser DASH, native fallback isolation and plugin load order verified",
+  );
 })().catch((error) => {
   console.error(error);
   process.exitCode = 1;

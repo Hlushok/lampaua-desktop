@@ -5,6 +5,15 @@ function isMpvTest() {
   return pkg.lampauaMpvTest === true;
 }
 
+function isMpvEnabled() {
+  return (
+    isMpvTest() ||
+    (pkg.lampauaMpv === true &&
+      process.platform === "win32" &&
+      process.arch === "x64")
+  );
+}
+
 function bootstrapMpvTest(app) {
   if (!isMpvTest() || process.platform !== "win32") {
     throw new Error("MPV test bootstrap requires the Windows test package");
@@ -21,4 +30,4 @@ function bootstrapMpvTest(app) {
   app.setPath("sessionData", path.join(app.getPath("appData"), profile));
 }
 
-module.exports = { isMpvTest, bootstrapMpvTest };
+module.exports = { isMpvTest, isMpvEnabled, bootstrapMpvTest };

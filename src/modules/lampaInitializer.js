@@ -2,7 +2,7 @@
 const os = require("os");
 const playerFinder = require("./playerFinder");
 const { existsSync } = require("fs");
-const { isMpvTest } = require("./mpv/testMode");
+const { isMpvEnabled } = require("./mpv/testMode");
 
 class LampaInitializer {
   async initialize(mainWindow) {
@@ -26,8 +26,8 @@ class LampaInitializer {
         const app_init_defaults = {
           device_name: '${deviceName}',
           platform: 'electron',
-          ...${JSON.stringify(isMpvTest() ? { player: "inner" } : {})},
-          player_torrent: ${JSON.stringify(isMpvTest() ? "inner" : "other")},
+          ...${JSON.stringify(isMpvEnabled() ? { player: "inner" } : {})},
+          player_torrent: ${JSON.stringify(isMpvEnabled() ? "inner" : "other")},
           poster_size: 'w500',
           torrserver_url: 'http://localhost:8090',
           torrserver_use_link: 'one'
@@ -46,7 +46,7 @@ class LampaInitializer {
 
   async initializePlayerPath(mainWindow) {
     try {
-      if (isMpvTest()) {
+      if (isMpvEnabled()) {
         const selected = await mainWindow.webContents.executeJavaScript(
           "localStorage.getItem('player_torrent')",
         );

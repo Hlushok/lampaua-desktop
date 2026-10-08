@@ -33,6 +33,26 @@ jobs:
       - name: Merge upstream main
         run: git merge --no-edit upstream/main
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Validate merged fork before pushing
+        run: |
+          corepack enable
+          corepack yarn install --immutable
+          node --check src/main.js
+          node --check src/preload.js
+          node --check src/plugin.js
+          node scripts/verify-external-player-contract.js
+          node scripts/verify-ua-player-dispatch-contract.js
+          node scripts/verify-ua-player-progress-contract.js
+          node scripts/verify-ua-player-session-contract.js
+          node scripts/verify-mpv-test-isolation.js
+          node scripts/verify-release-contract.js
+          corepack yarn lint
+
       - name: Push updated fork
         run: git push origin main
 
