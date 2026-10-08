@@ -64,6 +64,19 @@ class SourceCaptureTests(unittest.TestCase):
         self.assertEqual(run("git", "-C", str(repo), "remote", "get-url", "origin"), self.args.repository)
         self.assertEqual(run("git", "-C", str(repo), "status", "--porcelain"), "")
 
+    def test_empty_gitmodules_is_not_a_capture_failure(self):
+        (self.source / ".gitmodules").write_text("")
+        self.initialize_git()
+        result = capture(self.args)
+        self.assertEqual(result["submodules"], [])
+        with tarfile.open(Path(self.args.output) / result["archive"]) as bundle:
+            self.assertEqual(bundle.extractfile("example/.gitmodules").read(), b"")
+
+    def test_commented_gitmodules_is_not_a_capture_failure(self):
+        (self.source / ".gitmodules").write_text("# No active submodules\n")
+        self.initialize_git()
+        self.assertEqual(capture(self.args)["submodules"], [])
+
     def test_changed_revision_rejected(self):
         self.initialize_git()
         capture(self.args)

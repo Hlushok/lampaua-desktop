@@ -50,8 +50,12 @@ def snapshot_git(source, destination):
     submodules = []
     modules = source / ".gitmodules"
     if modules.exists():
-        paths = run("git", "-C", str(source), "config", "--file", str(modules), "--get-regexp", "path")
-        for entry in paths.splitlines():
+        paths = subprocess.run(("git", "-C", str(source), "config", "--file", str(modules), "--get-regexp", r"^submodule\..*\.path$"),
+                               stdout=subprocess.PIPE, text=True)
+        # A valid config with no matching keys has exit code 1.
+        if paths.returncode != 1:
+            paths.check_returncode()
+        for entry in paths.stdout.splitlines():
             relative = entry.split(" ", 1)[1]
             child = source / relative
             if (child / ".git").exists():
