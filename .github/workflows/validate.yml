@@ -22,6 +22,11 @@ jobs:
           corepack yarn install --immutable
       - name: Compile MPV service for contract tests
         run: node node_modules/typescript/bin/tsc -p third_party/electron-mpv-video/tsconfig.lib.json --outDir .cache/mpv-desktop-test/lib
+      - name: Verify pinned libmpv input contract
+        shell: pwsh
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-libmpv-input-contract.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'libmpv input contract failed' }
       - name: Syntax, contracts and formatting
         shell: bash
         run: |
