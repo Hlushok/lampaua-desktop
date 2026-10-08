@@ -1,0 +1,44 @@
+name: Build libmpv From Preserved Sources
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/shinchiro/archlinux@sha256:2b81f07c567b051455b9539770a71b53dd3add5f9ef52eca95ac01a2272e9fdf
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Build baseline Windows x64 libmpv and preserve sources
+        shell: bash
+        run: |
+          python3 scripts/mpv/test_source_capture.py
+          bash scripts/mpv/build-libmpv.sh
+
+      - name: Upload SDK and corresponding sources for verification
+        uses: actions/upload-artifact@v6
+        with:
+          name: lampaua-libmpv-own-x64
+          compression-level: 0
+          retention-days: 30
+          path: dist/libmpv-own/
+
+      - name: Preserve diagnostics even on failure
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: lampaua-libmpv-build-logs
+          retention-days: 14
+          path: |
+            .cache/libmpv-own/build/**/*.log
+            .cache/libmpv-own/build/CMakeCache.txt
+            .cache/libmpv-own/sources/*.json
+            .cache/libmpv-own/sources/rust-version.txt

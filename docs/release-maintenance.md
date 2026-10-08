@@ -3,9 +3,10 @@
 ## Architecture And Boundaries
 
 Version 1.5.24 (ordinary and AC3/EAC3) closes series 1.x. Version 2.0.0 promotes
-the locally accepted mpv.6 player, not a replacement engine. The runtime pins in
-build/electron-runtime-ac3-eac3.json and build/libmpv-runtime.json must match that
-tested binary. The app's code and production packaging are maintained here.
+the locally accepted mpv.6 integration. The owner subsequently approved building
+our own libmpv DLL from preserved sources and repeating playback QA before
+publication. Preserve the previously accepted binary as a rollback input. The
+runtime pins must identify the DLL actually tested and packaged for release.
 
 Sources have distinct roles:
 
@@ -13,7 +14,7 @@ Sources have distinct roles:
 - ARST113/lampa-desktop: selective codec-integration reference, not a wholesale merge.
 - ARST113/electron: pinned Windows x64 Electron/Chromium AC3/EAC3 binary.
 - yscoder/electron-mpv-video: vendored source at the recorded commit plus local patches.
-- shinchiro/mpv-winbuild-cmake: separately pinned baseline-x64 libmpv SDK/runtime.
+- shinchiro/mpv-winbuild-cmake: pinned build recipes for the baseline-x64 libmpv runtime.
 - Hlushok/lampaua-desktop: app identity, integrations, patches, QA and release channel.
 
 MPV is enabled only by the staged package flag lampauaMpv on Windows x64.
@@ -99,12 +100,13 @@ Before publishing:
 
 ## 2.0.0 Source Gate Status
 
-The exact tested libmpv DLL is retained unchanged. Its SDK does not include the
-complete corresponding source of linked libraries. The public build logs were
-retrieved locally, but a complete, exact source bundle has not yet been verified.
-Do not publish this DLL or claim source compliance until that is resolved.
-Do not silently substitute a different libmpv build: the owner explicitly asked
-to release the exact tested mpv.6 playback stack.
+The previously tested libmpv DLL is retained unchanged as a rollback input. Its
+SDK does not include complete corresponding sources, and historical logs/debug
+symbols could not establish all cached dependency revisions. The owner declined
+contacting its author and approved an own build with preserved sources and new
+playback tests. See docs/libmpv-own-build.md and build-libmpv.yml. The own build
+does not automatically change the runtime pin, release assets or updater.
+Source-package verification and new DLL acceptance remain publication gates.
 
 ## After Publication
 

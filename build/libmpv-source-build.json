@@ -1,0 +1,10 @@
+{
+  "recipesRepository": "https://github.com/shinchiro/mpv-winbuild-cmake.git",
+  "recipesCommit": "b2856ee6deed6957380b32465f359e67f67fafd8",
+  "mpvCommit": "36bf3d529059a947d6700adefeab3b421e537c19",
+  "ffmpegCommit": "5d4755f7dd03d84f006d5a0ef7e3c114f52b3d77",
+  "container": "ghcr.io/shinchiro/archlinux@sha256:2b81f07c567b051455b9539770a71b53dd3add5f9ef52eca95ac01a2272e9fdf",
+  "rustToolchain": "nightly-2026-10-08",
+  "target": "x86_64-w64-mingw32",
+  "cpu": "x86-64"
+}

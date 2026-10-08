@@ -98,3 +98,4 @@ out/
 dist
 dist-test
 third_party/**/build/
+scripts/mpv/__pycache__/
