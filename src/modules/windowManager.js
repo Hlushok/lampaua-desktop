@@ -67,6 +67,8 @@ function createWindow() {
       preload: path.join(__dirname, "..", "preload.js"),
       nodeIntegration: false,
       contextIsolation: true,
+      // Lampa switches embedded audio tracks through HTMLMediaElement.audioTracks.
+      enableBlinkFeatures: "AudioVideoTracks",
       enableRemoteModule: false,
       sandbox: false,
       contextMenu: false,

@@ -1,7 +1,7 @@
 {
   "name": "lampaua-desktop",
   "productName": "LampaUa",
-  "version": "1.5.23",
+  "version": "1.5.24",
   "description": "Десктопний клієнт LampaUa",
   "repository": {
     "type": "git",
@@ -19,6 +19,7 @@
     "build-linux": "electron-builder --linux --publish=never",
     "build-mac": "electron-builder --mac --publish=never",
     "build-win": "electron-builder --win --publish=never",
+    "build-win-ac3": "\"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" -NoProfile -ExecutionPolicy Bypass -File scripts/build-win-ac3.ps1",
     "lint": "yarn lint:eslint && yarn lint:prettier",
     "lint:eslint": "eslint .",
     "lint:prettier": "prettier . --check",

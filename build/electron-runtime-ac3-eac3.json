@@ -1,0 +1,19 @@
+{
+  "version": "44.4.4",
+  "repository": "ARST113/electron",
+  "tag": "v44.4.4-ac3-eac3",
+  "asset": "electron-v44.4.4-win32-x64-ac3-eac3.zip",
+  "sha256": "b94fe1763b25157110127b4c702b585ee2ce7daacf98ae8b224fb5f8f4923029",
+  "ffmpegSha256": "5bc90fdd2831b324f2d902bf21c728d0f9e5a93c4340ba2e7271760ad14d0c93",
+  "sourceRun": "https://github.com/ARST113/electron/actions/runs/35969772662",
+  "gnArgs": [
+    "enable_platform_ac3_eac3_audio=true",
+    "proprietary_codecs=true",
+    "ffmpeg_branding=\"Chrome\"",
+    "override_electron_version=\"44.4.4\"",
+    "dcheck_always_on=false",
+    "symbol_level=0",
+    "blink_symbol_level=0",
+    "v8_symbol_level=0"
+  ]
+}
