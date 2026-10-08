@@ -69,6 +69,8 @@ vm.runInNewContext(fs.readFileSync(file, "utf8"), {
   URL,
   setTimeout,
   clearTimeout,
+  atob,
+  btoa,
 });
 async function main() {
   const { createMpvVideo, installLampaMpvAdapter } = window.LampaUaMpvAdapter;

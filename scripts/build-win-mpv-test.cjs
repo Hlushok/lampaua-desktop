@@ -157,7 +157,7 @@ async function main() {
     ...original,
     name: "lampaua-desktop-mpv-test",
     productName: "LampaUa Desktop MPV Test",
-    version: "1.5.24-mpv.2",
+    version: "1.5.24-mpv.3",
     main: "src/mpv-test-main.js",
     lampauaMpvTest: true,
     private: true,

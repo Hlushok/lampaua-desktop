@@ -39,7 +39,7 @@ type NativeEvent = {
 }
 
 type NativePlayer = {
-  open(source: string): void
+  open(source: string, headers: string[], format: 'auto' | 'dash' | 'hls'): void
   play(): void
   pause(): void
   stop(): void
@@ -142,6 +142,34 @@ function normalizeSource(value: unknown) {
   return value
 }
 
+function normalizeHeaders(value: unknown): string[] {
+  if (value === undefined || value === null) return []
+  if (typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid HTTP headers')
+  const entries = Object.entries(value)
+  if (entries.length > 32) throw new TypeError('Too many HTTP headers')
+  const blocked = new Set(['host', 'connection', 'content-length', 'transfer-encoding', 'range', 'accept-encoding', 'proxy-authorization', 'proxy-connection', 'upgrade', 'te', 'trailer', 'keep-alive'])
+  const names = new Set<string>()
+  let size = 0
+  return entries.map(([name, content]) => {
+    const key = name.toLowerCase()
+    if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,128}$/.test(name) || blocked.has(key) || names.has(key) ||
+      typeof content !== 'string' || content.length > 8192 || /[\x00-\x1f\x7f]/.test(content)) {
+      throw new TypeError('Invalid HTTP header')
+    }
+    names.add(key)
+    size += name.length + content.length
+    if (size > 16384) throw new TypeError('HTTP headers are too large')
+    return `${name}: ${content}`
+  })
+}
+
+function manifestFormat(source: string): 'auto' | 'dash' | 'hls' {
+  const pathname = new URL(source).pathname.toLowerCase()
+  if (pathname === '/ytdl/manifest' || pathname.endsWith('.mpd')) return 'dash'
+  if (pathname.endsWith('.m3u8')) return 'hls'
+  return 'auto'
+}
+
 class PlayerSession {
   readonly id = randomUUID()
   private player: NativePlayer
@@ -157,6 +185,7 @@ class PlayerSession {
   private operations: Promise<unknown> = Promise.resolve()
   private destroyPromise: Promise<void> | null = null
   private source: string | null = null
+  private headers: string[] = []
   private currentTime = 0
   private volume = 100
   private paused = true
@@ -183,11 +212,12 @@ class PlayerSession {
     return this.ownerWebContentsId === (typeof sender === 'number' ? sender : sender.id)
   }
 
-  open(source: string) {
+  open(source: string, headers: string[]) {
     this.assertAlive()
     this.tracks = []
-    this.player.open(source)
+    this.player.open(source, headers, manifestFormat(source))
     this.source = source
+    this.headers = headers
     this.currentTime = 0
     this.stopped = false
     this.queueFrame()
@@ -267,7 +297,7 @@ class PlayerSession {
       replacement = new this.nativeModule.MpvPlayer({ mode: nextPipeline })
       replacement.setVolume(this.volume)
       if (this.source && !this.stopped) {
-        replacement.open(this.source)
+        replacement.open(this.source, this.headers, manifestFormat(this.source))
         restoredEvents = await this.waitForFileLoaded(replacement)
         this.assertAlive()
         if (this.currentTime > 0) replacement.seek(this.currentTime)
@@ -627,8 +657,8 @@ class MpvMainService implements MpvMain {
       const session = this.getOwnedSession(event, id)
       return session.run(() => operation(session))
     }
-    electron.ipcMain.handle(channel('player:open'), async (event, id, source) =>
-      command(event, id, session => session.open(this.options.normalizeSource ? this.options.normalizeSource(source) : normalizeSource(source))))
+    electron.ipcMain.handle(channel('player:open'), async (event, id, source, headers) =>
+      command(event, id, session => session.open(this.options.normalizeSource ? this.options.normalizeSource(source) : normalizeSource(source), normalizeHeaders(headers))))
     electron.ipcMain.handle(channel('player:play'), async (event, id) =>
       command(event, id, session => session.play()))
     electron.ipcMain.handle(channel('player:pause'), async (event, id) =>

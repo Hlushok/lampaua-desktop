@@ -1,7 +1,60 @@
 (function () {
   let cleanup = Promise.resolve();
+  const ytdlPrefix = "lampaua-mpv-ytdl:";
 
-  function createMpvVideo(onVideo) {
+  function isYtdlManifest(src) {
+    if (typeof src !== "string") return false;
+    try {
+      const url = new URL(src);
+      return (
+        ["http:", "https:"].includes(url.protocol) &&
+        url.pathname === "/ytdl/manifest" &&
+        url.search.length > 1
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  function nativeSource(src) {
+    if (typeof src === "string" && src.startsWith(ytdlPrefix)) {
+      try {
+        const original = decodeURIComponent(atob(src.slice(ytdlPrefix.length)));
+        return isYtdlManifest(original) ? original : "";
+      } catch {
+        return "";
+      }
+    }
+    return String(src || "");
+  }
+
+  function installYtdlRoute(Lampa, verify) {
+    const player = Lampa.PlayerVideo;
+    const descriptor = Object.getOwnPropertyDescriptor(player, "url");
+    if (descriptor && !descriptor.configurable)
+      throw new Error("Cannot install the MPV Ytdl route");
+    // Ytdl delegates unknown sources. Keep its browser wrapper out of native
+    // playback, including when the plugin wraps PlayerVideo.url after startup.
+    const wrap = (delegate) =>
+      typeof delegate !== "function"
+        ? delegate
+        : function (src, ...args) {
+            if (isYtdlManifest(src) && verify(src))
+              src = ytdlPrefix + btoa(encodeURIComponent(src));
+            return delegate.call(this, src, ...args);
+          };
+    let route = wrap(player.url);
+    Object.defineProperty(player, "url", {
+      configurable: true,
+      enumerable: descriptor?.enumerable ?? true,
+      get: () => route,
+      set: (delegate) => {
+        if (delegate !== route) route = wrap(delegate);
+      },
+    });
+  }
+
+  function createMpvVideo(onVideo, headers) {
     const video = document.createElement("div");
     video.className = "player-video__video";
     const surface = document.createElement("mpv-video");
@@ -47,7 +100,7 @@
       "src",
       () => source,
       (value) => {
-        source = String(value || "");
+        source = nativeSource(value);
       },
     );
     property(
@@ -120,7 +173,7 @@
         tracks = [];
         video.error = null;
         emit("waiting");
-        await surface.open(source);
+        await surface.open(source, headers);
         if (dead) return;
         await surface.setVolume(muted ? 0 : volume * 100);
         await surface.setSpeed(speed);
@@ -295,12 +348,12 @@
           Lampa.Player.runas?.("");
         }
       };
-    Lampa.PlayerVideo.registerTube({
+    const registration = {
       name: "LampaUa libmpv",
       verify(src) {
         let url;
         try {
-          url = new URL(src);
+          url = new URL(nativeSource(src));
         } catch {
           return false;
         }
@@ -316,6 +369,8 @@
         return choice === "inner" || choice === "lampa";
       },
       create(callback) {
+        const data = pending || Lampa.Player.playdata() || {};
+        const headers = data.headers ? { ...data.headers } : undefined;
         return createMpvVideo((video) => {
           video.addEventListener("mpv-tracks", () => {
             Lampa.PlayerVideo.listener.send("tracks", {
@@ -324,9 +379,11 @@
             Lampa.PlayerVideo.listener.send("subs", { subs: video.textTracks });
           });
           callback(video);
-        });
+        }, headers);
       },
-    });
+    };
+    Lampa.PlayerVideo.registerTube(registration);
+    installYtdlRoute(Lampa, registration.verify);
   }
   window.LampaUaMpvAdapter = { createMpvVideo, installLampaMpvAdapter };
 })();

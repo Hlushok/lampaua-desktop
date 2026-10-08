@@ -165,6 +165,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
     set_option("terminal", "no");
     set_option("config", "no");
     set_option("load-scripts", "no");
+    set_option("ytdl", "no");
     set_option("access-references", "no");
     set_option("autoload-files", "no");
     set_option("load-unsafe-playlists", "no");
@@ -347,6 +348,69 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
       return env.Undefined();
     }
     std::string path = info[0].As<Napi::String>().Utf8Value();
+    std::string format = "auto";
+    if (info.Length() > 2) {
+      if (!info[2].IsString()) {
+        Napi::TypeError::New(env, "Invalid media format").ThrowAsJavaScriptException();
+        return env.Undefined();
+      }
+      format = info[2].As<Napi::String>().Utf8Value();
+      if (format != "auto" && format != "dash" && format != "hls") {
+        Napi::TypeError::New(env, "Invalid media format").ThrowAsJavaScriptException();
+        return env.Undefined();
+      }
+    }
+    std::vector<std::string> headers;
+    if (info.Length() > 1 && !info[1].IsUndefined()) {
+      if (!info[1].IsArray() || info[1].As<Napi::Array>().Length() > 32) {
+        Napi::TypeError::New(env, "Invalid HTTP headers").ThrowAsJavaScriptException();
+        return env.Undefined();
+      }
+      Napi::Array values = info[1].As<Napi::Array>();
+      size_t total = 0;
+      for (uint32_t i = 0; i < values.Length(); i++) {
+        Napi::Value value = values.Get(i);
+        if (!value.IsString()) {
+          Napi::TypeError::New(env, "Invalid HTTP header").ThrowAsJavaScriptException();
+          return env.Undefined();
+        }
+        std::string header = value.As<Napi::String>().Utf8Value();
+        total += header.size();
+        if (header.find_first_of("\r\n") != std::string::npos ||
+            header.find('\0') != std::string::npos || total > 32768) {
+          Napi::TypeError::New(env, "Invalid HTTP header").ThrowAsJavaScriptException();
+          return env.Undefined();
+        }
+        headers.push_back(std::move(header));
+      }
+    }
+    std::vector<mpv_node> fields(headers.size());
+    for (size_t i = 0; i < headers.size(); i++) {
+      fields[i].format = MPV_FORMAT_STRING;
+      fields[i].u.string = const_cast<char*>(headers[i].c_str());
+    }
+    mpv_node_list list{static_cast<int>(fields.size()), fields.data(), nullptr};
+    mpv_node node{};
+    node.format = MPV_FORMAT_NODE_ARRAY;
+    node.u.list = &list;
+    int header_ret = mpv_set_property(handle_, "http-header-fields", MPV_FORMAT_NODE, &node);
+    if (header_ret < 0) {
+      throw_mpv_error(env, "http-header-fields", header_ret);
+      return env.Undefined();
+    }
+    // Only the two segmented HTTP formats may follow references. Forcing lavf
+    // keeps their nested requests under the existing protocol whitelist.
+    const bool manifest = format != "auto";
+    for (const auto& option : std::vector<std::pair<const char*, const char*>>{
+        {"demuxer", manifest ? "lavf" : ""},
+        {"demuxer-lavf-format", manifest ? format.c_str() : ""},
+        {"access-references", manifest ? "yes" : "no"}}) {
+      int ret = mpv_set_property_string(handle_, option.first, option.second);
+      if (ret < 0) {
+        throw_mpv_error(env, option.first, ret);
+        return env.Undefined();
+      }
+    }
     int ret = command({"loadfile", path, "replace"});
     if (ret < 0) throw_mpv_error(env, "loadfile", ret);
     return env.Undefined();

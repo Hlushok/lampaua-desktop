@@ -3,7 +3,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
 const net = require("node:net");
+const crypto = require("node:crypto");
 const { spawn, execFileSync } = require("node:child_process");
+const { parse } = require("acorn");
 const root = path.resolve(__dirname, "..");
 const exe = process.argv[process.argv.indexOf("--exe") + 1];
 assert.ok(
@@ -16,7 +18,19 @@ fs.mkdirSync(output, { recursive: true });
 const log = fs.createWriteStream(path.join(output, "app.log"));
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const fixtures = path.join(root, ".cache/mpv-prototype/fixtures");
-const allowed = new Set(fs.readdirSync(fixtures));
+const files = new Map(
+  fs
+    .readdirSync(fixtures, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => [entry.name, path.join(fixtures, entry.name)]),
+);
+const streamFixtures = path.join(fixtures, "streams");
+if (fs.existsSync(streamFixtures))
+  for (const name of fs.readdirSync(streamFixtures))
+    for (const prefix of ["ytdl", "iptv", "sisi"])
+      files.set(`${prefix}/${name}`, path.join(streamFixtures, name));
+files.set("sisi/video.mp4", path.join(fixtures, "h264-aac.mp4"));
+const requests = [];
 let child;
 let ws;
 let server;
@@ -66,7 +80,54 @@ function terminate() {
 async function main() {
   server = http.createServer((req, res) => {
     log.write(`HTTP ${req.method} ${req.url} ${req.headers.range || ""}\n`);
-    const name = new URL(req.url, "http://localhost").pathname.slice(1);
+    const request = new URL(req.url, "http://localhost");
+    const name = request.pathname.slice(1);
+    requests.push({ name, query: request.search, headers: req.headers });
+    if (
+      name.startsWith("sisi/") &&
+      (req.headers.referer !== "https://provider.test/watch" ||
+        req.headers["user-agent"] !== "LampaUa-SISI-Test" ||
+        req.headers.authorization !== "Bearer synthetic-test")
+    ) {
+      res.writeHead(403);
+      res.end();
+      return;
+    }
+    if (name === "ytdl/manifest") {
+      const quality = request.searchParams.get("quality");
+      if (["720", "1080"].includes(quality)) {
+        res.writeHead(200, { "Content-Type": "application/dash+xml" });
+        res.end(
+          fs.readFileSync(path.join(streamFixtures, `dash-${quality}.mpd`)),
+        );
+      } else if (quality === "local") {
+        res.writeHead(200, { "Content-Type": "application/dash+xml" });
+        res.end(
+          `<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static" mediaPresentationDuration="PT14S" minBufferTime="PT1S"><Period><AdaptationSet mimeType="video/mp4"><Representation id="1" bandwidth="100000" codecs="avc1.42C01E"><BaseURL>file:///${path.join(fixtures, "h264-aac.mp4").replaceAll("\\", "/")}</BaseURL></Representation></AdaptationSet></Period></MPD>`,
+        );
+      } else {
+        res.writeHead(404);
+        res.end();
+      }
+      return;
+    }
+    if (name === "iptv/live.m3u8") {
+      res.writeHead(200, { "Content-Type": "application/vnd.apple.mpegurl" });
+      res.end(
+        fs
+          .readFileSync(path.join(streamFixtures, "channel.m3u8"), "utf8")
+          .replace("#EXT-X-PLAYLIST-TYPE:VOD\n", "")
+          .replace("#EXT-X-ENDLIST", ""),
+      );
+      return;
+    }
+    if (name === "iptv/local.m3u8") {
+      res.writeHead(200, { "Content-Type": "application/vnd.apple.mpegurl" });
+      res.end(
+        `#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:14\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:14,\nfile:///${path.join(streamFixtures, "channel.ts").replaceAll("\\", "/")}\n#EXT-X-ENDLIST\n`,
+      );
+      return;
+    }
     if (name === "redirect-local") {
       res.writeHead(302, {
         Location: `file:///${path.join(fixtures, "h264-aac.mp4").replaceAll("\\", "/")}`,
@@ -81,12 +142,12 @@ async function main() {
       );
       return;
     }
-    if (!allowed.has(name)) {
+    if (!files.has(name)) {
       res.writeHead(404);
       res.end();
       return;
     }
-    const file = path.join(fixtures, name);
+    const file = files.get(name);
     const size = fs.statSync(file).size;
     const range = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range || "");
     const start = range ? Number(range[1]) : 0;
@@ -102,7 +163,11 @@ async function main() {
       "Accept-Ranges": "bytes",
       "Content-Type": name.endsWith("mp4")
         ? "video/mp4"
-        : "application/octet-stream",
+        : name.endsWith("m3u8")
+          ? "application/vnd.apple.mpegurl"
+          : name.endsWith("ts")
+            ? "video/mp2t"
+            : "application/octet-stream",
       ...(range ? { "Content-Range": `bytes ${start}-${end}/${size}` } : {}),
     });
     fs.createReadStream(file, { start, end }).pipe(res);
@@ -249,9 +314,9 @@ async function main() {
       savedInnerUnchanged: true,
     });
   }
-  async function play(name, params) {
+  async function play(name, params, data = {}) {
     await evaluate(
-      `if(Lampa.PlayerVideo.video())Lampa.Player.close(); ${params ? `Lampa.PlayerVideo.setParams(${JSON.stringify(params)});` : ""} Lampa.Player.play({url:${JSON.stringify(`${base}/${name}`)},title:'LampaUa MPV test',launch_player:'inner',timeline:{hash:${JSON.stringify(name)},time:0,percent:0,duration:0}})`,
+      `if(Lampa.PlayerVideo.video())Lampa.Player.close();window.__native={}; ${params ? `Lampa.PlayerVideo.setParams(${JSON.stringify(params)});` : ""} Lampa.Player.play(${JSON.stringify({ url: `${base}/${name}`, title: "LampaUa MPV test", launch_player: "inner", timeline: { hash: name, time: 0, percent: 0, duration: 0 }, ...data })})`,
     );
     try {
       await wait("Lampa.PlayerVideo.video()?.currentTime>0.6", `play ${name}`);
@@ -319,6 +384,148 @@ async function main() {
       `Blank/static picture: ${JSON.stringify(pixels)}`,
     );
     results.push({ controls: "pause/seek/volume/speed", pixels });
+    const ytdlArgument = process.argv.indexOf("--ytdl-plugin");
+    const ytdlFile =
+      ytdlArgument >= 0
+        ? process.argv[ytdlArgument + 1]
+        : path.resolve(root, "../lampac/module/Ytdl/plugins/ytdl.js");
+    const ytdlSource = fs.readFileSync(ytdlFile, "utf8");
+    const declarations = parse(ytdlSource, { ecmaVersion: "latest" }).body[0]
+      .expression.callee.body.body;
+    const names = new Set(["isDashUrl", "destroyDash", "installDashAdapter"]);
+    const functions = declarations.filter(
+      (node) => node.type === "FunctionDeclaration" && names.has(node.id.name),
+    );
+    assert.equal(
+      functions.length,
+      3,
+      "Current Ytdl DASH adapter contract changed",
+    );
+    await wait("Boolean(window.dashjs)", "browser DASH library available");
+    const dash720 = `${base}/ytdl/manifest?quality=720&token=synthetic%2Btoken`;
+    const dash1080 = `${base}/ytdl/manifest?quality=1080&token=synthetic%2Btoken`;
+    await evaluate(`(()=>{
+      let dashPlayer=null,originalPlayerVideoUrl=null;
+      const dashFallbacks=${JSON.stringify({ [dash720]: `${base}/h264-aac.mp4`, [dash1080]: `${base}/h264-aac.mp4` })};
+      ${functions.map((node) => ytdlSource.slice(node.start, node.end)).join("\n")}
+      window.__ytdlWarnings=[];const notify=Lampa.Noty.show;
+      Lampa.Noty.show=function(message,...args){if(String(message).includes('DASH'))__ytdlWarnings.push(message);return notify.call(this,message,...args)};
+      installDashAdapter();
+    })()`);
+    results.push({
+      ytdlAdapterSourceSHA256: crypto
+        .createHash("sha256")
+        .update(ytdlSource)
+        .digest("hex"),
+    });
+    await evaluate("Lampa.Storage.set('video_quality_default','720')");
+    await play("ytdl/manifest?quality=720&token=synthetic%2Btoken", null, {
+      quality: { "720p": dash720, "1080p": dash1080 },
+    });
+    await wait(
+      "Lampa.PlayerVideo.video().videoWidth===1280",
+      "native DASH 720p video",
+    );
+    await evaluate(
+      `window.__native={};Lampa.PlayerPanel.listener.send('quality',{name:'1080p',url:${JSON.stringify(dash1080)}})`,
+    );
+    await wait(
+      `Lampa.PlayerVideo.video()?.currentTime>0.6 && Lampa.PlayerVideo.video().videoWidth===1920 && Lampa.PlayerVideo.video().src===${JSON.stringify(dash1080)}`,
+      "native DASH quality switch to 1080p",
+    );
+    assert.match(await evaluate("__native['audio-codec']"), /AAC/);
+    assert.deepEqual(await evaluate("__ytdlWarnings"), []);
+    await evaluate("Lampa.PlayerVideo.pause()");
+    await sleep(600);
+    const dashPaused = await evaluate("Lampa.PlayerVideo.video().currentTime");
+    await sleep(400);
+    assert.ok(
+      Math.abs(
+        (await evaluate("Lampa.PlayerVideo.video().currentTime")) - dashPaused,
+      ) < 0.15,
+    );
+    await evaluate("Lampa.PlayerVideo.to(5);Lampa.PlayerVideo.play()");
+    await wait("Lampa.PlayerVideo.video().currentTime>5.3", "DASH seek/resume");
+    await screenshot("ytdl-dash-1080p");
+    assert.ok(
+      requests.some((entry) => /dash-1080-chunk-0/.test(entry.name)),
+      "Separate video segment requested",
+    );
+    assert.ok(
+      requests.some((entry) => /dash-1080-chunk-1/.test(entry.name)),
+      "Separate audio segment requested",
+    );
+    assert.ok(
+      requests.some(
+        (entry) =>
+          entry.name === "ytdl/manifest" &&
+          entry.query.includes("token=synthetic%2Btoken"),
+      ),
+      "Signed query preserved",
+    );
+    results.push({
+      ytdlDash: true,
+      qualitySwitch: "720p -> 1080p",
+      separateAudioVideo: true,
+      pauseSeek: true,
+      fallback360p: false,
+    });
+    for (const name of [
+      "ytdl/manifest?quality=missing",
+      "ytdl/manifest?quality=local",
+      "iptv/local.m3u8",
+      "sisi/video.mp4",
+    ]) {
+      await evaluate(
+        `Lampa.Player.close();Lampa.Player.play({url:${JSON.stringify(`${base}/${name}`)},title:'Expected stream failure',launch_player:'inner'})`,
+      );
+      await wait(
+        "Lampa.PlayerVideo.video()?.error?.code===3",
+        `expected error ${name}`,
+      );
+      results.push({ negative: name, expectedFailure: true });
+    }
+    await play("iptv/channel.m3u8", null, { iptv: true });
+    await play("iptv/channel.ts", null, { iptv: true });
+    await evaluate(
+      `Lampa.Player.close();Lampa.Player.play({url:${JSON.stringify(`${base}/iptv/live.m3u8`)},title:'IPTV non-ending HLS',iptv:true,launch_player:'inner'})`,
+    );
+    await wait(
+      "Lampa.PlayerVideo.video()?.currentTime>0.6",
+      "non-ending IPTV HLS",
+    );
+    await screenshot("iptv-hls");
+    results.push({
+      iptv: "HLS VOD, HTTP MPEG-TS, non-ending HLS",
+      channelSwitches: 2,
+    });
+    const protectedHeaders = {
+      Referer: "https://provider.test/watch",
+      "User-Agent": "LampaUa-SISI-Test",
+      Authorization: "Bearer synthetic-test",
+    };
+    await play("sisi/video.mp4", null, { headers: protectedHeaders });
+    await play("sisi/channel.m3u8", null, { headers: protectedHeaders });
+    const cleanStart = requests.length;
+    await play("h264-aac.mp4");
+    assert.ok(
+      requests.slice(cleanStart).some((entry) => entry.name === "h264-aac.mp4"),
+    );
+    for (const entry of requests
+      .slice(cleanStart)
+      .filter((entry) => entry.name === "h264-aac.mp4")) {
+      assert.equal(entry.headers.authorization, undefined);
+      assert.equal(entry.headers.referer, undefined);
+      assert.notEqual(
+        entry.headers["user-agent"],
+        protectedHeaders["User-Agent"],
+      );
+    }
+    results.push({
+      sisi: "protected MP4 and HLS",
+      headersForwarded: true,
+      headersClearedForNextSource: true,
+    });
     await play("tracks-subs.mkv", { track: 1, sub: 0 });
     await wait(
       "Lampa.PlayerVideo.video().audioTracks.length===2 && Lampa.PlayerVideo.video().textTracks.length===1",

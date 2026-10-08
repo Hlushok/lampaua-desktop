@@ -11,7 +11,7 @@ assert.ok(
 const { stage } = JSON.parse(fs.readFileSync(descriptor));
 const pkg = JSON.parse(fs.readFileSync(path.join(stage, "package.json")));
 assert.equal(pkg.main, "src/mpv-test-main.js");
-assert.equal(pkg.version, "1.5.24-mpv.2");
+assert.equal(pkg.version, "1.5.24-mpv.3");
 assert.equal(pkg.lampauaMpvTest, true);
 assert.equal(pkg.build, undefined);
 for (const file of [

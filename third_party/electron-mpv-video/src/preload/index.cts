@@ -56,7 +56,7 @@ function createPlayerSession(id: string): MpvPlayerSession {
 
   const session: MpvPlayerSession = {
     id,
-    open: (source: string) => electron.ipcRenderer.invoke(channel('player:open'), id, source),
+    open: (source: string, headers?: Record<string, string>) => electron.ipcRenderer.invoke(channel('player:open'), id, source, headers),
     play: () => electron.ipcRenderer.invoke(channel('player:play'), id),
     pause: () => electron.ipcRenderer.invoke(channel('player:pause'), id),
     stop: () => electron.ipcRenderer.invoke(channel('player:stop'), id),

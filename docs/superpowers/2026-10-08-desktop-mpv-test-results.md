@@ -4,6 +4,10 @@ Local Windows x64 test build of the complete desktop app, not the earlier
 standalone player. Production package/version remains `1.5.24`. No push, tag,
 release, installation over the production app, Lampac edit or VPS change.
 
+This is the historical `mpv.2` result. The current builder includes the subsequent
+[Ytdl DASH/IPTV/SISI compatibility fix](2026-10-08-desktop-mpv-ytdl-dash.md)
+and produces `mpv.3`; the artifact and acceptance evidence below describe `mpv.2`.
+
 ## Artifact
 
 - File: `dist/mpv-desktop-test/lampaua-desktop-x64-1.5.24-mpv.2-portable.exe`

@@ -47,8 +47,10 @@ async function main() {
       this.events = [];
       instances.push(this);
     }
-    open(source) {
+    open(source, headers, format) {
       controls.push(["open", source]);
+      controls.push(["format", format]);
+      controls.push(["headers", headers]);
       this.events = source.endsWith("empty")
         ? []
         : [
@@ -164,7 +166,43 @@ async function main() {
   await assert.rejects(call("create", e), /active|session/i);
   await assert.rejects(call("play", event(windows[1]), id), /belong/i);
   await assert.rejects(call("open", e, id, "file:///C:/secret"));
+  for (const [source, expected] of [
+    ["https://example.org/ytdl/manifest?token=keep", "dash"],
+    ["https://example.org/live/channel.m3u8", "hls"],
+    ["https://example.org/channel.mpd", "dash"],
+    ["https://example.org/file.mp4", "auto"],
+  ]) {
+    await call("open", e, id, source);
+    assert.equal(controls.at(-2)[1], expected);
+  }
+  await call("open", e, id, "https://example.org/protected", {
+    Referer: "https://example.org/",
+    "User-Agent": "LampaUa-Test",
+  });
+  assert.equal(
+    JSON.stringify(controls.at(-1)),
+    JSON.stringify([
+      "headers",
+      ["Referer: https://example.org/", "User-Agent: LampaUa-Test"],
+    ]),
+    "Explicit media headers must reach native playback",
+  );
+  for (const headers of [
+    { Referer: "safe\r\nInjected: bad" },
+    { Host: "localhost" },
+    { Range: "bytes=1-2" },
+    { "Bad Name": "bad" },
+    { Cookie: "x".repeat(8193) },
+    ["not-a-map"],
+    { origin: "a", Origin: "b" },
+  ])
+    await assert.rejects(call("open", e, id, "https://example.org/a", headers));
   await call("open", e, id, "http://127.0.0.1:8090/a");
+  assert.equal(
+    JSON.stringify(controls.at(-1)),
+    JSON.stringify(["headers", []]),
+    "A new unprotected source must clear previous headers",
+  );
   await assert.rejects(call("set-speed", e, id, NaN));
   await assert.rejects(call("set-volume", e, id, 101));
   await assert.rejects(call("seek", e, id, -1));

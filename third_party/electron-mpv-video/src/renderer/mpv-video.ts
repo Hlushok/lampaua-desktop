@@ -433,12 +433,12 @@ export class MpvVideoElement extends HTMLElement {
     }
   }
 
-  async open(filePath: string) {
+  async open(filePath: string, headers?: Record<string, string>) {
     await this.ensureReady();
     if (!this.player) return;
     this.status = 'Opening';
     this.dispatchState();
-    await this.player.open(filePath);
+    await this.player.open(filePath, headers);
     await this.player.setVolume(this.volume);
     this.openedSource = filePath;
     if (this.getAttribute('src') !== filePath) this.setAttribute('src', filePath);
