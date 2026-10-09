@@ -120,7 +120,12 @@ does not automatically change the runtime pin, release assets or updater.
 Source-package verification and new DLL acceptance remain publication gates.
 The own build 37883427620 succeeded and passed independent source-byte audit and
 isolated full-app QA. Exact accepted hashes and test limitations are recorded in
-2.0.0-validation.md. This does not by itself publish a release or change updates.
+2.0.0-validation.md. Clean release CI 37897581169 then passed on 0819d67, and its
+downloaded portable passed the full isolated QA again. The owner-authorized
+v2.0.0 release was published as latest on 2026-10-09 with all 20 verified assets.
+Anonymous checks confirmed the update metadata and SDK/source download access.
+These steps complete the 2.0.0 publication gate; repeat them for a new runtime
+or release rather than assuming the old acceptance covers changed binaries.
 
 ## After Publication
 
