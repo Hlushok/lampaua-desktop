@@ -23,13 +23,27 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Build baseline Windows x64 libmpv and preserve sources
+      - name: Test source and compatibility contracts
         shell: bash
-        env:
-          LAMPAUA_MPV_TARGET: ${{ inputs.target }}
         run: |
           python3 scripts/mpv/test_source_capture.py
           python3 scripts/mpv/test_static_openssl.py
+          python3 scripts/mpv/test_source_preflight.py
+          python3 scripts/mpv/test_curl_compat.py
+
+      - name: Download and verify pinned sources before compilation
+        shell: bash
+        env:
+          LAMPAUA_MPV_TARGET: ${{ inputs.target }}
+          LAMPAUA_MPV_PHASE: inputs
+        run: bash scripts/mpv/build-libmpv.sh
+
+      - name: Compile baseline Windows x64 libmpv
+        shell: bash
+        env:
+          LAMPAUA_MPV_TARGET: ${{ inputs.target }}
+          LAMPAUA_MPV_PHASE: compile
+        run: |
           bash scripts/mpv/build-libmpv.sh
 
       - name: Upload SDK and corresponding sources for verification
@@ -52,4 +66,5 @@ jobs:
             .cache/libmpv-own/build/**/CMakeConfigureLog.yaml
             .cache/libmpv-own/build/CMakeCache.txt
             .cache/libmpv-own/sources/*.json
+            .cache/libmpv-own/sources/projects/*.json
             .cache/libmpv-own/sources/rust-version.txt

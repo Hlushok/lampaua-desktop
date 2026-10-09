@@ -1,0 +1,369 @@
+{
+  "version": 1,
+  "components": {
+    "amf-headers": {
+      "repository": "https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git",
+      "revision": "8c648005e07d4309033282bfd9947df2c7e76104"
+    },
+    "angle-headers": {
+      "repository": "https://github.com/google/angle.git",
+      "revision": "0cb8023c01f92b29f3738ea7472d06f8f059ed84"
+    },
+    "aom": {
+      "repository": "https://aomedia.googlesource.com/aom",
+      "revision": "d53e6d0b14568ddbd36ad7354bfb9a59a127346e"
+    },
+    "avisynth-headers": {
+      "repository": "https://github.com/AviSynth/AviSynthPlus.git",
+      "revision": "21fdc997f9724b994896ba5520ddf64d677976b3"
+    },
+    "brotli": {
+      "repository": "https://github.com/google/brotli.git",
+      "revision": "392b261debb0f478811ddacb98b118da36b06158"
+    },
+    "bzip2": {
+      "repository": "https://gitlab.com/bzip2/bzip2.git",
+      "revision": "66c46b8c9436613fd81bc5d03f63a61933a4dcc3"
+    },
+    "c-ares": {
+      "repository": "https://github.com/c-ares/c-ares.git",
+      "revision": "f4156c12c8b36f5cb8f8a53658d44b24263c6ad1"
+    },
+    "cppwinrt": {
+      "repository": "https://github.com/microsoft/cppwinrt.git",
+      "revision": "856eaff70a48d6b053c2ad3dffec15b81ca34b10"
+    },
+    "curl": {
+      "repository": "https://github.com/curl/curl.git",
+      "revision": "424aa994ac223c0f90839aadee0fb59595344fce"
+    },
+    "dav1d": {
+      "repository": "https://code.videolan.org/videolan/dav1d.git",
+      "revision": "99f3354ed0b9b4bf3c7c9347318dbcc522c94af5"
+    },
+    "davs2": {
+      "repository": "https://github.com/saindriches/davs2.git",
+      "revision": "f50435051b72c168c2b566c544e27fcff71ba61a"
+    },
+    "fast_float": {
+      "repository": "https://github.com/fastfloat/fast_float.git",
+      "revision": "54571f86e3a8124c39bc4765ff64d766b4e25efc"
+    },
+    "ffmpeg": {
+      "repository": "https://github.com/FFmpeg/FFmpeg.git",
+      "revision": "5d4755f7dd03d84f006d5a0ef7e3c114f52b3d77"
+    },
+    "fontconfig": {
+      "repository": "https://gitlab.freedesktop.org/fontconfig/fontconfig.git",
+      "revision": "44d723faee5c2a8b19bcadd6d1cfe1fbe47bc8bc"
+    },
+    "freetype2": {
+      "repository": "https://github.com/freetype/freetype.git",
+      "revision": "79d80cadfc3d992e307c15a3f7d3a2a1555235a5"
+    },
+    "fribidi": {
+      "repository": "https://github.com/fribidi/fribidi.git",
+      "revision": "24f15eee832eafa5d63319b666d50e488668ce31"
+    },
+    "gcc-binutils": {
+      "url": "https://ftp.gnu.org/gnu/binutils/binutils-2.45.1.tar.xz",
+      "urlHash": "SHA512=ea030419eba387579ab717be7e3223fc99e93b586860b06003c12489f93441640d4082736f76aa5e98233db4f46e232f536a45e471486de1f5b64e1b827c167e"
+    },
+    "gcc": {
+      "url": "https://ftp.gnu.org/gnu/gcc/gcc-14.4.0/gcc-14.4.0.tar.xz",
+      "urlHash": "SHA512=725ed8bdd43ef1726ffe8b5e8615a13e247fac9575b7626ae013a2975d000ea213212dc414b2f2631ac4785c1c8beca85555222faf9904d3b2fa6a3807a83a15"
+    },
+    "glad": {
+      "repository": "https://github.com/Dav1dde/glad.git",
+      "revision": "0a7cf1af9e25e02821587bd4095807fc90b6426a"
+    },
+    "glslang": {
+      "repository": "https://github.com/KhronosGroup/glslang.git",
+      "revision": "9a1dc7519823c28fe46a4e7092ed512c040937fd"
+    },
+    "graphengine": {
+      "repository": "https://github.com/sekrit-twc/graphengine.git",
+      "revision": "91c6af4c795c5396d8b974f24b4d2e2ecca04e2d"
+    },
+    "harfbuzz": {
+      "repository": "https://github.com/harfbuzz/harfbuzz.git",
+      "revision": "4834503eddaffb9b401695ebbe470d5a220c5922"
+    },
+    "highway": {
+      "repository": "https://github.com/google/highway.git",
+      "revision": "1a2ca8c7e4344a57cb19fe60abca6a7eb25aacd4"
+    },
+    "lame": {
+      "repository": "https://gitlab.com/shinchiro/lame.git",
+      "revision": "9a5b35c430a2e6d150d65a96c7d7acdd64962a8f"
+    },
+    "lcms2": {
+      "repository": "https://github.com/mm2/Little-CMS.git",
+      "revision": "15c24e7ded91184c38c46c096804fa7272765737"
+    },
+    "libarchive": {
+      "repository": "https://github.com/libarchive/libarchive.git",
+      "revision": "8bb3bbdc7b117a1e22086a2260f2087aafa90687"
+    },
+    "libaribcaption": {
+      "repository": "https://github.com/xqq/libaribcaption.git",
+      "revision": "6c3b4f361bc8f65b34497ba0d123c5aea6f9ed84"
+    },
+    "libass": {
+      "repository": "https://github.com/libass/libass.git",
+      "revision": "f61db567e6593df3470e91594bcd4ad2d0473aff"
+    },
+    "libbluray": {
+      "repository": "https://code.videolan.org/videolan/libbluray.git",
+      "revision": "a24f4fad4d62893de647abc8671397747b2359dd"
+    },
+    "libbs2b": {
+      "repository": "https://github.com/alexmarsev/libbs2b.git",
+      "revision": "5ca2d59888df047f1e4b028e3a2fd5be8b5a7277"
+    },
+    "libdvdcss": {
+      "repository": "https://code.videolan.org/videolan/libdvdcss.git",
+      "revision": "811ce97a1d4d1c9d936f4b2707f533a9ef768251"
+    },
+    "libdvdnav": {
+      "repository": "https://code.videolan.org/videolan/libdvdnav.git",
+      "revision": "8147ccd35e5aae4afdd21171cf7b6b4d8f179d28"
+    },
+    "libdvdread": {
+      "repository": "https://code.videolan.org/videolan/libdvdread.git",
+      "revision": "0f30df53125b564ef45903714403ce0a1e6c5e9e"
+    },
+    "libiconv": {
+      "url": "https://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.18.tar.gz",
+      "urlHash": "SHA256=3B08F5F4F9B4EB82F151A7040BFD6FE6C6FB922EFE4B1659C66EA933276965E8"
+    },
+    "libjpeg": {
+      "repository": "https://github.com/libjpeg-turbo/libjpeg-turbo.git",
+      "revision": "43ea809765004508d8da72ebe562cf570c6a62b2"
+    },
+    "libjxl": {
+      "repository": "https://github.com/libjxl/libjxl.git",
+      "revision": "ef67fde2ec16d52e644c5a0969230b9a85e3eb31"
+    },
+    "libmodplug": {
+      "repository": "https://github.com/Konstanty/libmodplug.git",
+      "revision": "d1b97ed0020bc620a059d3675d1854b40bd2608d"
+    },
+    "libmysofa": {
+      "repository": "https://github.com/hoene/libmysofa.git",
+      "revision": "648eed03472e6720a1ea45d1a1f86c4efb569ff9"
+    },
+    "libopenmpt": {
+      "url": "https://lib.openmpt.org/files/libopenmpt/src/libopenmpt-0.7.12+release.autotools.tar.gz",
+      "urlHash": "SHA256=79AB3CE3672601E525B5CC944F026C80C03032F37D39CAA84C8CA3FDD75E0C98"
+    },
+    "libplacebo": {
+      "repository": "https://github.com/haasn/libplacebo.git",
+      "revision": "0d043c7f6f79cd3687c023454bdacbe615e4d96f"
+    },
+    "libpng": {
+      "repository": "https://github.com/glennrp/libpng.git",
+      "revision": "d76d5106f041b97b3462d15bce738f2a4412de47"
+    },
+    "libpsl": {
+      "repository": "https://github.com/rockdaboot/libpsl.git",
+      "revision": "aa3a80e18f25caf3916636c8668dcc0fff7c016d"
+    },
+    "libsamplerate": {
+      "repository": "https://github.com/libsndfile/libsamplerate.git",
+      "revision": "0844c208f683527c08ea8a80acc13b398aa9c8bf"
+    },
+    "libsdl2": {
+      "repository": "https://github.com/libsdl-org/SDL.git",
+      "revision": "74be4c2836da0940f0144d0d97852606f9ab11e9"
+    },
+    "libsixel": {
+      "repository": "https://github.com/saitoha/libsixel.git",
+      "revision": "af12e5bc6f3f69ad83479da85ddb371420da9b17"
+    },
+    "libsoxr": {
+      "repository": "https://gitlab.com/shinchiro/soxr.git",
+      "revision": "945b592b70470e29f917f4de89b4281fbbd540c0"
+    },
+    "libsrt": {
+      "repository": "https://github.com/Haivision/srt.git",
+      "revision": "0bad6e3ff8f8cfee5065cb4599a312ecbaf2c9cc"
+    },
+    "libssh": {
+      "repository": "https://gitlab.com/libssh/libssh-mirror.git",
+      "revision": "7b3ba877209ae2355f12f4a7ab56022337caaaf5"
+    },
+    "libudfread": {
+      "repository": "https://code.videolan.org/videolan/libudfread.git",
+      "revision": "b0bc6957e7e07d5f35391f210596d9eb71cffdd9"
+    },
+    "libunibreak": {
+      "repository": "https://github.com/adah1972/libunibreak.git",
+      "revision": "f8172fe771ef620112247cadfb876aecaa4f769e"
+    },
+    "libva": {
+      "repository": "https://github.com/intel/libva.git",
+      "revision": "f3fefceb192ca28abf588aadf2392350aebf46ce"
+    },
+    "libvpl": {
+      "repository": "https://github.com/intel/libvpl.git",
+      "revision": "674d015bcb294bc39fa276e99a652ea045423e82"
+    },
+    "libvpx": {
+      "repository": "https://chromium.googlesource.com/webm/libvpx.git",
+      "revision": "ed2a5b572f0f62a72d2e483dd3031841f08fb343"
+    },
+    "libwebp": {
+      "repository": "https://chromium.googlesource.com/webm/libwebp.git",
+      "revision": "097153b2a4b33f5e4ffa9f4603f63902bbd79169"
+    },
+    "libxml2": {
+      "repository": "https://github.com/GNOME/libxml2.git",
+      "revision": "c43dc98d27ac315a48d93dbd399c6c22cf7125b1"
+    },
+    "libzimg": {
+      "repository": "https://github.com/sekrit-twc/zimg.git",
+      "revision": "67e0603271c080e22c8429856dd4a8a56587e61e"
+    },
+    "libzvbi": {
+      "repository": "https://github.com/zapping-vbi/zvbi.git",
+      "revision": "d3a5ee9f2b047bf16cd1ee5ccf6ec05ee75409d0"
+    },
+    "luajit": {
+      "repository": "https://github.com/openresty/luajit2.git",
+      "revision": "f75bf45e8b869a8ee4562ab0183322c3ebf2d9f3"
+    },
+    "lzo": {
+      "url": "https://www.oberhumer.com/opensource/lzo/download/lzo-2.10.tar.gz",
+      "urlHash": "SHA1=4924676a9bae5db58ef129dc1cebce3baa3c4b5d"
+    },
+    "mingw-w64": {
+      "repository": "https://github.com/mingw-w64/mingw-w64.git",
+      "revision": "2bcf06abc9ec5f8f73c743896b815a7a7654f9ae"
+    },
+    "mujs": {
+      "repository": "https://codeberg.org/ccxvii/mujs.git",
+      "revision": "aab59f2c8136b55e8eef7a016d5a15fe8cf69f3f"
+    },
+    "nghttp2": {
+      "repository": "https://github.com/nghttp2/nghttp2.git",
+      "revision": "7a6d122aac527b65434314c2a115f07281e08dbf"
+    },
+    "nghttp3": {
+      "repository": "https://github.com/ngtcp2/nghttp3.git",
+      "revision": "2304973e5a0c8b1fa4bb380b47945a000357f87f"
+    },
+    "ngtcp2": {
+      "repository": "https://github.com/ngtcp2/ngtcp2.git",
+      "revision": "b9fc4d55ce6035a4cc76dc456ced6371e98f9214"
+    },
+    "nvcodec-headers": {
+      "repository": "https://github.com/FFmpeg/nv-codec-headers.git",
+      "revision": "eddcea9e27f6b772057c9b3f87de2cc1737faffc"
+    },
+    "ogg": {
+      "repository": "https://github.com/xiph/ogg.git",
+      "revision": "be05b13e98b048f0b5a0f5fa8ce514d56db5f822"
+    },
+    "openal-soft": {
+      "repository": "https://github.com/kcat/openal-soft.git",
+      "revision": "09e2be796e34ad4b6b129204ba2d187bf4577924"
+    },
+    "openssl": {
+      "repository": "https://github.com/openssl/openssl.git",
+      "revision": "d8bf6cdd4849925c30e4f1911c7acb49cb34b702"
+    },
+    "opus-dnn": {
+      "url": "https://media.xiph.org/opus/models/opus_data-8a07d57c4fce6fb30f23b3e0d264004e04f1d7b421f5392ef61543d021a439af.tar.gz",
+      "urlHash": "SHA256=8a07d57c4fce6fb30f23b3e0d264004e04f1d7b421f5392ef61543d021a439af"
+    },
+    "opus": {
+      "repository": "https://github.com/xiph/opus.git",
+      "revision": "503d81b138d76621aae4b12786e90de48aa8db3a"
+    },
+    "rubberband": {
+      "repository": "https://github.com/breakfastquay/rubberband.git",
+      "revision": "e4296ac80b1170018a110bc326fd0d45a0eb27d6"
+    },
+    "shaderc": {
+      "repository": "https://github.com/google/shaderc.git",
+      "revision": "ba3e587dbc13d423c713e964ac08e094731a034d"
+    },
+    "speex": {
+      "repository": "https://github.com/xiph/speex.git",
+      "revision": "05895229896dc942d453446eba6f9f5ddcf95422"
+    },
+    "spirv-cross": {
+      "repository": "https://github.com/KhronosGroup/SPIRV-Cross.git",
+      "revision": "aa217aeb6c9f0ace7a0ab233b28807edf45eb165"
+    },
+    "spirv-headers": {
+      "repository": "https://github.com/KhronosGroup/SPIRV-Headers.git",
+      "revision": "86f980c731e62ae4eaf383d320449d71687936bf"
+    },
+    "spirv-tools": {
+      "repository": "https://github.com/KhronosGroup/SPIRV-Tools.git",
+      "revision": "e56740d931256cc464d4d1a76149f69469c33f70"
+    },
+    "subrandr": {
+      "repository": "https://github.com/afishhh/subrandr.git",
+      "revision": "eaf47d947e754565fe60e88ffe9665a2a32b18d5"
+    },
+    "svtav1": {
+      "repository": "https://gitlab.com/AOMediaCodec/SVT-AV1.git",
+      "revision": "049193fc0e16ba7f1afe8baa51292157b681cb2a"
+    },
+    "uavs3d": {
+      "repository": "https://github.com/uavs3/uavs3d.git",
+      "revision": "0e20d2c291853f196c68922a264bcd8471d75b68"
+    },
+    "uchardet": {
+      "repository": "https://gitlab.freedesktop.org/uchardet/uchardet.git",
+      "revision": "06029ec3340cdf6bf9a6a537dafb3f39eda0560e"
+    },
+    "vapoursynth": {
+      "repository": "https://github.com/vapoursynth/vapoursynth.git",
+      "revision": "e46204429041e95a881b61eedddd46c08f9a307c"
+    },
+    "vorbis": {
+      "repository": "https://github.com/xiph/vorbis.git",
+      "revision": "c2aa86b05e981c96bf381fc6aa11cdd03eccc2fb"
+    },
+    "vulkan-header": {
+      "repository": "https://github.com/KhronosGroup/Vulkan-Headers.git",
+      "revision": "c46850864f4661461b0f6cb9922c058ffea4915e"
+    },
+    "vulkan": {
+      "repository": "https://github.com/KhronosGroup/Vulkan-Loader.git",
+      "revision": "6a5ae1ea5f55d52be776663dc7f765f5a8502e4c"
+    },
+    "x264": {
+      "repository": "https://code.videolan.org/videolan/x264.git",
+      "revision": "0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee"
+    },
+    "x265": {
+      "repository": "https://github.com/Multicorewareinc/x265.git",
+      "revision": "811d15461782cf29e7c028578e677f6265a61041"
+    },
+    "xxhash": {
+      "repository": "https://github.com/Cyan4973/xxHash.git",
+      "revision": "680bf463fa1ca0461b9a7c2dab7556e1f54cf4cf"
+    },
+    "xz": {
+      "repository": "https://github.com/tukaani-project/xz.git",
+      "revision": "3d078b52adbff566ccfc51067dfbf742ecf3ef86"
+    },
+    "zlib": {
+      "repository": "https://github.com/zlib-ng/zlib-ng.git",
+      "revision": "f18efb822a2fc24a1209a836d51bb217476fc08e"
+    },
+    "zstd": {
+      "repository": "https://github.com/facebook/zstd.git",
+      "revision": "49cf51799ea051457f57243527aa2058f999f005"
+    },
+    "mpv": {
+      "repository": "https://github.com/mpv-player/mpv.git",
+      "revision": "36bf3d529059a947d6700adefeab3b421e537c19"
+    }
+  }
+}

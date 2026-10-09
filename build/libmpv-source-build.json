@@ -6,5 +6,7 @@
   "container": "ghcr.io/shinchiro/archlinux@sha256:2b81f07c567b051455b9539770a71b53dd3add5f9ef52eca95ac01a2272e9fdf",
   "rustToolchain": "nightly-2026-10-08",
   "target": "x86_64-w64-mingw32",
-  "cpu": "x86-64"
+  "cpu": "x86-64",
+  "sourceLock": "libmpv-source-lock.json",
+  "windowsMetadataCommit": "642aca37075f2091a0950b4ea79f35a7ead43460"
 }

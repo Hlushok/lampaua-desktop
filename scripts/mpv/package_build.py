@@ -10,14 +10,10 @@ import tarfile
 from capture_source import digest
 
 
-def validate_sources(sources, receipts, downloaded=()):
-    names = {item["name"] for item in receipts}
-    projects = {p.stem: json.loads(p.read_text()) for p in (sources / "projects").glob("*.json")}
+def source_closure(projects, roots):
     visited = set()
 
     def visit(name):
-        if name in visited:
-            return
         if name not in projects:
             # ExternalProject dependencies can address a step target, e.g.
             # gcc-install, instead of its parent project.
@@ -25,24 +21,31 @@ def validate_sources(sources, receipts, downloaded=()):
             if not parents:
                 raise ValueError(f"Unknown source dependency: {name}")
             name = max(parents, key=len)
+        if name in visited:
+            return
         visited.add(name)
         item = projects[name]
-        if item["hasSource"] and name not in names:
-            raise ValueError(f"Uncaptured dependency: {name}")
         for dependency in item["dependencies"]:
             visit(dependency)
 
-    for root in ("gcc", "mpv"):
+    for root in roots:
         visit(root)
+    return sorted(visited)
+
+
+def validate_sources(sources, receipts, downloaded=()):
+    names = {item["name"] for item in receipts}
+    projects = {p.stem: json.loads(p.read_text()) for p in (sources / "projects").glob("*.json")}
     # Custom ExternalProject steps can add inputs outside _EP_DEPENDS (the
     # compiler's final stage is one). Check actual download stamps as well.
-    for name in downloaded:
-        if name in projects:
-            visit(name)
+    closure = source_closure(projects, ["gcc", "mpv", *(name for name in downloaded if name in projects)])
+    for name in closure:
+        if projects[name]["hasSource"] and name not in names:
+            raise ValueError(f"Uncaptured dependency: {name}")
     for item in receipts:
         if digest(sources / item["archive"]) != item["sha256"]:
             raise ValueError(f"Changed source archive: {item['name']}")
-    return sorted(visited)
+    return closure
 
 
 def package(work, root):
@@ -64,6 +67,10 @@ def package(work, root):
     pe = subprocess.check_output([str(prefix), "-p", str(dll)], text=True)
     (destination / "dll-pe.txt").write_text(pe)
     config = json.loads((root / "build/libmpv-source-build.json").read_text())
+    from preflight_sources import load_lock, verify, verify_extras
+    projects = {p.stem: json.loads(p.read_text()) for p in (sources / "projects").glob("*.json")}
+    verify(sources, projects, load_lock(root / "build" / config["sourceLock"]))
+    verify_extras(sources, projects, config)
     for name in ("mpv", "ffmpeg"):
         component = next(item for item in receipts if item["name"] == name)
         if component["revision"] != config[name + "Commit"]:
@@ -76,6 +83,7 @@ def package(work, root):
     shutil.copy(work / "build/CMakeCache.txt", sources)
     shutil.copytree(work / "build/cmake", sources / "cmake-modules")
     shutil.copy(root / "build/libmpv-source-build.json", sources)
+    shutil.copy(root / "build" / config["sourceLock"], sources)
     shutil.copy(root / "docs/libmpv-own-build.md", sources / "README.md")
     shutil.copy(sources / "manifest.json", destination / "manifest.json")
     archive = destination / "lampaua-libmpv-x64-sources.tar.gz"

@@ -1,0 +1,11 @@
+include(CheckSymbolExists)
+include(CMakePushCheckState)
+cmake_push_check_state(RESET)
+set(CMAKE_REQUIRED_INCLUDES "${OPENSSL_INCLUDE_DIR}")
+set(CMAKE_REQUIRED_LIBRARIES OpenSSL::Crypto)
+check_symbol_exists(ASN1_STRING_get_length "openssl/asn1.h"
+    LAMPAUA_HAVE_ASN1_STRING_GET_LENGTH)
+cmake_pop_check_state()
+if(LAMPAUA_HAVE_ASN1_STRING_GET_LENGTH)
+    add_compile_definitions(LAMPAUA_HAVE_ASN1_STRING_GET_LENGTH=1)
+endif()

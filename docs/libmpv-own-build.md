@@ -10,16 +10,28 @@ Only the default `mpv` target can supply a runtime for application acceptance.
 The local ngtcp2/curl patch supplements Windows CMake's OpenSSL detection with
 the selected installation's static pkg-config dependencies. They are linked
 after libssl/libcrypto; QUIC/API checks remain enabled and are never preset.
+The curl patch also probes ASN1_STRING_get_length against the selected Windows
+OpenSSL headers and library. Older 4.1-dev snapshots use curl's existing fallback
+when that API is absent; a version number alone no longer decides availability.
 
 ## Inputs And Outputs
 
 `build/libmpv-source-build.json` pins the recipe commit, mpv, FFmpeg, dated Rust
 toolchain and build container digest. GCC targets baseline x86-64, not v3.
-No upstream source or binary cache is restored. Other dependencies are resolved
-by the pinned recipes and their exact downloaded trees are captured before
-patching. Their full revisions and archive hashes are recorded in manifest.json.
-The first own build establishes these dependency snapshots; a branch name alone
-is not a reproducibility pin.
+`build/libmpv-source-lock.json` fixes every required Git revision and URL/hash
+input observed in the build graph. Windows metadata has a fixed commit too.
+No upstream source or binary cache is restored. Download and source capture run
+as independent step targets before GCC. Preflight rejects unpinned dependencies,
+wrong receipts, changed archives and unexpected curl patch layouts before the
+long compilation starts. The actual Windows compiler/API/link tests still run
+during configuration; source preflight is not a substitute for full compilation.
+Full revisions and archive hashes are recorded in manifest.json.
+Cargo dependencies are vendored with the pinned subrandr Cargo.lock during
+preflight, then built offline. Rust sources, Windows metadata and the vendor
+archive are checked before GCC as well as during final packaging.
+Actions displays contract tests, source preflight and compilation as separate
+steps. They share the same fresh job workspace; the compile step rechecks the
+source receipts before using them. Direct script invocation still runs all phases.
 
 The SDK artifact contains libmpv-2.dll, import library and API headers. The source
 artifact preserves the unpatched source archives, minimal Git metadata where
@@ -40,6 +52,12 @@ Use the container digest from the configuration. From a clean app checkout run:
 ```bash
 bash scripts/mpv/build-libmpv.sh
 ```
+
+For an offline check of donor cleanup semantics, use `check_donor_cleanup.py`
+with `--recipes` pointing to the pinned recipe tree, `--externalproject` to the
+official ExternalProject v3.31.6 module, and `--cmake` to the CMake executable.
+It reproduces the old detached-HEAD/upstream-reset failure, then verifies pinned
+post-install cleanup on fresh temporary repositories only.
 
 For an exact source replay, unpack each component archive, retain its Git
 metadata, and use the recorded revisions rather than current branches. Restore
