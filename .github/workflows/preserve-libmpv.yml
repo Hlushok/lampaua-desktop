@@ -1,0 +1,168 @@
+name: Preserve Verified libmpv Inputs
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run:
+        description: Completed own-build workflow run
+        type: string
+        required: true
+        default: "37883427620"
+      source_commit:
+        description: Exact app commit used by the own-build workflow
+        type: string
+        required: true
+        default: "e90c4ded7de86eb7a23453a016ed37b17508e0a2"
+      sdk_sha256:
+        description: Accepted SDK archive SHA-256
+        type: string
+        required: true
+        default: "e5a2c78aafd8f66a3d2d0b8308e533c335f369b06d376c683b24a0124e93cbc6"
+      source_sha256:
+        description: Complete corresponding-source archive SHA-256
+        type: string
+        required: true
+        default: "efea4e5737781cacc219202215dde11c3a56280d2706d8df6fa2055427e9309e"
+      dll_sha256:
+        description: Accepted libmpv-2.dll SHA-256
+        type: string
+        required: true
+        default: "5abe5c6a7714025a9af8fba34313b4fab762333f45b8d34ad13c9f220421671d"
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  preserve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SOURCE_RUN: ${{ inputs.source_run }}
+      SOURCE_COMMIT: ${{ inputs.source_commit }}
+      SDK_SHA256: ${{ inputs.sdk_sha256 }}
+      SOURCE_SHA256: ${{ inputs.source_sha256 }}
+      DLL_SHA256: ${{ inputs.dll_sha256 }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Verify completed build and existing draft
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_RUN" =~ ^[0-9]+$ ]]
+          [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          for hash in "$SDK_SHA256" "$SOURCE_SHA256" "$DLL_SHA256"; do
+            [[ "$hash" =~ ^[0-9a-f]{64}$ ]]
+          done
+          gh api "repos/Hlushok/lampaua-desktop/actions/runs/$SOURCE_RUN" > source-run.json
+          python - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          run = json.loads(Path('source-run.json').read_text())
+          assert run['status'] == 'completed' and run['conclusion'] == 'success'
+          assert run['head_sha'] == os.environ['SOURCE_COMMIT']
+          assert run['path'] == '.github/workflows/build-libmpv.yml'
+          version = json.loads(Path('package.json').read_text())['version']
+          assert re.fullmatch(r'\d+\.\d+\.\d+', version)
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write(f'TARGET_TAG=v{version}\n')
+          PY
+          tag="v$(node -p "require('./package.json').version")"
+          [[ "$(gh release view "$tag" --repo Hlushok/lampaua-desktop --json isDraft --jq .isDraft)" == true ]]
+
+      - name: Download the finished SDK and sources without compiling
+        uses: actions/download-artifact@v7
+        with:
+          name: lampaua-libmpv-own-x64
+          path: .cache/libmpv-preservation/artifact
+          run-id: ${{ inputs.source_run }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: Hlushok/lampaua-desktop
+
+      - name: Verify archive bytes and safely unpack corresponding sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json, os, re, tarfile
+          from pathlib import Path
+          root = Path('.cache/libmpv-preservation/artifact')
+          checksums = json.loads((root / 'checksums.json').read_text())
+          names = set()
+          for item in checksums:
+              name = item['file']
+              assert re.fullmatch(r'[A-Za-z0-9._-]+', name) and name not in names
+              names.add(name)
+              path = root / name
+              assert path.stat().st_size == item['size']
+              with path.open('rb') as stream:
+                  assert hashlib.file_digest(stream, 'sha256').hexdigest() == item['sha256']
+          expected = {'lampaua-libmpv-x64-sdk.7z': os.environ['SDK_SHA256'],
+                      'lampaua-libmpv-x64-sources.tar.gz': os.environ['SOURCE_SHA256']}
+          for name, digest in expected.items():
+              assert next(item['sha256'] for item in checksums if item['file'] == name) == digest
+          manifest = json.loads((root / 'manifest.json').read_text())
+          assert manifest['repositoryCommit'] == os.environ['SOURCE_COMMIT']
+          assert manifest['dllSha256'] == os.environ['DLL_SHA256']
+          destination = Path('.cache/libmpv-preservation/extracted')
+          destination.mkdir(parents=True, exist_ok=False)
+          with tarfile.open(root / 'lampaua-libmpv-x64-sources.tar.gz') as bundle:
+              bundle.extractall(destination, filter='data')
+          PY
+          7z x -y -o.cache/libmpv-preservation/sdk .cache/libmpv-preservation/artifact/lampaua-libmpv-x64-sdk.7z
+          [[ "$(sha256sum .cache/libmpv-preservation/sdk/libmpv-2.dll | cut -d' ' -f1)" == "$DLL_SHA256" ]]
+
+      - name: Audit sources, preserve original notices and create verified parts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/mpv/test_runtime_notices.py
+          python scripts/mpv/test_split_source_bundle.py
+          python scripts/mpv/audit_runtime_sources.py \
+            --sources .cache/libmpv-preservation/extracted/lampaua-libmpv-sources \
+            --manifest .cache/libmpv-preservation/artifact/manifest.json \
+            --root . --output dist/libmpv-notices
+          python scripts/mpv/split_source_bundle.py \
+            .cache/libmpv-preservation/artifact/lampaua-libmpv-x64-sources.tar.gz \
+            --output dist/libmpv-source-parts
+          python - <<'PY'
+          import json, os, shutil
+          from pathlib import Path
+          parts = json.loads(Path('dist/libmpv-source-parts/source-parts.json').read_text())
+          assert len(parts['sourceParts']) == 2
+          assert parts['sourceSha256'] == os.environ['SOURCE_SHA256']
+          evidence = Path('dist/libmpv-preservation-evidence')
+          evidence.mkdir()
+          for name in ('manifest.json', 'checksums.json'):
+              shutil.copyfile(Path('.cache/libmpv-preservation/artifact') / name, evidence / name)
+          PY
+
+      - name: Preserve audit evidence for independent acceptance
+        uses: actions/upload-artifact@v6
+        with:
+          name: lampaua-libmpv-preservation-evidence
+          retention-days: 30
+          path: |
+            dist/libmpv-notices/
+            dist/libmpv-source-parts/source-parts.json
+            dist/libmpv-preservation-evidence/
+
+      - name: Store SDK and two source parts only in the existing draft
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            .cache/libmpv-preservation/artifact/lampaua-libmpv-x64-sdk.7z \
+            dist/libmpv-source-parts/lampaua-libmpv-x64-sources.tar.gz.001 \
+            dist/libmpv-source-parts/lampaua-libmpv-x64-sources.tar.gz.002; do
+            [[ "$(gh release view "$TARGET_TAG" --repo Hlushok/lampaua-desktop --json isDraft --jq .isDraft)" == true ]]
+            gh release upload "$TARGET_TAG" "$file" --repo Hlushok/lampaua-desktop
+          done

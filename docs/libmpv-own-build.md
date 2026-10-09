@@ -46,6 +46,11 @@ embedded versions. Completeness is checked against the GCC/MPV dependency graph,
 including source-only/header inputs, not against configure log presence.
 License files are retained in the source trees. Third-party notices in the app
 must be checked against the resulting component inventory before distribution.
+After safely extracting the verified bundle, audit_runtime_sources.py checks
+its manifests, every receipt/archive, source pins, dependency closure, Cargo lock
+and baseline CPU options. It copies original license/notice bytes into a new
+directory and emits inventory.json. Review any withoutNoticeFiles entries;
+filename-based notice discovery alone is not a license-compliance conclusion.
 
 ## Source Delivery
 
@@ -73,6 +78,14 @@ For manual assembly, concatenate .001 and .002 in that order using binary I/O,
 then verify the SHA-256 against sourceSha256 before extracting. The parts are
 not separately extractable archives. The corresponding sources and build
 instructions remain available independently of the Windows installer.
+
+Preserve Verified libmpv Inputs is a separate, manually dispatched workflow for
+an already successful own-build run. Supply its exact app commit and SDK/source/
+DLL hashes. It verifies and audits the artifact, splits the original sources,
+then stores the SDK and both parts in the existing version's draft release.
+It does not compile, move tags, publish, replace existing assets or change update
+metadata. Download its notice inventory and review entries without discovered
+notice files before accepting the runtime. A filename scan is not a legal audit.
 
 ## Rebuild
 

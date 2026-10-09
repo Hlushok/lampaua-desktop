@@ -32,6 +32,7 @@ jobs:
           python3 scripts/mpv/test_curl_compat.py
           python3 scripts/mpv/test_package_build.py
           python3 scripts/mpv/test_split_source_bundle.py
+          python3 scripts/mpv/test_runtime_notices.py
 
       - name: Download and verify pinned sources before compilation
         shell: bash
