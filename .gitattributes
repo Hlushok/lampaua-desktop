@@ -1,0 +1,4 @@
+# Preserve original upstream notice bytes across Git checkouts.
+licenses/libmpv/** -text -whitespace
+# This verbatim RST heading resembles a merge marker.
+licenses/libmpv/avisynth-headers/0001_license.rst -diff

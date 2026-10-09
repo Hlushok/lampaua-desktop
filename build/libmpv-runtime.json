@@ -1,11 +1,26 @@
 {
-  "repository": "shinchiro/mpv-winbuild-cmake",
-  "tag": "20261008",
-  "asset": "mpv-dev-x86_64-20261008-git-36bf3d5290.7z",
-  "mirror": "https://github.com/Hlushok/lampaua-desktop/releases/download/v2.0.0/mpv-dev-x86_64-20261008-git-36bf3d5290.7z",
-  "sha256": "1e94b722d9d1b701406250c73ee37d73cd0045cdf47bdd7a54f2bea1b513465f",
-  "dllSha256": "bde5eb098b65b0908be4176c2f331bab25a101881a9232b8beef0c0d3ab8ad87",
-  "mpvCommit": "36bf3d5290",
-  "ffmpegCommit": "5d4755f7d",
-  "sourceRun": "https://github.com/shinchiro/mpv-winbuild-cmake/actions/runs/37705360264"
+  "repository": "Hlushok/lampaua-desktop",
+  "tag": "v2.0.0",
+  "asset": "lampaua-libmpv-x64-sdk.7z",
+  "sha256": "e5a2c78aafd8f66a3d2d0b8308e533c335f369b06d376c683b24a0124e93cbc6",
+  "dllSha256": "5abe5c6a7714025a9af8fba34313b4fab762333f45b8d34ad13c9f220421671d",
+  "mpvCommit": "36bf3d529059a947d6700adefeab3b421e537c19",
+  "ffmpegCommit": "5d4755f7dd03d84f006d5a0ef7e3c114f52b3d77",
+  "sourceBuildCommit": "e90c4ded7de86eb7a23453a016ed37b17508e0a2",
+  "cpu": "x86-64",
+  "sourceRun": "https://github.com/Hlushok/lampaua-desktop/actions/runs/37883427620",
+  "sourceAsset": "lampaua-libmpv-x64-sources.tar.gz",
+  "sourceSha256": "efea4e5737781cacc219202215dde11c3a56280d2706d8df6fa2055427e9309e",
+  "sourceParts": [
+    {
+      "asset": "lampaua-libmpv-x64-sources.tar.gz.001",
+      "sha256": "10e678a45ffca7aefa86a802498235538906bd4efafc344653573fda3b379aac",
+      "size": 1610612736
+    },
+    {
+      "asset": "lampaua-libmpv-x64-sources.tar.gz.002",
+      "sha256": "14a16c269f42ca49350348b01369d57091014ec2839ca7163cdd487d0f582442",
+      "size": 1222724177
+    }
+  ]
 }

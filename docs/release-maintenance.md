@@ -69,6 +69,12 @@ sizes and SHA-256 values; sourceSha256 records the assembled archive's hash.
 Use split_source_bundle.py after checking the original build artifact. The
 preparation script downloads and verifies both parts automatically, and release
 CI preserves those same parts. See libmpv-own-build.md for assembly details.
+Run Preserve Verified libmpv Inputs against a successful build and an existing
+draft before committing new runtime pins. Compare its part descriptor and source
+inventory with an independent local byte audit. Keep original notice bytes under
+licenses/libmpv; formatting tools intentionally exclude this generated directory.
+The release contract checks each original notice hash and ties the inventory to
+the accepted DLL/build commit. Rebuild and retest the full app after changing pins.
 
 ## Verification And Publication Gates
 
@@ -112,6 +118,9 @@ contacting its author and approved an own build with preserved sources and new
 playback tests. See docs/libmpv-own-build.md and build-libmpv.yml. The own build
 does not automatically change the runtime pin, release assets or updater.
 Source-package verification and new DLL acceptance remain publication gates.
+The own build 37883427620 succeeded and passed independent source-byte audit and
+isolated full-app QA. Exact accepted hashes and test limitations are recorded in
+2.0.0-validation.md. This does not by itself publish a release or change updates.
 
 ## After Publication
 

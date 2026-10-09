@@ -5,3 +5,4 @@ dist
 .cache
 .superpowers
 third_party
+licenses/libmpv

@@ -2,9 +2,51 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const crypto = require("node:crypto");
 const { EventEmitter } = require("node:events");
 const root = path.resolve(__dirname, "..");
 const pkg = require("../package.json");
+const runtime = require("../build/libmpv-runtime.json");
+const inventory = require("../licenses/libmpv/inventory.json");
+assert.equal(inventory.dllSha256, runtime.dllSha256);
+assert.equal(inventory.repositoryCommit, runtime.sourceBuildCommit);
+assert.equal(
+  inventory.pinnedInputs,
+  Object.keys(require("../build/libmpv-source-lock.json").components).length,
+);
+assert.equal(runtime.sourceParts.length, 2);
+runtime.sourceParts.forEach((part, index) => {
+  assert.equal(
+    part.asset,
+    `${runtime.sourceAsset}.${String(index + 1).padStart(3, "0")}`,
+  );
+  assert.match(part.sha256, /^[a-f0-9]{64}$/);
+  assert.ok(
+    Number.isSafeInteger(part.size) && part.size > 0 && part.size < 2 ** 31,
+  );
+});
+assert.match(runtime.sourceSha256, /^[a-f0-9]{64}$/);
+const noticeRoot = path.join(root, "licenses/libmpv");
+const reviews = new Map(
+  inventory.manualReview.map((review) => [review.component, review]),
+);
+for (const component of inventory.components) {
+  assert.ok(component.notices.length || reviews.has(component.name));
+  const notices = [
+    ...component.notices,
+    ...(reviews.get(component.name)?.files || []),
+  ];
+  for (const notice of notices) {
+    const file = path.resolve(noticeRoot, notice.file);
+    assert.ok(file.startsWith(noticeRoot + path.sep));
+    const data = fs.readFileSync(file);
+    assert.equal(data.length, notice.size);
+    assert.equal(
+      crypto.createHash("sha256").update(data).digest("hex"),
+      notice.sha256,
+    );
+  }
+}
 assert.match(pkg.version, /^2\.\d+\.\d+$/);
 assert.equal(pkg.license, "GPL-3.0-or-later");
 assert.equal(pkg.build.appId, "com.lampaua.desktop");
@@ -61,8 +103,8 @@ async function main() {
     "44.4.4",
   );
   assert.equal(
-    require("../build/libmpv-runtime.json").dllSha256,
-    "bde5eb098b65b0908be4176c2f331bab25a101881a9232b8beef0c0d3ab8ad87",
+    runtime.dllSha256,
+    "5abe5c6a7714025a9af8fba34313b4fab762333f45b8d34ad13c9f220421671d",
   );
   console.log(
     "2.0.0 identity, tested runtime pins and production updater contract verified",
