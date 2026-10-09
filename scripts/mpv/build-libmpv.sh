@@ -21,6 +21,7 @@ report_failure() {
   fi
 }
 trap report_failure ERR
+python3 "$LAMPAUA_MPV_SCRIPTS/package_build.py" --work "$work" --root "$root" --check-repository
 mkdir -p "$work" "$LAMPAUA_MPV_SOURCES" "$root/dist/libmpv-own"
 readarray -t pins < <(python3 - <<'PY'
 import json, sys

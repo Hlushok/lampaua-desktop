@@ -25,6 +25,8 @@ as independent step targets before GCC. Preflight rejects unpinned dependencies,
 wrong receipts, changed archives and unexpected curl patch layouts before the
 long compilation starts. The actual Windows compiler/API/link tests still run
 during configuration; source preflight is not a substitute for full compilation.
+The app checkout's commit is also checked before downloads or compilation. Git
+trust is scoped to that exact directory and command, not a global wildcard.
 Full revisions and archive hashes are recorded in manifest.json.
 Cargo dependencies are vendored with the pinned subrandr Cargo.lock during
 preflight, then built offline. Rust sources, Windows metadata and the vendor
@@ -73,6 +75,11 @@ and Windows.winmd from this bundle. Use the recorded Rust toolchain, GCC recipe
 and CMakeCache build options. Do not invoke the donor's floating `update` target.
 Host build tools are identified by the pinned container; the container is still
 needed separately. The source bundle is not itself a preconfigured offline VM.
+
+If final packaging fails after MPV was built, CI preserves the SDK and captured
+inputs as lampaua-libmpv-unpackaged-x64. This is a diagnostic artifact, not an
+accepted runtime or a release. It allows inspecting the built DLL and repairing
+packaging without losing the completed compiler/media build.
 
 ## Acceptance
 

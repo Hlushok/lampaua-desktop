@@ -10,6 +10,14 @@ import tarfile
 from capture_source import digest
 
 
+def repository_revision(root):
+    # The Actions container can own files differently from checkout. Trust only
+    # this known app checkout for this read, without changing global Git config.
+    root = root.resolve()
+    return subprocess.check_output(["git", "-c", f"safe.directory={root.as_posix()}",
+                                    "-C", str(root), "rev-parse", "--verify", "HEAD^{commit}"], text=True).strip()
+
+
 def source_closure(projects, roots):
     visited = set()
 
@@ -76,7 +84,7 @@ def package(work, root):
         if component["revision"] != config[name + "Commit"]:
             raise ValueError(f"Wrong {name} revision in built SDK")
     manifest = {"configuration": config, "dependencyClosure": closure, "components": receipts, "dllSha256": digest(dll),
-                "repositoryCommit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()}
+                "repositoryCommit": repository_revision(root)}
     (sources / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     shutil.copytree(root / "scripts/mpv", sources / "build-scripts", ignore=shutil.ignore_patterns("__pycache__"))
     shutil.copytree(work / "recipes", sources / "configured-recipes", ignore=shutil.ignore_patterns(".git"))
@@ -99,5 +107,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--work", type=Path, required=True)
     parser.add_argument("--root", type=Path, required=True)
+    parser.add_argument("--check-repository", action="store_true")
     args = parser.parse_args()
-    package(args.work.resolve(), args.root.resolve())
+    if args.check_repository:
+        print(f"Build checkout revision: {repository_revision(args.root)}")
+    else:
+        package(args.work.resolve(), args.root.resolve())

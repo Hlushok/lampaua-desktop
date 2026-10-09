@@ -30,6 +30,7 @@ jobs:
           python3 scripts/mpv/test_static_openssl.py
           python3 scripts/mpv/test_source_preflight.py
           python3 scripts/mpv/test_curl_compat.py
+          python3 scripts/mpv/test_package_build.py
 
       - name: Download and verify pinned sources before compilation
         shell: bash
@@ -54,6 +55,23 @@ jobs:
           compression-level: 0
           retention-days: 30
           path: dist/libmpv-own/
+
+      - name: Preserve built SDK and inputs after a packaging failure
+        if: failure() && inputs.target == 'mpv' && hashFiles('.cache/libmpv-own/build/mpv-dev-x86_64-*/libmpv-2.dll') != ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: lampaua-libmpv-unpackaged-x64
+          compression-level: 0
+          retention-days: 14
+          include-hidden-files: true
+          path: |
+            .cache/libmpv-own/build/mpv-dev-x86_64-*/
+            .cache/libmpv-own/sources/
+            .cache/libmpv-own/recipes/
+            .cache/libmpv-own/build/CMakeCache.txt
+            .cache/libmpv-own/build/cmake/
+            dist/libmpv-own/
+            !.cache/libmpv-own/recipes/.git/**
 
       - name: Preserve diagnostics even on failure
         if: always()

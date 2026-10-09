@@ -162,6 +162,10 @@ class SourcePreflightTests(unittest.TestCase):
     def test_compile_phase_rejects_conflicting_core_pin_before_cmake(self):
         scripts = Path(__file__).resolve().parent
         shutil.copytree(scripts, self.root / "scripts/mpv", ignore=shutil.ignore_patterns("__pycache__"))
+        subprocess.run(["git", "init", "--quiet", str(self.root)], check=True)
+        subprocess.run(["git", "-C", str(self.root), "-c", "user.name=Build Test",
+                        "-c", "user.email=build@test.invalid", "commit", "--quiet", "--allow-empty", "-m", "fixture"],
+                       check=True)
         build = self.root / "build"
         build.mkdir()
         config = {"recipesRepository": "https://example.invalid/recipes.git", "recipesCommit": self.revision,
