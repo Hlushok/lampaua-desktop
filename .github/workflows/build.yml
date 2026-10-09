@@ -136,6 +136,8 @@ jobs:
         run: |
           powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-libmpv-input-contract.ps1
           if ($LASTEXITCODE -ne 0) { throw 'libmpv input contract failed' }
+          node scripts/verify-libmpv-source-delivery.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'libmpv source delivery contract failed' }
           powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-libmpv.ps1
           if ($LASTEXITCODE -ne 0) { throw 'Pinned libmpv SDK/source preparation failed' }
 
@@ -215,7 +217,18 @@ jobs:
             if ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant() -ne $runtime.sourceSha256) {
               throw 'Corresponding libmpv sources checksum mismatch'
             }
-            Copy-Item -LiteralPath $source -Destination "dist/runtime-inputs/$($runtime.sourceAsset)"
+            if ($null -ne $runtime.sourceParts) {
+              foreach ($part in $runtime.sourceParts) {
+                $file = Join-Path .cache/mpv-prototype $part.asset
+                if ((Get-Item -LiteralPath $file).Length -ne $part.size -or $part.size -ge 2GB -or
+                    (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -ne $part.sha256) {
+                  throw "Corresponding libmpv source part mismatch: $($part.asset)"
+                }
+                Copy-Item -LiteralPath $file -Destination "dist/runtime-inputs/$($part.asset)"
+              }
+            } else {
+              Copy-Item -LiteralPath $source -Destination "dist/runtime-inputs/$($runtime.sourceAsset)"
+            }
           }
 
       - name: Upload pinned runtime input
@@ -226,6 +239,7 @@ jobs:
           path: |
             dist/runtime-inputs/*.7z
             dist/runtime-inputs/*.tar.gz
+            dist/runtime-inputs/*.tar.gz.*
 
   generate-downloads-table:
     runs-on: ubuntu-latest
@@ -379,5 +393,6 @@ jobs:
             lampa-windows/latest.yml
             runtime-inputs/*.7z
             runtime-inputs/*.tar.gz
+            runtime-inputs/*.tar.gz.*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

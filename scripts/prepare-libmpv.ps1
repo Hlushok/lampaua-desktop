@@ -36,10 +36,60 @@ function Get-PinnedAsset($asset, $hash, $destination, $mirror) {
     }
     if (!(Test-Hash $destination $hash)) { throw "libmpv asset checksum mismatch: $asset" }
 }
-Get-PinnedAsset $manifest.asset $manifest.sha256 $archive $manifest.mirror
-if ($manifest.sourceAsset) {
-    Get-PinnedAsset $manifest.sourceAsset $manifest.sourceSha256 (Join-Path $cache $manifest.sourceAsset) $null
+function Get-PinnedSources {
+    if (!$manifest.sourceAsset) { return }
+    if ($null -eq $manifest.sourceParts) {
+        Get-PinnedAsset $manifest.sourceAsset $manifest.sourceSha256 (Join-Path $cache $manifest.sourceAsset) $null
+        return
+    }
+    if ($manifest.sourceAsset -cnotmatch '^[A-Za-z0-9][A-Za-z0-9._-]+$' -or
+        $manifest.sourceSha256 -cnotmatch '^[a-f0-9]{64}$') {
+        throw 'Invalid combined source archive metadata'
+    }
+    $parts = @($manifest.sourceParts)
+    if ($parts.Count -lt 2 -or $parts.Count -gt 999) { throw 'Invalid source part count' }
+    for ($index = 0; $index -lt $parts.Count; $index++) {
+        $part = $parts[$index]
+        $expectedName = '{0}.{1:000}' -f $manifest.sourceAsset, ($index + 1)
+        $size = 0L
+        if ($part.asset -cne $expectedName -or $part.sha256 -cnotmatch '^[a-f0-9]{64}$' -or
+            [string]$part.size -cnotmatch '^[1-9][0-9]*$' -or
+            ![long]::TryParse([string]$part.size, [ref]$size) -or $size -ge 2GB) {
+            throw "Invalid source part metadata: $expectedName"
+        }
+    }
+    foreach ($part in $parts) {
+        $file = Join-Path $cache $part.asset
+        Get-PinnedAsset $part.asset $part.sha256 $file $null
+        if ((Get-Item -LiteralPath $file).Length -ne [long]$part.size) {
+            throw "Source part size mismatch: $($part.asset)"
+        }
+    }
+    $destination = Join-Path $cache $manifest.sourceAsset
+    $temporary = Join-Path $cache "$($manifest.sourceAsset).$([guid]::NewGuid()).partial"
+    try {
+        $output = [System.IO.File]::Open($temporary, [System.IO.FileMode]::CreateNew)
+        try {
+            foreach ($part in $parts) {
+                $input = [System.IO.File]::OpenRead((Join-Path $cache $part.asset))
+                try { $input.CopyTo($output) } finally { $input.Dispose() }
+            }
+        } finally { $output.Dispose() }
+        if (!(Test-Hash $temporary $manifest.sourceSha256)) {
+            throw 'Combined source archive checksum mismatch'
+        }
+        if (Test-Path -LiteralPath $destination) {
+            # Windows PowerShell otherwise converts a null string to an empty path.
+            [System.IO.File]::Replace($temporary, $destination, [System.Management.Automation.Language.NullString]::Value)
+        } else {
+            [System.IO.File]::Move($temporary, $destination)
+        }
+    } finally {
+        if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force }
+    }
 }
+Get-PinnedAsset $manifest.asset $manifest.sha256 $archive $manifest.mirror
+Get-PinnedSources
 if (!(Test-Hash (Join-Path $sdk 'libmpv-2.dll') $manifest.dllSha256)) {
     New-Item -ItemType Directory -Path $sdk -Force | Out-Null
     $sevenZip = (Get-Command 7z.exe -ErrorAction SilentlyContinue).Source

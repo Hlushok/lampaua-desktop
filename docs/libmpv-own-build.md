@@ -47,6 +47,33 @@ including source-only/header inputs, not against configure log presence.
 License files are retained in the source trees. Third-party notices in the app
 must be checked against the resulting component inventory before distribution.
 
+## Source Delivery
+
+The complete source bundle exceeds GitHub's 2 GiB per-release-file limit. Keep
+the original archive intact and split its bytes into 1.5 GiB parts after checking
+it against the build artifact's checksums.json:
+
+```bash
+python scripts/mpv/split_source_bundle.py dist/libmpv-own/lampaua-libmpv-x64-sources.tar.gz --output dist/libmpv-source-parts
+```
+
+The output directory must be new. The command emits .001/.002 files and a
+source-parts.json descriptor with each part's size and SHA-256, plus the original
+archive's SHA-256. Copy these fields into build/libmpv-runtime.json only after
+the build and source inventory have been verified. Upload the SDK and both
+parts to the draft release before CI uses those runtime pins.
+
+prepare-libmpv.ps1 checks the ordered filenames, sizes and hashes, downloads
+missing parts, then streams them into the original archive and checks its full
+hash. A failed assembly does not replace an existing verified archive. The old
+single-source-asset format still works. Release CI distributes the parts, not
+the oversized assembled archive. None of this changes the app or its updater.
+
+For manual assembly, concatenate .001 and .002 in that order using binary I/O,
+then verify the SHA-256 against sourceSha256 before extracting. The parts are
+not separately extractable archives. The corresponding sources and build
+instructions remain available independently of the Windows installer.
+
 ## Rebuild
 
 Use the container digest from the configuration. From a clean app checkout run:

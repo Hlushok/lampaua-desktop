@@ -64,6 +64,11 @@ The donor prunes old daily releases. Preserve the exact SDK as a release asset;
 the manifest's verified mirror prevents later builds depending on a deleted
 daily tag. The mirror becomes publicly usable only after the draft/source gate
 is cleared. Update the mirror when deliberately selecting a new SDK.
+For our own runtime, sourceParts records the two GitHub source assets, their
+sizes and SHA-256 values; sourceSha256 records the assembled archive's hash.
+Use split_source_bundle.py after checking the original build artifact. The
+preparation script downloads and verifies both parts automatically, and release
+CI preserves those same parts. See libmpv-own-build.md for assembly details.
 
 ## Verification And Publication Gates
 

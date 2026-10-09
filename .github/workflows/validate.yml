@@ -27,6 +27,8 @@ jobs:
         run: |
           powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-libmpv-input-contract.ps1
           if ($LASTEXITCODE -ne 0) { throw 'libmpv input contract failed' }
+          node scripts/verify-libmpv-source-delivery.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'libmpv source delivery contract failed' }
       - name: Syntax, contracts and formatting
         shell: bash
         run: |
