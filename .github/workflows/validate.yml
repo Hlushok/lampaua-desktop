@@ -40,3 +40,4 @@ jobs:
           done
           corepack yarn lint
           node scripts/verify-windows-updates.cjs
+          node scripts/verify-upstream-sync.cjs

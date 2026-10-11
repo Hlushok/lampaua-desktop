@@ -1,0 +1,18 @@
+{
+  "forkOwnedFiles": ["README.md", "CHANGELOG.md"],
+  "retiredFiles": ["scripts/generate-icons.js"],
+  "versionOnlyPackage": "package.json",
+  "formatOnlyFiles": ["src/plugin.js", "src/modules/torrServerManager.js"],
+  "ignoredFormatComments": ["eslint-disable-next-line no-unused-vars"],
+  "manualOnlyFiles": [
+    "LICENSE",
+    "build/libmpv-runtime.json",
+    "build/electron-runtime-ac3-eac3.json",
+    "build/upstream-sync-policy.json",
+    "scripts/sync-upstream.cjs",
+    "scripts/verify-upstream-sync.cjs",
+    ".github/workflows/build.yml",
+    ".github/workflows/sync-upstream.yml",
+    ".github/workflows/validate.yml"
+  ]
+}

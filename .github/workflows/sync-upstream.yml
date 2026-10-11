@@ -9,9 +9,14 @@ permissions:
   contents: write
   issues: write
 
+concurrency:
+  group: desktop-upstream-sync
+  cancel-in-progress: false
+
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout fork
@@ -30,27 +35,50 @@ jobs:
           git remote add upstream https://github.com/Kolovatoff/lampa-desktop.git
           git fetch upstream main
 
-      - name: Merge upstream main
-        run: git merge --no-edit upstream/main
-
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "24"
 
-      - name: Validate merged fork before pushing
+      - name: Install fork dependencies for sync rules
         run: |
           corepack enable
           corepack yarn install --immutable
+
+      - name: Merge upstream with bounded fork rules
+        run: node scripts/sync-upstream.cjs
+
+      - name: Validate merged fork before pushing
+        run: |
+          corepack yarn install --immutable
+          node node_modules/typescript/bin/tsc -p third_party/electron-mpv-video/tsconfig.lib.json --outDir .cache/mpv-desktop-test/lib
           node --check src/main.js
           node --check src/preload.js
           node --check src/plugin.js
-          node scripts/verify-mpv-test-isolation.js
-          node scripts/verify-release-contract.js
+          for test in verify-release-contract verify-external-player-contract verify-ua-player-dispatch-contract verify-ua-player-progress-contract verify-ua-player-session-contract verify-mpv-test-isolation verify-mpv-ytdl-contract verify-mpv-renderer-contract verify-mpv-lampa-contract verify-mpv-ipc-contract verify-mpv-diagnostics; do
+            node "scripts/$test.js"
+          done
+          node scripts/verify-upstream-sync.cjs
+          node scripts/verify-windows-updates.cjs
           corepack yarn lint
+
+      - name: Commit validated merge
+        run: |
+          if git rev-parse -q --verify MERGE_HEAD > /dev/null; then
+            git commit --no-edit
+          fi
 
       - name: Push updated fork
         run: git push origin main
+
+      - name: Preserve sync diagnostic report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: upstream-sync-report-${{ github.run_id }}
+          path: .cache/upstream-sync-report.json
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Close stale failure issue
         if: success()
@@ -59,10 +87,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ISSUE_TITLE: Sync desktop upstream failed
         run: |
-          issue_number="$(gh issue list --state open --search "$ISSUE_TITLE in:title" --json number --jq '.[0].number // ""')"
+          issue_number="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "$ISSUE_TITLE in:title" --json number --jq '.[0].number // ""')"
           if [ -n "$issue_number" ]; then
-            gh issue comment "$issue_number" --body "Upstream sync is healthy again in run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}."
-            gh issue close "$issue_number" --reason completed
+            gh issue comment "$issue_number" --repo "$GITHUB_REPOSITORY" --body "Upstream sync is healthy again in run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}."
+            gh issue close "$issue_number" --repo "$GITHUB_REPOSITORY" --reason completed
           fi
 
       - name: Create failure issue
@@ -72,25 +100,27 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ISSUE_TITLE: Sync desktop upstream failed
         run: |
-          issue_number="$(gh issue list --state open --search "$ISSUE_TITLE in:title" --json number --jq '.[0].number // ""' 2>/dev/null || true)"
+          issue_number="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "$ISSUE_TITLE in:title" --json number --jq '.[0].number // ""' 2>/dev/null || true)"
           if [ -n "$issue_number" ]; then
-            gh issue comment "$issue_number" --body "Upstream sync failed again: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            gh issue comment "$issue_number" --repo "$GITHUB_REPOSITORY" --body "Upstream sync failed again: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             exit 0
           fi
 
           gh issue create \
+            --repo "$GITHUB_REPOSITORY" \
             --title "$ISSUE_TITLE" \
             --body "Automatic sync from Kolovatoff/lampa-desktop:main failed.
 
           Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-          This usually means the upstream merge has conflicts or the push failed. Please inspect the workflow logs and resolve manually in D:\opt\lampaua-desktop.
+          Inspect the policy report artifact and workflow summary for unresolved files. Rules only preserve fork-owned metadata and verified formatting changes; behavior-changing conflicts and dependency changes need manual review.
 
           Suggested manual check:
 
           \`\`\`bash
           git fetch upstream main
-          git merge upstream/main
+          node scripts/sync-upstream.cjs
           corepack yarn lint
+          git commit --no-edit
           git push origin main
           \`\`\`" || echo "::warning::Could not create GitHub issue. The sync failure above is still the root cause."

@@ -49,6 +49,41 @@ For base desktop changes, inspect the upstream diff and preserve our branding,
 fixed HTTPS/HTTP addresses, UA Player handoff, donation, release metadata and
 MPV feature gates. A successful upstream merge alone does not test playback.
 
+### Bounded Automatic Upstream Sync
+
+Daily sync uses scripts/sync-upstream.cjs and build/upstream-sync-policy.json.
+The script starts only with a clean tracked worktree/index and refuses incoming
+paths that would collide with untracked files. It does not commit or push.
+
+- README.md and CHANGELOG.md belong to LampaUa, not the donor release channel.
+- scripts/generate-icons.js remains deliberately retired; donor edits do not
+  recreate it or replace our icons.
+- A donor package.json change is automatic only when its parsed content differs
+  solely by the donor version. Our complete package and version remain intact.
+  Dependency, build or other package changes require manual review.
+- Conflicts in src/plugin.js and src/modules/torrServerManager.js can preserve
+  our file only when the incoming JavaScript syntax tree matches the merge base.
+  Comments must match too, except the explicitly listed no-unused-vars hint;
+  our comments/lint fixes are retained, not replaced by the hint. Tagged-template
+  raw strings, regular-expression flags, directives and ASI behavior are checked.
+- Behavior-changing conflicts and unknown conflicts stop the job. There is no global
+  prefer-ours strategy that could silently discard a donor fix.
+- Incoming license, runtime-pin, release-workflow or sync-rule changes require
+  manual review even when Git could merge them without a text conflict.
+
+The workflow installs locked dependencies, applies the policy, runs desktop/MPV
+contracts and lint, and only then commits and pushes the merge without force.
+No tag or release is created. A JSON diagnostic report is retained as an Actions
+artifact and the job summary lists preserved/unresolved files. All gh issue
+commands explicitly select GITHUB_REPOSITORY: without --repo, gh may infer the
+upstream donor and its token cannot post there.
+
+Run node scripts/verify-upstream-sync.cjs when changing these rules. Its isolated
+Git fixtures test formatting-only merges, behavior/comment/template changes,
+dependency changes, unknown conflicts and preservation of staged, unstaged and
+untracked user files. Manual sync still requires review, contracts and lint
+before git commit --no-edit and git push origin main.
+
 For Electron, update its manifest and the builder's verified executable/Vulkan
 input hashes, hash the archive and ffmpeg.dll, recompile the
 native addon and repeat browser/native codec tests. Do not swap only ffmpeg.dll.
