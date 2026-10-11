@@ -15,8 +15,11 @@ concurrency:
 
 jobs:
   sync:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout fork
@@ -61,6 +64,14 @@ jobs:
           node scripts/verify-upstream-sync.cjs
           node scripts/verify-windows-updates.cjs
           corepack yarn lint
+
+      - name: Verify pinned libmpv input contract
+        shell: pwsh
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-libmpv-input-contract.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'libmpv input contract failed' }
+          node scripts/verify-libmpv-source-delivery.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'libmpv source delivery contract failed' }
 
       - name: Commit validated merge
         run: |

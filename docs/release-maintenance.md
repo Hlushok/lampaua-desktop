@@ -73,6 +73,8 @@ paths that would collide with untracked files. It does not commit or push.
 
 The workflow installs locked dependencies, applies the policy, runs desktop/MPV
 contracts and lint, and only then commits and pushes the merge without force.
+It runs on Windows because UA Player discovery fixtures exercise Windows paths;
+the pinned libmpv input/source-delivery contracts also run before any commit.
 No tag or release is created. A JSON diagnostic report is retained as an Actions
 artifact and the job summary lists preserved/unresolved files. All gh issue
 commands explicitly select GITHUB_REPOSITORY: without --repo, gh may infer the

@@ -147,12 +147,22 @@ try {
   const steps = workflow.jobs.sync.steps;
   const stepIndex = (name) => steps.findIndex((step) => step.name === name);
   assert.equal(workflow.concurrency["cancel-in-progress"], false);
+  assert.equal(workflow.jobs.sync["runs-on"], "windows-latest");
+  assert.equal(workflow.jobs.sync.defaults.run.shell, "bash");
+  assert.equal(
+    steps[stepIndex("Verify pinned libmpv input contract")].shell,
+    "pwsh",
+  );
   assert.ok(
     stepIndex("Install fork dependencies for sync rules") <
       stepIndex("Merge upstream with bounded fork rules"),
   );
   assert.ok(
     stepIndex("Validate merged fork before pushing") <
+      stepIndex("Commit validated merge"),
+  );
+  assert.ok(
+    stepIndex("Verify pinned libmpv input contract") <
       stepIndex("Commit validated merge"),
   );
   assert.ok(
