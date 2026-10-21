@@ -658,9 +658,9 @@ export class MpvVideoElement extends HTMLElement {
   }
 
   private handlePlayerEvent(event: PlayerEvent) {
-    if (event.type === 'render-error' || event.type === 'event-error') {
+    if (event.type === 'render-error' || event.type === 'event-error' || event.type === 'command-error') {
       this.status = event.type;
-      this.emitError(event.data);
+      this.emitError(event.error ?? event.data);
       this.dispatchState();
       return;
     }

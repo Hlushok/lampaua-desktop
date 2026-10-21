@@ -82,6 +82,11 @@ app.on("will-quit", async (event) => {
 
   console.log("🔄 Завершение работы приложения...");
 
+  const mpvExitDeadline = isMpvEnabled()
+    ? setTimeout(() => app.exit(0), 6000)
+    : null;
+  mpvExitDeadline?.unref();
+
   try {
     if (isMpvEnabled()) await require("./modules/mpv/manager").disposeMpv();
     console.log("🛑 Остановка TorrServer...");
@@ -115,6 +120,7 @@ app.on("will-quit", async (event) => {
   }
 
   console.log("👋 Завершение приложения");
+  if (mpvExitDeadline) clearTimeout(mpvExitDeadline);
   app.exit();
 });
 

@@ -50,10 +50,10 @@ type NativePlayer = {
   setSubtitleTrack(id: number | 'no'): void
   setUpdateCallback(callback?: () => void): void
   setEventCallback(callback?: () => void): void
-  renderFrame(width: number, height: number): NativeFrame
+  renderFrame(width: number, height: number): Promise<NativeFrame>
   renderSharedTexture(width: number, height: number): Electron.SharedTextureImportTextureInfo
   pollEvents(): NativeEvent[]
-  destroy(): void
+  destroy(): Promise<void>
 }
 
 type NativeModule = {
@@ -334,13 +334,13 @@ class PlayerSession {
       }
       this.startCallbacks()
     } catch (error) {
-      replacement?.destroy()
+      await replacement?.destroy()
       this.player = previousPlayer
       this.pipeline = previousPipeline
       if (!this.destroyed) this.startCallbacks()
       throw error
     }
-    previousPlayer.destroy()
+    await previousPlayer.destroy()
   }
 
   run(operation: () => unknown) {
@@ -359,7 +359,7 @@ class PlayerSession {
     this.stopCallbacks()
     this.destroyPromise = this.operations.then(async () => {
       await this.waitForFramePump()
-      this.player.destroy()
+      await this.player.destroy()
       this.diagnostic('destroy-complete', {playerId: this.id})
     }).finally(() => this.onDestroyed(this.id))
     return this.destroyPromise
@@ -406,7 +406,7 @@ class PlayerSession {
   private sendEvent(event: NativeEvent) {
     if (this.destroyed) return
     this.trackEvent(event)
-    if (['file-loaded', 'end-file'].includes(event.type)) {
+    if (['file-loaded', 'end-file', 'command-error'].includes(event.type)) {
       this.diagnostic(event.type, {playerId: this.id, error: event.error})
     }
     if (this.window.isDestroyed()) return
@@ -466,7 +466,8 @@ class PlayerSession {
         throw error
       }
     } else {
-      const frame = this.player.renderFrame(this.renderSize.width, this.renderSize.height)
+      const frame = await this.player.renderFrame(this.renderSize.width, this.renderSize.height)
+      if (this.destroyed || this.window.isDestroyed()) return
       const rgba = frame.rgba.buffer.slice(
         frame.rgba.byteOffset,
         frame.rgba.byteOffset + frame.rgba.byteLength,

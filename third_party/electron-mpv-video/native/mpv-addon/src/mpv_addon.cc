@@ -23,6 +23,9 @@
 #include <atomic>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
+#include <functional>
+#include <memory>
 #include <mutex>
 #include <sstream>
 #include <string>
@@ -179,7 +182,8 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
     set_option("keep-open", "yes");
     const char* hwdec = std::getenv("MPV_HWDEC");
 #ifdef _WIN32
-    set_option("hwdec", hwdec && hwdec[0] ? hwdec : "no");
+    // The software render API needs CPU-visible frames, not zero-copy GPU frames.
+    set_option("hwdec", hwdec && hwdec[0] ? hwdec : "auto-copy");
 #else
     set_option("hwdec", hwdec && hwdec[0] ? hwdec : "auto-safe");
 #endif
@@ -205,6 +209,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
     observe("width", MPV_FORMAT_INT64);
     observe("height", MPV_FORMAT_INT64);
     observe("video-codec", MPV_FORMAT_STRING);
+    observe("hwdec-current", MPV_FORMAT_STRING);
     observe("container-fps", MPV_FORMAT_DOUBLE);
     observe("audio-codec", MPV_FORMAT_STRING);
     observe("current-ao", MPV_FORMAT_STRING);
@@ -286,6 +291,138 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
   }
 
  private:
+  class FrameWorker : public Napi::AsyncWorker {
+   public:
+    FrameWorker(MpvPlayer* owner, int width, int height)
+        : Napi::AsyncWorker(owner->Env()), owner_(owner),
+          deferred_(Napi::Promise::Deferred::New(owner->Env())),
+          width_(width), height_(height),
+          rgba_(static_cast<size_t>(width) * height * 4) {
+      owner_->Ref();
+    }
+
+    Napi::Promise promise() const { return deferred_.Promise(); }
+
+    void Execute() override {
+      int size[2] = {width_, height_};
+      int stride = width_ * 4;
+      int block_for_target_time = 0;
+      char format[] = "rgba";
+      mpv_render_param params[] = {
+        {MPV_RENDER_PARAM_SW_SIZE, size},
+        {MPV_RENDER_PARAM_SW_FORMAT, format},
+        {MPV_RENDER_PARAM_SW_STRIDE, &stride},
+        {MPV_RENDER_PARAM_SW_POINTER, rgba_.data()},
+        {MPV_RENDER_PARAM_BLOCK_FOR_TARGET_TIME, &block_for_target_time},
+        {MPV_RENDER_PARAM_INVALID, nullptr},
+      };
+      mpv_render_context_update(owner_->render_context_);
+      int ret = mpv_render_context_render(owner_->render_context_, params);
+      if (ret < 0) SetError("mpv_render_context_render failed: " + mpv_error_text(ret));
+    }
+
+    void OnOK() override {
+      auto frame = Napi::Object::New(Env());
+      frame.Set("width", width_);
+      frame.Set("height", height_);
+      frame.Set("rgba", Napi::Buffer<uint8_t>::Copy(Env(), rgba_.data(), rgba_.size()));
+      deferred_.Resolve(frame);
+      finish();
+    }
+
+    void OnError(const Napi::Error& error) override {
+      deferred_.Reject(error.Value());
+      finish();
+    }
+
+   private:
+    void finish() {
+      owner_->frame_active_ = false;
+      if (owner_->cleanup_requested_) owner_->cleanup(true);
+      owner_->Unref();
+    }
+    MpvPlayer* owner_;
+    Napi::Promise::Deferred deferred_;
+    int width_;
+    int height_;
+    std::vector<uint8_t> rgba_;
+  };
+
+  class CleanupWorker : public Napi::AsyncWorker {
+   public:
+    CleanupWorker(MpvPlayer* owner, mpv_render_context* context, mpv_handle* handle)
+        : Napi::AsyncWorker(owner->Env()), owner_(owner), context_(context), handle_(handle) {}
+
+    void Execute() override {
+      if (context_) mpv_render_context_free(context_);
+      if (handle_) mpv_terminate_destroy(handle_);
+    }
+
+    void OnOK() override {
+      owner_->cleanup_deferred_->Resolve(Env().Undefined());
+      owner_->Unref();
+    }
+
+    void OnError(const Napi::Error& error) override {
+      owner_->cleanup_deferred_->Reject(error.Value());
+      owner_->Unref();
+    }
+
+   private:
+    MpvPlayer* owner_;
+    mpv_render_context* context_;
+    mpv_handle* handle_;
+  };
+
+  struct PendingCommand {
+    uint64_t id;
+    std::string action;
+    std::function<int(uint64_t)> submit;
+  };
+
+  void fail_commands(const std::string& action, int error) {
+    command_errors_.push_back({action, error});
+    // Do not load a source after its headers/options failed to apply.
+    commands_.clear();
+    command_active_ = false;
+  }
+
+  // Keep one request in flight: libmpv does not guarantee async request order.
+  int enqueue(const char* action, std::function<int(uint64_t)> submit) {
+    if (!handle_ || !alive_ || cleanup_requested_) return MPV_ERROR_UNINITIALIZED;
+    if (commands_.size() >= 128) return MPV_ERROR_EVENT_QUEUE_FULL;
+    commands_.push_back({next_command_id_++, action, std::move(submit)});
+    return command_active_ ? 0 : start_next_command(false);
+  }
+
+  int start_next_command(bool defer_errors) {
+    while (!commands_.empty()) {
+      int ret = commands_.front().submit(commands_.front().id);
+      if (ret >= 0) {
+        command_active_ = true;
+        return 0;
+      }
+      if (defer_errors) fail_commands(commands_.front().action, ret);
+      else commands_.clear();
+      return ret;
+    }
+    return 0;
+  }
+
+  template <typename T>
+  int property(const char* key, mpv_format format, T value) {
+    return enqueue(key, [this, name = std::string(key), format, value](uint64_t id) mutable {
+      return mpv_set_property_async(handle_, id, name.c_str(), format, &value);
+    });
+  }
+
+  int property_string(const char* key, const std::string& value) {
+    return enqueue(key, [this, name = std::string(key), value](uint64_t id) {
+      const char* content = value.c_str();
+      return mpv_set_property_async(handle_, id, name.c_str(), MPV_FORMAT_STRING, &content);
+    });
+  }
+
   void set_option(const char* key, const char* value) {
     if (handle_ && !Env().IsExceptionPending()) {
       int ret = mpv_set_option_string(handle_, key, value);
@@ -314,13 +451,12 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
   }
 
   int command(const std::vector<std::string>& args) {
-    std::vector<const char*> c_args;
-    c_args.reserve(args.size() + 1);
-    for (const std::string& arg : args) {
-      c_args.push_back(arg.c_str());
-    }
-    c_args.push_back(nullptr);
-    return mpv_command(handle_, c_args.data());
+    return enqueue(args.front().c_str(), [this, args](uint64_t id) {
+      std::vector<const char*> c_args;
+      for (const auto& arg : args) c_args.push_back(arg.c_str());
+      c_args.push_back(nullptr);
+      return mpv_command_async(handle_, id, c_args.data());
+    });
   }
 
   static void call_js_no_args(Napi::Env env, Napi::Function callback) {
@@ -390,16 +526,18 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
         headers.push_back(std::move(header));
       }
     }
-    std::vector<mpv_node> fields(headers.size());
-    for (size_t i = 0; i < headers.size(); i++) {
-      fields[i].format = MPV_FORMAT_STRING;
-      fields[i].u.string = const_cast<char*>(headers[i].c_str());
-    }
-    mpv_node_list list{static_cast<int>(fields.size()), fields.data(), nullptr};
-    mpv_node node{};
-    node.format = MPV_FORMAT_NODE_ARRAY;
-    node.u.list = &list;
-    int header_ret = mpv_set_property(handle_, "http-header-fields", MPV_FORMAT_NODE, &node);
+    int header_ret = enqueue("http-header-fields", [this, headers](uint64_t id) {
+      std::vector<mpv_node> fields(headers.size());
+      for (size_t i = 0; i < headers.size(); i++) {
+        fields[i].format = MPV_FORMAT_STRING;
+        fields[i].u.string = const_cast<char*>(headers[i].c_str());
+      }
+      mpv_node_list list{static_cast<int>(fields.size()), fields.data(), nullptr};
+      mpv_node node{};
+      node.format = MPV_FORMAT_NODE_ARRAY;
+      node.u.list = &list;
+      return mpv_set_property_async(handle_, id, "http-header-fields", MPV_FORMAT_NODE, &node);
+    });
     if (header_ret < 0) {
       throw_mpv_error(env, "http-header-fields", header_ret);
       return env.Undefined();
@@ -414,7 +552,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
         // The Ytdl proxy rejects open-ended track requests. Let curl advance
         // through bounded ranges instead of requesting the complete remainder.
         {"curl-max-request-size", format == "dash" ? "1048576" : "0"}}) {
-      int ret = mpv_set_property_string(handle_, option.first, option.second);
+      int ret = property_string(option.first, option.second);
       if (ret < 0) {
         throw_mpv_error(env, option.first, ret);
         return env.Undefined();
@@ -428,7 +566,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
   Napi::Value Play(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     int flag = 0;
-    int ret = mpv_set_property(handle_, "pause", MPV_FORMAT_FLAG, &flag);
+    int ret = property("pause", MPV_FORMAT_FLAG, flag);
     if (ret < 0) throw_mpv_error(env, "play", ret);
     return env.Undefined();
   }
@@ -436,7 +574,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
   Napi::Value Pause(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     int flag = 1;
-    int ret = mpv_set_property(handle_, "pause", MPV_FORMAT_FLAG, &flag);
+    int ret = property("pause", MPV_FORMAT_FLAG, flag);
     if (ret < 0) throw_mpv_error(env, "pause", ret);
     return env.Undefined();
   }
@@ -467,14 +605,14 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
       return env.Undefined();
     }
     double volume = std::clamp(info[0].As<Napi::Number>().DoubleValue(), 0.0, 100.0);
-    int ret = mpv_set_property(handle_, "volume", MPV_FORMAT_DOUBLE, &volume);
+    int ret = property("volume", MPV_FORMAT_DOUBLE, volume);
     if (ret < 0) throw_mpv_error(env, "setVolume", ret);
     return env.Undefined();
   }
 
   Napi::Value SetSpeed(const Napi::CallbackInfo& info) {
     double value = info[0].As<Napi::Number>().DoubleValue();
-    int ret = mpv_set_property(handle_, "speed", MPV_FORMAT_DOUBLE, &value);
+    int ret = property("speed", MPV_FORMAT_DOUBLE, value);
     if (ret < 0) throw_mpv_error(info.Env(), "speed", ret);
     return info.Env().Undefined();
   }
@@ -483,7 +621,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
     std::string value = info[0].IsNumber()
         ? std::to_string(info[0].As<Napi::Number>().Int64Value())
         : info[0].As<Napi::String>().Utf8Value();
-    int ret = mpv_set_property_string(handle_, key, value.c_str());
+    int ret = property_string(key, value);
     if (ret < 0) throw_mpv_error(info.Env(), key, ret);
     return info.Env().Undefined();
   }
@@ -568,34 +706,16 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
     width = std::min(width, 1920);
     height = std::min(height, 1080);
 
-    std::vector<uint8_t> rgba(static_cast<size_t>(width) * static_cast<size_t>(height) * 4);
-    int size[2] = {width, height};
-    int stride = width * 4;
-    // Rendering runs on Electron's main thread; never wait here for presentation.
-    int block_for_target_time = 0;
-    char format[] = "rgba";
-
-    mpv_render_param params[] = {
-      {MPV_RENDER_PARAM_SW_SIZE, size},
-      {MPV_RENDER_PARAM_SW_FORMAT, format},
-      {MPV_RENDER_PARAM_SW_STRIDE, &stride},
-      {MPV_RENDER_PARAM_SW_POINTER, rgba.data()},
-      {MPV_RENDER_PARAM_BLOCK_FOR_TARGET_TIME, &block_for_target_time},
-      {MPV_RENDER_PARAM_INVALID, nullptr},
-    };
-
-    mpv_render_context_update(render_context_);
-    int ret = mpv_render_context_render(render_context_, params);
-    if (ret < 0) {
-      throw_mpv_error(env, "mpv_render_context_render", ret);
-      return env.Null();
+    if (frame_active_ || cleanup_requested_) {
+      Napi::Error::New(env, "A frame is already rendering or the player is closing").ThrowAsJavaScriptException();
+      return env.Undefined();
     }
-
-    Napi::Object frame = Napi::Object::New(env);
-    frame.Set("width", width);
-    frame.Set("height", height);
-    frame.Set("rgba", Napi::Buffer<uint8_t>::Copy(env, rgba.data(), rgba.size()));
-    return frame;
+    // HDR conversion can be expensive; it must not own Electron's UI thread.
+    frame_active_ = true;
+    auto* work = new FrameWorker(this, width, height);
+    auto promise = work->promise();
+    work->Queue();
+    return promise;
   }
 
   Napi::Value RenderSharedTexture(const Napi::CallbackInfo& info) {
@@ -788,6 +908,17 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
     while (handle_) {
       mpv_event* event = mpv_wait_event(handle_, 0);
       if (!event || event->event_id == MPV_EVENT_NONE) break;
+      if ((event->event_id == MPV_EVENT_COMMAND_REPLY || event->event_id == MPV_EVENT_SET_PROPERTY_REPLY) &&
+          command_active_ && !commands_.empty() && event->reply_userdata == commands_.front().id) {
+        if (event->error < 0) {
+          fail_commands(commands_.front().action, event->error);
+          continue;
+        }
+        commands_.pop_front();
+        command_active_ = false;
+        start_next_command(true);
+        continue;
+      }
       if (event->event_id == MPV_EVENT_FILE_LOADED) http_error_ = 0;
       if (event->event_id == MPV_EVENT_LOG_MESSAGE && event->data) {
         auto* log = static_cast<mpv_event_log_message*>(event->data);
@@ -855,16 +986,37 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
     if (http_error_) {
       for (auto& item : failed_end_events) item.Set("error", "HTTP " + std::to_string(http_error_));
     }
+    while (!command_errors_.empty()) {
+      auto item = Napi::Object::New(env);
+      item.Set("type", "command-error");
+      item.Set("name", command_errors_.front().first);
+      item.Set("error", mpv_error_text(command_errors_.front().second));
+      events.Set(index++, item);
+      command_errors_.pop_front();
+    }
 
     return events;
   }
 
   Napi::Value Destroy(const Napi::CallbackInfo& info) {
-    cleanup();
-    return info.Env().Undefined();
+    if (!cleanup_deferred_) {
+      cleanup_deferred_ = std::make_unique<Napi::Promise::Deferred>(Napi::Promise::Deferred::New(info.Env()));
+      cleanup_promise_ = Napi::Persistent(cleanup_deferred_->Promise());
+      Ref();
+      cleanup_requested_ = true;
+      cleanup(true);
+    }
+    return cleanup_promise_.Value();
   }
 
-  void cleanup() {
+  void cleanup(bool asynchronous = false) {
+    if (frame_active_) {
+      cleanup_requested_ = true;
+      return;
+    }
+    commands_.clear();
+    command_errors_.clear();
+    command_active_ = false;
     alive_ = false;
     if (handle_) {
       set_mpv_wakeup_callback(handle_, nullptr, nullptr);
@@ -884,11 +1036,20 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
         event_callback_ = nullptr;
       }
     }
-    if (render_context_) {
+    mpv_render_context* worker_context = nullptr;
+    mpv_handle* worker_handle = nullptr;
+    if (asynchronous && mode_ != "shared-texture") {
+      worker_context = render_context_;
+      render_context_ = nullptr;
+    } else if (render_context_) {
+      // OpenGL context operations must stay on the owning thread.
       mpv_render_context_free(render_context_);
       render_context_ = nullptr;
     }
-    if (handle_) {
+    if (asynchronous) {
+      worker_handle = handle_;
+      handle_ = nullptr;
+    } else if (handle_) {
       mpv_terminate_destroy(handle_);
       handle_ = nullptr;
     }
@@ -927,6 +1088,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
       win_hwnd_ = nullptr;
     }
 #endif
+    if (asynchronous) (new CleanupWorker(this, worker_context, worker_handle))->Queue();
   }
 
 #ifdef __APPLE__
@@ -1308,6 +1470,14 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
   mpv_handle* handle_ = nullptr;
   int http_error_ = 0;
   mpv_render_context* render_context_ = nullptr;
+  bool frame_active_ = false;
+  bool cleanup_requested_ = false;
+  std::unique_ptr<Napi::Promise::Deferred> cleanup_deferred_;
+  Napi::Reference<Napi::Promise> cleanup_promise_;
+  std::deque<PendingCommand> commands_;
+  std::deque<std::pair<std::string, int>> command_errors_;
+  bool command_active_ = false;
+  uint64_t next_command_id_ = 1;
   std::atomic<bool> alive_ = true;
   std::mutex callback_mutex_;
   Napi::ThreadSafeFunction update_callback_;

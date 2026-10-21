@@ -183,7 +183,7 @@ async function main() {
     ...original,
     name: release ? original.name : "lampaua-desktop-mpv-test",
     productName: release ? original.productName : "LampaUa Desktop MPV Test",
-    version: release ? original.version : "1.5.24-mpv.6",
+    version: release ? original.version : `${original.version}-mpv-test.1`,
     main: release ? original.main : "src/mpv-test-main.js",
     lampauaMpvTest: !release,
     lampauaMpv: true,
@@ -240,6 +240,11 @@ async function main() {
   run(process.execPath, [
     path.join(root, "scripts/verify-mpv-staging.js"),
     ...(release ? ["--release"] : []),
+  ]);
+  run(process.execPath, [
+    path.join(root, "scripts/verify-mpv-native-lifecycle.cjs"),
+    path.join(electronDirectory, "electron.exe"),
+    path.join(runtime, "native/mpv_addon.node"),
   ]);
   if (process.argv.includes("--stage-only")) return;
   const { build, Platform, Arch } = require("electron-builder");

@@ -14,7 +14,9 @@ const release = process.argv.includes("--release");
 assert.equal(pkg.main, release ? "src/main.js" : "src/mpv-test-main.js");
 assert.equal(
   pkg.version,
-  release ? require("../package.json").version : "1.5.24-mpv.6",
+  release
+    ? require("../package.json").version
+    : `${require("../package.json").version}-mpv-test.1`,
 );
 assert.equal(pkg.lampauaMpvTest, !release);
 assert.equal(pkg.lampauaMpv, true);

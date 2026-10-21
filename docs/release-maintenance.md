@@ -115,6 +115,22 @@ the accepted DLL/build commit. Rebuild and retest the full app after changing pi
 
 ## Verification And Publication Gates
 
+### Playback Responsiveness
+
+Keep software mpv rendering off Electron's main thread. The native frame API
+returns a promise, the main service awaits one frame per player, and teardown
+must not free the render context while a worker is using it. Keep runtime
+controls asynchronous and reply-ordered; libmpv does not guarantee async order.
+Failed source preparation must cancel pending load commands. Await asynchronous
+native destruction; software context/core teardown must not block the main loop.
+Keep OpenGL context cleanup on its owning thread if changing the optional path.
+Preserve auto-copy/software fallback and error delivery when updating the vendor.
+Run verify-mpv-ipc-contract.js, verify-mpv-renderer-contract.js and
+verify-mpv-test-isolation.js, then the full app QA and its --controls-only mode
+with the --4k-only stream fixture. Window-close and process-exit bounds are
+separate checks. See diagnostics/2026-10-21-playback-freeze.md for evidence and
+remaining real-source acceptance requirements.
+
 Before publishing:
 
 1. node syntax checks, all MPV/external-player contracts, yarn lint and clean

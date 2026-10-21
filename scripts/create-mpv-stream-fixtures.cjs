@@ -4,6 +4,53 @@ const { execFileSync } = require("node:child_process");
 const folder = path.resolve(__dirname, "../.cache/mpv-prototype/fixtures");
 const output = path.join(folder, "streams");
 fs.mkdirSync(output, { recursive: true });
+if (process.argv.includes("--4k-only")) {
+  execFileSync(
+    "ffmpeg",
+    [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "testsrc2=size=3840x2160:rate=24",
+      "-f",
+      "lavfi",
+      "-i",
+      "sine=frequency=440:sample_rate=48000",
+      "-t",
+      "12",
+      "-c:v",
+      "libx265",
+      "-preset",
+      "ultrafast",
+      "-pix_fmt",
+      "yuv420p10le",
+      "-crf",
+      "30",
+      "-x265-params",
+      "pools=4:frame-threads=2:log-level=error:hdr10=1:repeat-headers=1",
+      "-color_primaries",
+      "bt2020",
+      "-color_trc",
+      "smpte2084",
+      "-colorspace",
+      "bt2020nc",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "96k",
+      "-movflags",
+      "+faststart",
+      path.join(folder, "hevc-4k-hdr.mp4"),
+    ],
+    { stdio: "inherit", windowsHide: true },
+  );
+  console.log("Synthetic 4K HDR control fixture created", folder);
+  process.exit(0);
+}
 const input = path.join(folder, "h264-aac.mp4");
 const run = (args) =>
   execFileSync(

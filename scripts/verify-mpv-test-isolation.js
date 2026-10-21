@@ -3,6 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 const { createRequire } = require("node:module");
+const { EventEmitter } = require("node:events");
 const root = path.resolve(__dirname, "..");
 function load(file, requires, extra = {}) {
   const module = { exports: {} };
@@ -132,6 +133,112 @@ async function main() {
   data.set("player_torrent", "other");
   await initializer.initializeBasicSettings(win);
   assert.equal(data.get("player_torrent"), "other");
+
+  const closeTimers = [];
+  const timeout = (fn, ms) => {
+    const timer = { fn, ms, unref() {} };
+    closeTimers.push(timer);
+    return timer;
+  };
+  class Window extends EventEmitter {
+    constructor() {
+      super();
+      this.dead = false;
+      this.webContents = new EventEmitter();
+      this.webContents.setWindowOpenHandler = () => {};
+    }
+    setMenu() {}
+    isDestroyed() {
+      return this.dead;
+    }
+    isFullScreen() {
+      return false;
+    }
+    isMaximized() {
+      return false;
+    }
+    getBounds() {
+      return { x: 0, y: 0, width: 1200, height: 800 };
+    }
+    destroy() {
+      this.dead = true;
+      this.emit("closed");
+    }
+    loadURL() {
+      return Promise.resolve();
+    }
+  }
+  const manager = load(
+    "src/modules/windowManager.js",
+    {
+      electron: {
+        BrowserWindow: Window,
+        screen: {
+          getAllDisplays: () => [
+            { id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 } },
+          ],
+          getDisplayMatching: () => ({ id: 1 }),
+        },
+      },
+      "./storeManager": { get: (_, fallback) => fallback, set() {} },
+      "./pluginHandler": { setupPluginHandler() {} },
+      "./mpv/testMode": { isMpvEnabled: () => true },
+      "./mpv/manager": {
+        attachMpvWindow: async () => {},
+        detachMpvWindow: () => new Promise(() => {}),
+      },
+    },
+    {
+      __dirname: path.join(root, "src/modules"),
+      setTimeout: timeout,
+      clearTimeout() {},
+    },
+  );
+  const closingWindow = manager.createWindow();
+  let prevented = false;
+  closingWindow.emit("close", {
+    preventDefault() {
+      prevented = true;
+    },
+  });
+  assert.equal(prevented, true);
+  assert.equal(closeTimers[0].ms, 3000);
+  closeTimers[0].fn();
+  assert.equal(
+    closingWindow.isDestroyed(),
+    true,
+    "Slow frame kept the window open",
+  );
+
+  const lifecycle = new Map();
+  const exited = [];
+  closeTimers.length = 0;
+  load(
+    "src/main.js",
+    {
+      electron: {
+        app: {
+          on: (name, fn) => lifecycle.set(name, fn),
+          whenReady: () => ({ then() {} }),
+          exit: (code) => exited.push(code),
+        },
+      },
+      "./modules/appLifecycle": { setupAppLifecycle() {}, gotTheLock: true },
+      "./modules/windowManager": { createWindow() {} },
+      "./modules/autoUpdater": { setupAutoUpdater() {} },
+      "./modules/ipcHandlers": { registerIpcHandlers() {} },
+      "./modules/torrServerManager": {},
+      "./modules/autoStartManager": {},
+      "./modules/playerOptionsInterceptor": {},
+      "./modules/mpv/testMode": { isMpvEnabled: () => true },
+      "./modules/mpv/manager": { disposeMpv: () => new Promise(() => {}) },
+    },
+    { setTimeout: timeout, clearTimeout() {} },
+  );
+  void lifecycle.get("will-quit")({ preventDefault() {} });
+  assert.equal(closeTimers[0].ms, 6000);
+  closeTimers[0].fn();
+  assert.deepEqual(exited, [0], "Slow native teardown prevented app exit");
   console.log("MPV test isolation contract verified");
 }
 main().catch((error) => {

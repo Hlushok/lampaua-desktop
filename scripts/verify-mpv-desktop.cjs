@@ -37,6 +37,7 @@ let server;
 let killed = false;
 let appExited = false;
 let exitCode;
+let rendererClosedAt = 0;
 let deadline;
 const results = [];
 function profileSnapshot() {
@@ -247,9 +248,10 @@ async function main() {
     ],
     { windowsHide: true, env, stdio: ["ignore", "pipe", "pipe"] },
   );
-  child.stdout.pipe(log);
-  child.stderr.pipe(log);
+  child.stdout.pipe(log, { end: false });
+  child.stderr.pipe(log, { end: false });
   child.on("exit", (code) => {
+    log.write(`PROCESS EXIT ${Date.now()} code=${code}\n`);
     appExited = true;
     exitCode = code;
   });
@@ -274,6 +276,10 @@ async function main() {
   }
   assert.ok(target, "Desktop debugging target not found");
   ws = new WebSocket(target.webSocketDebuggerUrl);
+  ws.addEventListener("close", () => {
+    rendererClosedAt = Date.now();
+    log.write(`RENDERER CLOSED ${rendererClosedAt}\n`);
+  });
   await new Promise((resolve, reject) => {
     ws.addEventListener("open", resolve, { once: true });
     ws.addEventListener("error", reject, { once: true });
@@ -324,6 +330,37 @@ async function main() {
     if (result.exceptionDetails)
       throw new Error(JSON.stringify(result.exceptionDetails));
     return result.result.value;
+  }
+  async function closeApplication() {
+    const start = Date.now();
+    rendererClosedAt = 0;
+    log.write(`CLOSE REQUESTED ${start}\n`);
+    await evaluate("electronAPI.closeApp()");
+    let deadline;
+    try {
+      await Promise.race([
+        exit,
+        new Promise((_, reject) => {
+          deadline = setTimeout(
+            () =>
+              reject(new Error("App process did not exit within 20 seconds")),
+            20000,
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(deadline);
+    }
+    const metrics = {
+      rendererCloseMs: rendererClosedAt - start,
+      closeMs: Date.now() - start,
+    };
+    assert.equal(exitCode, 0);
+    assert.ok(
+      metrics.rendererCloseMs >= 0 && metrics.rendererCloseMs < 5000,
+      `Window close took ${metrics.rendererCloseMs} ms`,
+    );
+    return metrics;
   }
   async function wait(expression, label, timeout = 20_000) {
     const until = Date.now() + timeout;
@@ -443,14 +480,8 @@ async function main() {
       { iptv: true },
     );
     await screenshot("iptv-proxy-hls");
-    await evaluate("Lampa.Player.close();electronAPI.closeApp()");
-    await Promise.race([
-      exit,
-      sleep(12000).then(() => {
-        throw new Error("App did not close after proxy HLS");
-      }),
-    ]);
-    assert.equal(exitCode, 0);
+    await evaluate("Lampa.Player.close()");
+    results.push({ shutdown: await closeApplication() });
     assert.deepEqual(
       profileSnapshot(),
       productionBefore,
@@ -467,19 +498,63 @@ async function main() {
     await checkNetworkCancellation("stalled.mp4");
     await checkNetworkCancellation("stalled.m3u8", "stalled.ts");
     await checkNetworkCancellation("postload-stall.mp4", undefined, true);
-    await evaluate("electronAPI.closeApp()");
-    await Promise.race([
-      exit,
-      sleep(12_000).then(() => {
-        throw new Error("App did not close after network test");
-      }),
-    ]);
-    assert.equal(exitCode, 0);
+    results.push({ shutdown: await closeApplication() });
     fs.writeFileSync(
       path.join(output, "results.json"),
       JSON.stringify({ exe, runId, ok: true, results }, null, 2),
     );
     console.log("Network cancellation passed", output);
+    return;
+  }
+  if (process.argv.includes("--controls-only")) {
+    assert.ok(
+      files.has("hevc-4k-hdr.mp4"),
+      "Run node scripts/create-mpv-stream-fixtures.cjs --4k-only first",
+    );
+    await play("hevc-4k-hdr.mp4");
+    assert.equal(await evaluate("__native.width"), 3840);
+    assert.equal(await evaluate("__native.height"), 2160);
+    const latencies = [];
+    const controlsResult = {
+      fourKControls: true,
+      width: 3840,
+      height: 2160,
+      samples: latencies,
+    };
+    results.push(controlsResult);
+    for (let i = 0; i < 24; i++) {
+      const start = Date.now();
+      await evaluate(`(async()=>{
+        const video=Lampa.PlayerVideo.video();
+        await video.pause();
+        video.currentTime=${2 + (i % 7)};
+        await video.play();
+        await electronAPI.getAppVersion();
+      })()`);
+      const elapsed = Date.now() - start;
+      latencies.push(elapsed);
+      assert.ok(elapsed < 2000, `4K controls blocked main for ${elapsed} ms`);
+      await sleep(100);
+    }
+    await wait(
+      "Lampa.PlayerVideo.video()?.currentTime>8.2",
+      "4K seek and resume",
+      30000,
+    );
+    await screenshot("4k-controls");
+    controlsResult.maxControlMs = Math.max(...latencies);
+    controlsResult.hwdec = await evaluate("__native['hwdec-current']");
+    Object.assign(controlsResult, await closeApplication());
+    assert.deepEqual(
+      profileSnapshot(),
+      productionBefore,
+      "Production profile metadata changed",
+    );
+    fs.writeFileSync(
+      path.join(output, "results.json"),
+      JSON.stringify({ exe, runId, ok: true, results }, null, 2),
+    );
+    console.log("4K control responsiveness passed", output);
     return;
   }
   if (!process.argv.includes("--offline-only")) {
@@ -914,20 +989,17 @@ async function main() {
   await evaluate(
     `Lampa.Player.close();Lampa.Player.play({url:${JSON.stringify(`${base}/h264-aac.mp4`)},title:'Close during creation',launch_player:'inner'});`,
   );
-  await evaluate("electronAPI.closeApp()");
-  await Promise.race([
-    exit,
-    sleep(12_000).then(() => {
-      throw new Error("App did not close cleanly during playback");
-    }),
-  ]);
-  assert.equal(exitCode, 0);
+  const shutdown = await closeApplication();
   assert.deepEqual(
     profileSnapshot(),
     productionBefore,
     "Production profile metadata changed",
   );
-  results.push({ cleanExit: true, productionProfileMetadataUnchanged: true });
+  results.push({
+    cleanExit: true,
+    productionProfileMetadataUnchanged: true,
+    shutdown,
+  });
   fs.writeFileSync(
     path.join(output, "results.json"),
     JSON.stringify({ exe, runId, ok: true, results }, null, 2),
@@ -935,7 +1007,7 @@ async function main() {
   console.log("Full desktop smoke passed", output);
 }
 main()
-  .catch((error) => {
+  .catch(async (error) => {
     console.error(error);
     fs.writeFileSync(
       path.join(output, "results.json"),
@@ -946,6 +1018,13 @@ main()
       ),
     );
     process.exitCode = 1;
+    if (process.argv.includes("--hold-on-failure")) {
+      console.error(
+        "Holding isolated QA process for stack inspection, PID",
+        child?.pid,
+      );
+      await sleep(60000);
+    }
   })
   .finally(async () => {
     clearTimeout(deadline);

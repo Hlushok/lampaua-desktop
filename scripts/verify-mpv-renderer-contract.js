@@ -14,6 +14,7 @@ if (!process.argv.includes("--child")) {
 async function main() {
   let gpuProbes = 0;
   let opens = 0;
+  let receiveEvent;
   class Element extends EventTarget {
     attributes = new Map();
     style = {};
@@ -58,7 +59,10 @@ async function main() {
           return {
             id: "test",
             onFrame: () => () => {},
-            onEvent: () => () => {},
+            onEvent: (callback) => {
+              receiveEvent = callback;
+              return () => {};
+            },
             async setVolume() {},
             async setRenderSize() {},
             async destroy() {},
@@ -104,6 +108,12 @@ async function main() {
       "Optional GPU fallback must not signal a fatal media error",
     );
     assert.equal(player.mode, "canvas2d");
+    receiveEvent({ type: "command-error", error: "property unavailable" });
+    assert.deepEqual(
+      errors,
+      ["property unavailable"],
+      "Async control errors must reach the renderer",
+    );
     await player.destroy();
   }
   assert.equal(opens, 2);

@@ -148,9 +148,15 @@ function createWindow() {
       event.preventDefault();
       if (window.mpvClosing) return;
       window.mpvClosing = true;
+      // A slow native frame must not keep an explicitly closed window open.
+      const closeDeadline = setTimeout(() => {
+        if (!window.isDestroyed()) window.destroy();
+      }, 3000);
+      closeDeadline.unref();
       detachMpvWindow(window)
         .catch(console.error)
         .finally(() => {
+          clearTimeout(closeDeadline);
           readyToClose = true;
           if (!window.isDestroyed()) window.close();
         });

@@ -14,6 +14,24 @@ if (!process.argv.includes("--child")) {
 }
 async function main() {
   const root = path.resolve(__dirname, "..");
+  const native = fs.readFileSync(
+    path.join(
+      root,
+      "third_party/electron-mpv-video/native/mpv-addon/src/mpv_addon.cc",
+    ),
+    "utf8",
+  );
+  assert.doesNotMatch(
+    native,
+    /\bmpv_(?:command|set_property|set_property_string)\s*\(/,
+    "Runtime controls must not block the render/UI thread",
+  );
+  assert.match(native, /class FrameWorker : public Napi::AsyncWorker/);
+  assert.match(native, /class CleanupWorker : public Napi::AsyncWorker/);
+  assert.match(native, /cleanup_promise_ = Napi::Persistent/);
+  assert.match(native, /if \(event->error < 0\) \{\s*fail_commands\(/);
+  assert.match(native, /commands_\.size\(\) >= 128/);
+  assert.match(native, /event->reply_userdata == commands_\.front\(\)\.id/);
   const policyPath = path.join(root, "src/modules/mpv/policy.js");
   assert.ok(fs.existsSync(policyPath), "MPV authorization policy is missing");
   const policy = require(policyPath);
@@ -42,6 +60,9 @@ async function main() {
   const instances = [];
   let restoring = false;
   let loaded = false;
+  let frameGate;
+  let destroyGate;
+  let sentFrames = 0;
   class Native {
     constructor() {
       this.events = [];
@@ -85,7 +106,10 @@ async function main() {
     setUpdateCallback() {}
     setEventCallback() {}
     renderFrame() {
-      return { width: 2, height: 2, rgba: Buffer.alloc(16) };
+      return (
+        frameGate ??
+        Promise.resolve({ width: 2, height: 2, rgba: Buffer.alloc(16) })
+      );
     }
     pollEvents() {
       if (restoring) return loaded ? [{ type: "file-loaded" }] : [];
@@ -93,6 +117,7 @@ async function main() {
     }
     destroy() {
       controls.push(["destroy"]);
+      return destroyGate ?? Promise.resolve();
     }
   }
   const context = vm.createContext({
@@ -142,7 +167,9 @@ async function main() {
     Object.assign(win.webContents, {
       id,
       mainFrame: { url: "https://kinohub.uk/" },
-      send() {},
+      send(channel) {
+        if (channel.endsWith(":player:frame")) sentFrames++;
+      },
       isDestroyed: () => false,
     });
     win.isDestroyed = () => false;
@@ -277,6 +304,52 @@ async function main() {
   windows[0].webContents.emit("did-finish-load");
   const newDocument = await call("create", e);
   await call("destroy", e, newDocument);
+
+  let finishFrame;
+  frameGate = new Promise((resolve) => {
+    finishFrame = resolve;
+  });
+  const slowFrameId = await call("create", e);
+  await new Promise((resolve) => setImmediate(resolve));
+  const beforeControls = Date.now();
+  await call("pause", e, slowFrameId);
+  await call("seek", e, slowFrameId, 11);
+  await call("play", e, slowFrameId);
+  assert.ok(Date.now() - beforeControls < 1000, "Slow frame blocked controls");
+  let destroyedSlowFrame = false;
+  const slowClosing = call("destroy", e, slowFrameId).then(() => {
+    destroyedSlowFrame = true;
+  });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(
+    destroyedSlowFrame,
+    false,
+    "Native state freed before its frame finished",
+  );
+  const framesBeforeClose = sentFrames;
+  finishFrame({ width: 2, height: 2, rgba: Buffer.alloc(16) });
+  await slowClosing;
+  assert.equal(
+    sentFrames,
+    framesBeforeClose,
+    "Late frame sent after player shutdown",
+  );
+  frameGate = undefined;
+  let finishDestroy;
+  destroyGate = new Promise((resolve) => {
+    finishDestroy = resolve;
+  });
+  const slowDestroyId = await call("create", e);
+  let nativeCleanupFinished = false;
+  const slowDestroy = call("destroy", e, slowDestroyId).then(() => {
+    nativeCleanupFinished = true;
+  });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(nativeCleanupFinished, false, "Native cleanup was not awaited");
+  await assert.rejects(call("create", e), /active|session/i);
+  finishDestroy();
+  await slowDestroy;
+  destroyGate = undefined;
   await service.dispose();
   assert.ok(
     controls.some(([name, value]) => name === "speed" && value === 1.5),
