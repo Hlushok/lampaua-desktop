@@ -9,6 +9,7 @@ from capture_source import digest
 from package_build import source_closure
 from patch_static_openssl import patch as patch_static_openssl
 from patch_curl_compat import patched_texts
+from apply_source_patches import load_config, preflight_patches, verify_patches
 
 
 def load_lock(path):
@@ -115,10 +116,11 @@ if __name__ == "__main__":
     parser.add_argument("--lock", type=Path, required=True)
     parser.add_argument("--config", type=Path)
     parser.add_argument("--plan", action="store_true")
+    parser.add_argument("--prepare-patches", action="store_true")
     args = parser.parse_args()
     pins = load_lock(args.lock)
     projects = {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in (args.sources / "projects").glob("*.json")}
-    config = json.loads(args.config.read_text(encoding="utf-8")) if args.config else None
+    config = load_config(args.config) if args.config else None
     if config:
         validate_config(config, pins)
     if args.plan:
@@ -130,4 +132,8 @@ if __name__ == "__main__":
             raise ValueError("Build configuration is required for source verification")
         verify_extras(args.sources, projects, config)
         check_curl_layout(projects)
+        if config.get("sourcePatches"):
+            if args.prepare_patches:
+                preflight_patches(args.sources, config)
+            verify_patches(args.sources, config)
         print(f"Verified {len(names)} pinned source inputs before compilation")

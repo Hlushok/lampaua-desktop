@@ -1,10 +1,30 @@
 """Apply narrowly scoped source-capture hooks to a pinned, disposable superbuild."""
 
 import argparse
-import json
 from pathlib import Path
 import re
 import subprocess
+
+from apply_source_patches import load_config, patch_series
+
+
+def source_patch_command(name, config):
+    if name in config.get("sourcePatches", {}):
+        return (f'PATCH_COMMAND python3 "$ENV{{LAMPAUA_MPV_SCRIPTS}}/apply_source_patches.py" '
+                f'--component {name} --source <SOURCE_DIR> --config "$ENV{{LAMPAUA_MPV_CONFIG}}" '
+                '--receipts "$ENV{LAMPAUA_MPV_SOURCES}"')
+    return (f'PATCH_COMMAND python3 "$ENV{{LAMPAUA_MPV_SCRIPTS}}/freeze_version.py" '
+            f'--name {name} --source <SOURCE_DIR> --receipt "$ENV{{LAMPAUA_MPV_SOURCES}}/{name}.json"')
+
+
+def enable_d3d11_recipe(path):
+    replace_once(path, "        -Dlibmpv=true", "        -Dlibmpv=true\n        -Dd3d11=enabled\n        -Dshaderc=enabled")
+    text = path.read_text(encoding="utf-8")
+    lines = [line for line in text.splitlines(keepends=True)
+             if "COMMAND" in line and "<SOURCE_DIR>/include/mpv/render_gl.h" in line]
+    if len(lines) != 1 or "-Dspirv-cross=enabled" not in text:
+        raise ValueError("Unexpected MPV SDK/header or SPIRV-Cross recipe")
+    replace_once(path, lines[0], lines[0] + lines[0].replace("render_gl.h", "render_d3d11.h"))
 
 
 def replace_once(path, old, new):
@@ -46,6 +66,10 @@ def pin_recipe(path, pin):
 
 
 def prepare(recipes, scripts, config, lock):
+    if config.get("sourcePatches"):
+        if set(config["sourcePatches"]) != {"mpv"}:
+            raise ValueError("Unexpected patched source component")
+        patch_series("mpv", config)
     actual = subprocess.check_output(["git", "-C", str(recipes), "rev-parse", "HEAD"], text=True).strip()
     if actual != config["recipesCommit"]:
         raise ValueError("Wrong build recipe revision")
@@ -64,8 +88,9 @@ def prepare(recipes, scripts, config, lock):
                  'include("$ENV{LAMPAUA_MPV_SCRIPTS}/capture-source.cmake")\nadd_subdirectory(toolchain)')
     for name in ("mpv", "ffmpeg"):
         replace_once(recipes / "packages" / f"{name}.cmake", '    CONFIGURE_COMMAND',
-                     f'    PATCH_COMMAND python3 "$ENV{{LAMPAUA_MPV_SCRIPTS}}/freeze_version.py" '
-                     f'--name {name} --source <SOURCE_DIR> --receipt "$ENV{{LAMPAUA_MPV_SOURCES}}/{name}.json"\n    CONFIGURE_COMMAND')
+                     f'    {source_patch_command(name, config)}\n    CONFIGURE_COMMAND')
+    if config.get("sourcePatches"):
+        enable_d3d11_recipe(recipes / "packages/mpv.cmake")
     # Do not perform an unrelated floating release lookup while configuring.
     replace_once(recipes / "packages" / "CMakeLists.txt", "    mpv-release\n", "")
     replace_once(recipes / "packages" / "CMakeLists.txt", "    mpv-packaging\n", "")
@@ -107,6 +132,6 @@ if __name__ == "__main__":
     parser.add_argument("--config", type=Path, required=True)
     args = parser.parse_args()
     from preflight_sources import load_lock
-    config = json.loads(args.config.read_text())
+    config = load_config(args.config)
     lock = load_lock(args.config.parent / config["sourceLock"])
     prepare(args.recipes.resolve(), args.scripts.resolve(), config, lock)

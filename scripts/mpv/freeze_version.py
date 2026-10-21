@@ -5,8 +5,10 @@ import json
 from pathlib import Path
 
 
-def freeze(name, source, receipt):
-    version = json.loads(receipt.read_text())["sourceVersion"]
+def freeze(name, source, receipt, suffix=""):
+    if suffix and (name != "mpv" or suffix != "-lampaua-d3d11"):
+        raise ValueError("Unexpected source version suffix")
+    version = json.loads(receipt.read_text())["sourceVersion"] + suffix
     if not version or "\n" in version or "\r" in version:
         raise ValueError("Invalid recorded source version")
     if name == "ffmpeg":
@@ -22,8 +24,8 @@ def freeze(name, source, receipt):
                 '    with open(recorded, encoding="UTF-8") as stream:\n'
                 '        sys.stdout.write(stream.read().strip())\n'
                 '    sys.exit(0)\n')
-        path.write_text(text.replace(marker, code + marker))
-        (source / "lampaua-source-version.txt").write_text(version + "\n")
+        path.write_text(text.replace(marker, code + marker), encoding="utf-8", newline="\n")
+        (source / "lampaua-source-version.txt").write_text(version + "\n", encoding="utf-8", newline="\n")
     else:
         raise ValueError("Unsupported version generator")
 

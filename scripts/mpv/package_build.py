@@ -8,6 +8,15 @@ import subprocess
 import tarfile
 
 from capture_source import digest
+from apply_source_patches import load_config, verify_patches, within
+
+
+def variant_paths(root, variant):
+    if variant == "baseline":
+        return root / "build/libmpv-source-build.json", root / "dist/libmpv-own"
+    if variant == "d3d11":
+        return root / "build/libmpv-source-build.d3d11.json", root / "dist/libmpv-own-d3d11"
+    raise ValueError(f"Unsupported build variant: {variant}")
 
 
 def repository_revision(root):
@@ -56,7 +65,9 @@ def validate_sources(sources, receipts, downloaded=()):
     return closure
 
 
-def package(work, root):
+def package(work, root, variant="baseline"):
+    config_path, destination = variant_paths(root, variant)
+    config = load_config(config_path)
     sources = work / "sources"
     receipts = [json.loads(path.read_text()) for path in sorted(sources.glob("*.json"))]
     names = {item["name"] for item in receipts}
@@ -65,16 +76,17 @@ def package(work, root):
             raise ValueError(f"Missing source receipt: {required}")
     downloaded = {p.name.removesuffix("-download") for p in (work / "build").rglob("*-download")}
     closure = validate_sources(sources, receipts, downloaded)
-    destination = root / "dist/libmpv-own"
+    effective = verify_patches(sources, config) if variant == "d3d11" else None
     sdk_dirs = list((work / "build").glob("mpv-dev-x86_64-*-git-*"))
     if len(sdk_dirs) != 1:
         raise ValueError("Expected exactly one SDK")
     sdk = sdk_dirs[0]
+    if effective and not (sdk / "include/mpv/render_d3d11.h").is_file():
+        raise ValueError("Candidate SDK is missing the installed D3D11 render header")
     dll = sdk / "libmpv-2.dll"
     prefix = work / "build/install/bin/cross-objdump"
     pe = subprocess.check_output([str(prefix), "-p", str(dll)], text=True)
     (destination / "dll-pe.txt").write_text(pe)
-    config = json.loads((root / "build/libmpv-source-build.json").read_text())
     from preflight_sources import load_lock, verify, verify_extras
     projects = {p.stem: json.loads(p.read_text()) for p in (sources / "projects").glob("*.json")}
     verify(sources, projects, load_lock(root / "build" / config["sourceLock"]))
@@ -83,14 +95,23 @@ def package(work, root):
         component = next(item for item in receipts if item["name"] == name)
         if component["revision"] != config[name + "Commit"]:
             raise ValueError(f"Wrong {name} revision in built SDK")
-    manifest = {"configuration": config, "dependencyClosure": closure, "components": receipts, "dllSha256": digest(dll),
+    public_config = {key: value for key, value in config.items() if not key.startswith("_")}
+    manifest = {"configuration": public_config, "dependencyClosure": closure, "components": receipts, "dllSha256": digest(dll),
                 "repositoryCommit": repository_revision(root)}
+    if effective:
+        manifest.update(baseRevision=effective["baseRevision"], patches=effective["patches"],
+                        effectiveTreeSha256=effective["effectiveTreeSha256"])
     (sources / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     shutil.copytree(root / "scripts/mpv", sources / "build-scripts", ignore=shutil.ignore_patterns("__pycache__"))
     shutil.copytree(work / "recipes", sources / "configured-recipes", ignore=shutil.ignore_patterns(".git"))
     shutil.copy(work / "build/CMakeCache.txt", sources)
     shutil.copytree(work / "build/cmake", sources / "cmake-modules")
-    shutil.copy(root / "build/libmpv-source-build.json", sources)
+    shutil.copy(config_path, sources)
+    if effective:
+        for item in effective["patches"]:
+            target = sources / item["file"]
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(within(config_path.parent, item["file"]), target)
     shutil.copy(root / "build" / config["sourceLock"], sources)
     shutil.copy(root / "docs/libmpv-own-build.md", sources / "README.md")
     shutil.copy(sources / "manifest.json", destination / "manifest.json")
@@ -108,8 +129,9 @@ if __name__ == "__main__":
     parser.add_argument("--work", type=Path, required=True)
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--check-repository", action="store_true")
+    parser.add_argument("--variant", choices=("baseline", "d3d11"), default="baseline")
     args = parser.parse_args()
     if args.check_repository:
         print(f"Build checkout revision: {repository_revision(args.root)}")
     else:
-        package(args.work.resolve(), args.root.resolve())
+        package(args.work.resolve(), args.root.resolve(), args.variant)

@@ -49,7 +49,7 @@ class PackageBuildTests(unittest.TestCase):
         self.git_config = Path(self.temporary.name) / "empty-git-config"
         self.git_config.write_text("")
 
-    def package_fixture(self, cwd, different_owner=False):
+    def package_fixture(self, cwd, different_owner=False, variant="baseline", effective=None):
         original_output, original_run = subprocess.check_output, subprocess.run
 
         def output(command, **kwargs):
@@ -77,7 +77,12 @@ class PackageBuildTests(unittest.TestCase):
                                           text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                     self.assertNotEqual(unsafe.returncode, 0)
                     self.assertIn("dubious ownership", unsafe.stderr)
-                package_build.package(self.work, self.root)
+                with patch.object(package_build, "verify_patches", return_value=effective) as verify_effective:
+                    package_build.package(self.work, self.root, variant)
+                    if variant == "d3d11":
+                        verify_effective.assert_called_once()
+                    else:
+                        verify_effective.assert_not_called()
                 if different_owner:
                     # Trust is command-local, not a global relaxation for other Git calls.
                     unsafe = original_run(["git", "-C", str(self.root), "rev-parse", "HEAD"],
@@ -85,9 +90,43 @@ class PackageBuildTests(unittest.TestCase):
                     self.assertNotEqual(unsafe.returncode, 0)
         finally:
             os.chdir(previous)
-        manifest = json.loads((self.root / "dist/libmpv-own/manifest.json").read_text())
+        destination = self.root / ("dist/libmpv-own-d3d11" if variant == "d3d11" else "dist/libmpv-own")
+        manifest = json.loads((destination / "manifest.json").read_text())
         self.assertEqual(manifest["repositoryCommit"], self.revision)
-        self.assertTrue((self.root / "dist/libmpv-own/lampaua-libmpv-x64-sources.tar.gz").is_file())
+        self.assertTrue((destination / "lampaua-libmpv-x64-sources.tar.gz").is_file())
+        return manifest
+
+    def test_candidate_packages_both_source_trees_patches_and_public_configuration(self):
+        baseline = self.root / "build/libmpv-source-build.json"
+        before = baseline.read_bytes()
+        patch_file = self.root / "build/patches/mpv/test.patch"
+        patch_file.parent.mkdir(parents=True)
+        patch_file.write_bytes(b"exact patch fixture")
+        config = json.loads(before)
+        config.update(sourceVersionSuffix="-lampaua-d3d11", sourcePatches={"mpv": [{
+            "file": "patches/mpv/test.patch", "sha256": package_build.digest(patch_file),
+            "baseRevision": self.revision, "upstreamCommit": "b" * 40}]})
+        (self.root / "build/libmpv-source-build.d3d11.json").write_text(json.dumps(config))
+        effective_archive = self.sources / "mpv-effective.tar.gz"
+        effective_archive.write_bytes(b"effective source fixture")
+        effective = {"name": "mpv-effective", "baseRevision": self.revision,
+                     "effectiveTreeSha256": "e" * 64, "patches": config["sourcePatches"]["mpv"],
+                     "archive": effective_archive.name, "sha256": package_build.digest(effective_archive)}
+        (self.sources / "mpv-effective.json").write_text(json.dumps(effective))
+        sdk = self.work / "build/mpv-dev-x86_64-test-git-fixture"
+        (sdk / "include/mpv").mkdir(parents=True)
+        (sdk / "include/mpv/render_d3d11.h").write_bytes(b"header fixture")
+        (self.root / "dist/libmpv-own-d3d11").mkdir()
+        manifest = self.package_fixture(self.root, variant="d3d11", effective=effective)
+        self.assertEqual(manifest["effectiveTreeSha256"], "e" * 64)
+        self.assertNotIn("_patchRoot", manifest["configuration"])
+        self.assertEqual(baseline.read_bytes(), before)
+        self.assertFalse(list((self.root / "dist/libmpv-own").iterdir()))
+        import tarfile
+        with tarfile.open(self.root / "dist/libmpv-own-d3d11/lampaua-libmpv-x64-sources.tar.gz") as bundle:
+            for name in ("mpv.tar.gz", "mpv-effective.tar.gz", "mpv.json", "mpv-effective.json",
+                         "patches/mpv/test.patch", "libmpv-source-build.d3d11.json"):
+                self.assertIn("lampaua-libmpv-sources/" + name, bundle.getnames())
 
     def test_packaging_handles_the_container_workspace_owner(self):
         self.package_fixture(self.root, different_owner=True)

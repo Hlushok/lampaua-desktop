@@ -2,8 +2,16 @@
 set -euo pipefail
 root="$(pwd)"
 export LAMPAUA_MPV_SCRIPTS="$root/scripts/mpv"
-export LAMPAUA_MPV_SOURCES="$root/.cache/libmpv-own/sources"
-work="$root/.cache/libmpv-own"
+variant="${LAMPAUA_MPV_VARIANT:-baseline}"
+case "$variant" in
+  baseline) config="$root/build/libmpv-source-build.json"; suffix="" ;;
+  d3d11) config="$root/build/libmpv-source-build.d3d11.json"; suffix="-d3d11" ;;
+  *) printf 'Unsupported build variant: %s\n' "$variant" >&2; exit 1 ;;
+esac
+export LAMPAUA_MPV_CONFIG="$config"
+work="$root/.cache/libmpv-own$suffix"
+destination="$root/dist/libmpv-own$suffix"
+export LAMPAUA_MPV_SOURCES="$work/sources"
 target="${LAMPAUA_MPV_TARGET:-mpv}"
 phase="${LAMPAUA_MPV_PHASE:-all}"
 case "$target" in
@@ -22,11 +30,11 @@ report_failure() {
 }
 trap report_failure ERR
 python3 "$LAMPAUA_MPV_SCRIPTS/package_build.py" --work "$work" --root "$root" --check-repository
-mkdir -p "$work" "$LAMPAUA_MPV_SOURCES" "$root/dist/libmpv-own"
-readarray -t pins < <(python3 - <<'PY'
+mkdir -p "$work" "$LAMPAUA_MPV_SOURCES" "$destination"
+readarray -t pins < <(python3 - "$config" <<'PY'
 import json, sys
 sys.stdout.reconfigure(newline="\n")
-p = json.load(open('build/libmpv-source-build.json'))
+p = json.load(open(sys.argv[1]))
 for key in ('recipesRepository', 'recipesCommit', 'rustToolchain', 'windowsMetadataCommit', 'sourceLock'):
     print(p[key])
 PY
@@ -67,7 +75,7 @@ if [ "$phase" != compile ]; then
     --url "https://github.com/microsoft/windows-rs/tree/$metadata_commit" --output "$LAMPAUA_MPV_SOURCES"
 
   python3 "$LAMPAUA_MPV_SCRIPTS/prepare_build.py" --recipes "$work/recipes" \
-    --scripts "$LAMPAUA_MPV_SCRIPTS" --config "$root/build/libmpv-source-build.json"
+    --scripts "$LAMPAUA_MPV_SCRIPTS" --config "$config"
   cmake -S "$work/recipes" -B "$work/build" -G Ninja \
     -DCOMPILER_TOOLCHAIN=gcc -DGCC_ARCH=x86-64 -DTARGET_ARCH=x86_64-w64-mingw32 \
     -DSINGLE_SOURCE_LOCATION="$work/trees" -DRUSTUP_LOCATION="$work/rust" \
@@ -78,13 +86,17 @@ if [ "$phase" != compile ]; then
   cmake --build "$work/build" --target "${source_targets[@]}" --parallel 2
   bash "$LAMPAUA_MPV_SCRIPTS/vendor-rust.sh" "$work/trees/subrandr"
 fi
+patch_args=()
+if [ "$phase" != compile ]; then
+  patch_args+=(--prepare-patches)
+fi
 python3 "$LAMPAUA_MPV_SCRIPTS/preflight_sources.py" --sources "$LAMPAUA_MPV_SOURCES" \
-  --lock "$root/build/${pins[4]}" --config "$root/build/libmpv-source-build.json"
+  --lock "$root/build/${pins[4]}" --config "$config" "${patch_args[@]}"
 if [ "$phase" = inputs ]; then
   exit 0
 fi
 cmake --build "$work/build" --target gcc --parallel 1
 cmake --build "$work/build" --target "$target" --parallel 1
 if [ "$target" = mpv ]; then
-  python3 "$LAMPAUA_MPV_SCRIPTS/package_build.py" --work "$work" --root "$root"
+  python3 "$LAMPAUA_MPV_SCRIPTS/package_build.py" --work "$work" --root "$root" --variant "$variant"
 fi
