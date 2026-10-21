@@ -3,6 +3,10 @@
 #include <mpv/render.h>
 #include <mpv/render_gl.h>
 
+#if defined(_WIN32) && defined(LAMPAUA_GPU_TEST)
+namespace lampaua { void RegisterD3d11TestProducer(Napi::Env env, Napi::Object exports); }
+#endif
+
 #ifdef __APPLE__
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOSurface/IOSurface.h>
@@ -1525,6 +1529,9 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
 };
 
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
+#if defined(_WIN32) && defined(LAMPAUA_GPU_TEST)
+  lampaua::RegisterD3d11TestProducer(env, exports);
+#endif
   return MpvPlayer::Init(env, exports);
 }
 

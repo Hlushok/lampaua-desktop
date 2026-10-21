@@ -1,4 +1,5 @@
 {
+  "variables": { "lampaua_gpu_test%": 0 },
   "targets": [
     {
       "target_name": "mpv_addon",
@@ -25,6 +26,7 @@
           }
         }],
         ["OS=='win'", {
+          "sources": ["src/d3d11_renderer.cc"],
           "include_dirs": [
             "<!(node -p \"process.env.MPV_INCLUDE_DIR || require('path').join(require('os').homedir(), 'libmpv', 'include')\")"
           ],
@@ -42,6 +44,10 @@
               "ExceptionHandling": 0
             }
           }
+        }],
+        ["OS=='win' and lampaua_gpu_test==1", {
+          "sources": ["src/d3d11_test_producer.cc"],
+          "defines": ["LAMPAUA_GPU_TEST=1"]
         }]
       ]
     }
