@@ -79,9 +79,11 @@ not stable. The metadata assertion was retained, not relaxed.
 These runs use the complete isolated Windows app, not a standalone MPV demo.
 The installed 2.0.0 app and its settings were not replaced.
 
-This is not a sustained-throughput or visual-quality claim for every 4K HDR
-source. The user's original torrent and private provider streams have not been
-replayed in the isolated test profile; they still require user acceptance.
+Ці тести не гарантують тривалого відтворення кожного 4К HDR-потоку.
+Приватні джерела не відтворювалися автоматично в ізольованому профілі.
+Користувач окремо підтвердив усунення початкового зависання та дозволив реліз.
+Підсумкові перевірки production-пакетів і публікації записані українською
+в docs/2.0.1-validation.md.
 
 ## Component Updates Checked
 
