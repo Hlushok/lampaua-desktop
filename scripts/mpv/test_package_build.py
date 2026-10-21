@@ -94,9 +94,16 @@ class PackageBuildTests(unittest.TestCase):
         manifest = json.loads((destination / "manifest.json").read_text())
         self.assertEqual(manifest["repositoryCommit"], self.revision)
         self.assertTrue((destination / "lampaua-libmpv-x64-sources.tar.gz").is_file())
+        if variant == "d3d11":
+            candidate = json.loads((destination / "candidate-sdk.json").read_text())
+            self.assertEqual(candidate["clientApiVersion"], (2 << 16) | 6)
+            self.assertEqual(candidate["sdkSha256"], package_build.digest(destination / candidate["sdkFile"]))
+            self.assertEqual(candidate["sourceSha256"], package_build.digest(destination / candidate["sourceFile"]))
+            for key in ("dllSha256", "baseRevision", "patches", "effectiveTreeSha256", "repositoryCommit"):
+                self.assertEqual(candidate[key], manifest[key])
         return manifest
 
-    def test_candidate_packages_both_source_trees_patches_and_public_configuration(self):
+    def candidate_fixture(self, api_minor=6):
         baseline = self.root / "build/libmpv-source-build.json"
         before = baseline.read_bytes()
         patch_file = self.root / "build/patches/mpv/test.patch"
@@ -116,17 +123,49 @@ class PackageBuildTests(unittest.TestCase):
         sdk = self.work / "build/mpv-dev-x86_64-test-git-fixture"
         (sdk / "include/mpv").mkdir(parents=True)
         (sdk / "include/mpv/render_d3d11.h").write_bytes(b"header fixture")
+        (sdk / "include/mpv/client.h").write_text(
+            f"#define MPV_CLIENT_API_VERSION MPV_MAKE_VERSION(2, {api_minor})\n")
         (self.root / "dist/libmpv-own-d3d11").mkdir()
+        return before, effective
+
+    def test_candidate_packages_both_source_trees_patches_and_public_configuration(self):
+        before, effective = self.candidate_fixture()
         manifest = self.package_fixture(self.root, variant="d3d11", effective=effective)
         self.assertEqual(manifest["effectiveTreeSha256"], "e" * 64)
         self.assertNotIn("_patchRoot", manifest["configuration"])
-        self.assertEqual(baseline.read_bytes(), before)
+        self.assertEqual((self.root / "build/libmpv-source-build.json").read_bytes(), before)
         self.assertFalse(list((self.root / "dist/libmpv-own").iterdir()))
         import tarfile
         with tarfile.open(self.root / "dist/libmpv-own-d3d11/lampaua-libmpv-x64-sources.tar.gz") as bundle:
             for name in ("mpv.tar.gz", "mpv-effective.tar.gz", "mpv.json", "mpv-effective.json",
                          "patches/mpv/test.patch", "libmpv-source-build.d3d11.json"):
                 self.assertIn("lampaua-libmpv-sources/" + name, bundle.getnames())
+
+    def test_candidate_rejects_old_client_api_even_if_new_header_exists(self):
+        _, effective = self.candidate_fixture(api_minor=5)
+        with self.assertRaisesRegex(ValueError, "API 2.6"):
+            self.package_fixture(self.root, variant="d3d11", effective=effective)
+        self.assertFalse(list((self.root / "dist/libmpv-own-d3d11").iterdir()))
+
+    def test_candidate_rejects_missing_effective_receipt_before_sdk_packaging(self):
+        self.candidate_fixture()
+        (self.sources / "mpv-effective.json").unlink()
+        with patch.object(package_build, "validate_sources", return_value=[]), \
+                self.assertRaisesRegex(ValueError, "Missing effective"):
+            package_build.package(self.work, self.root, "d3d11")
+
+    def test_candidate_rejects_missing_or_changed_base_source_archive(self):
+        self.candidate_fixture()
+        archive = self.sources / "mpv.tar.gz"
+        for data in (b"changed", None):
+            with self.subTest(data=data):
+                if data is None:
+                    archive.unlink()
+                else:
+                    archive.write_bytes(data)
+                with patch.object(package_build, "validate_sources", return_value=[]), \
+                        self.assertRaisesRegex(ValueError, "Base source archive checksum"):
+                    package_build.package(self.work, self.root, "d3d11")
 
     def test_packaging_handles_the_container_workspace_owner(self):
         self.package_fixture(self.root, different_owner=True)

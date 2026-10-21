@@ -3,6 +3,11 @@ name: Build libmpv From Preserved Sources
 on:
   workflow_dispatch:
     inputs:
+      variant:
+        description: "Separate experimental D3D11 SDK or the unchanged baseline"
+        type: choice
+        options: [baseline, d3d11]
+        default: baseline
       target:
         description: "mpv builds the SDK; ngtcp2 only diagnoses the QUIC backend"
         type: choice
@@ -18,6 +23,10 @@ jobs:
     timeout-minutes: 360
     container:
       image: ghcr.io/shinchiro/archlinux@sha256:2b81f07c567b051455b9539770a71b53dd3add5f9ef52eca95ac01a2272e9fdf
+    env:
+      LAMPAUA_MPV_VARIANT: ${{ inputs.variant }}
+      MPV_WORK: ${{ inputs.variant == 'd3d11' && '.cache/libmpv-own-d3d11' || '.cache/libmpv-own' }}
+      MPV_OUTPUT: ${{ inputs.variant == 'd3d11' && 'dist/libmpv-own-d3d11' || 'dist/libmpv-own' }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -26,13 +35,7 @@ jobs:
       - name: Test source and compatibility contracts
         shell: bash
         run: |
-          python3 scripts/mpv/test_source_capture.py
-          python3 scripts/mpv/test_static_openssl.py
-          python3 scripts/mpv/test_source_preflight.py
-          python3 scripts/mpv/test_curl_compat.py
-          python3 scripts/mpv/test_package_build.py
-          python3 scripts/mpv/test_split_source_bundle.py
-          python3 scripts/mpv/test_runtime_notices.py
+          python3 -m unittest discover -s scripts/mpv -p 'test_*.py'
 
       - name: Download and verify pinned sources before compilation
         shell: bash
@@ -41,7 +44,7 @@ jobs:
           LAMPAUA_MPV_PHASE: inputs
         run: bash scripts/mpv/build-libmpv.sh
 
-      - name: Compile baseline Windows x64 libmpv
+      - name: Compile ${{ inputs.variant }} Windows x64 libmpv
         shell: bash
         env:
           LAMPAUA_MPV_TARGET: ${{ inputs.target }}
@@ -53,38 +56,38 @@ jobs:
         if: inputs.target == 'mpv'
         uses: actions/upload-artifact@v6
         with:
-          name: lampaua-libmpv-own-x64
+          name: ${{ inputs.variant == 'd3d11' && 'lampaua-libmpv-own-x64-d3d11' || 'lampaua-libmpv-own-x64' }}
           compression-level: 0
           retention-days: 30
-          path: dist/libmpv-own/
+          path: ${{ env.MPV_OUTPUT }}/
 
       - name: Preserve built SDK and inputs after a packaging failure
-        if: failure() && inputs.target == 'mpv' && hashFiles('.cache/libmpv-own/build/mpv-dev-x86_64-*/libmpv-2.dll') != ''
+        if: failure() && inputs.target == 'mpv' && hashFiles(format('{0}/build/mpv-dev-x86_64-*/libmpv-2.dll', env.MPV_WORK)) != ''
         uses: actions/upload-artifact@v6
         with:
-          name: lampaua-libmpv-unpackaged-x64
+          name: ${{ inputs.variant == 'd3d11' && 'lampaua-libmpv-unpackaged-x64-d3d11' || 'lampaua-libmpv-unpackaged-x64' }}
           compression-level: 0
           retention-days: 14
           include-hidden-files: true
           path: |
-            .cache/libmpv-own/build/mpv-dev-x86_64-*/
-            .cache/libmpv-own/sources/
-            .cache/libmpv-own/recipes/
-            .cache/libmpv-own/build/CMakeCache.txt
-            .cache/libmpv-own/build/cmake/
-            dist/libmpv-own/
-            !.cache/libmpv-own/recipes/.git/**
+            ${{ env.MPV_WORK }}/build/mpv-dev-x86_64-*/
+            ${{ env.MPV_WORK }}/sources/
+            ${{ env.MPV_WORK }}/recipes/
+            ${{ env.MPV_WORK }}/build/CMakeCache.txt
+            ${{ env.MPV_WORK }}/build/cmake/
+            ${{ env.MPV_OUTPUT }}/
+            !${{ env.MPV_WORK }}/recipes/.git/**
 
       - name: Preserve diagnostics even on failure
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: lampaua-libmpv-build-logs
+          name: ${{ inputs.variant == 'd3d11' && 'lampaua-libmpv-d3d11-build-logs' || 'lampaua-libmpv-build-logs' }}
           retention-days: 14
           path: |
-            .cache/libmpv-own/build/**/*.log
-            .cache/libmpv-own/build/**/CMakeConfigureLog.yaml
-            .cache/libmpv-own/build/CMakeCache.txt
-            .cache/libmpv-own/sources/*.json
-            .cache/libmpv-own/sources/projects/*.json
-            .cache/libmpv-own/sources/rust-version.txt
+            ${{ env.MPV_WORK }}/build/**/*.log
+            ${{ env.MPV_WORK }}/build/**/CMakeConfigureLog.yaml
+            ${{ env.MPV_WORK }}/build/CMakeCache.txt
+            ${{ env.MPV_WORK }}/sources/*.json
+            ${{ env.MPV_WORK }}/sources/projects/*.json
+            ${{ env.MPV_WORK }}/sources/rust-version.txt

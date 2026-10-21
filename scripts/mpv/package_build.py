@@ -3,6 +3,7 @@
 import argparse
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tarfile
@@ -83,6 +84,14 @@ def package(work, root, variant="baseline"):
     sdk = sdk_dirs[0]
     if effective and not (sdk / "include/mpv/render_d3d11.h").is_file():
         raise ValueError("Candidate SDK is missing the installed D3D11 render header")
+    api_version = None
+    if effective:
+        client = sdk / "include/mpv/client.h"
+        api = re.search(r"(?m)^#define\s+MPV_CLIENT_API_VERSION\s+MPV_MAKE_VERSION\(\s*(\d+)\s*,\s*(\d+)\s*\)",
+                        client.read_text(encoding="utf-8") if client.is_file() else "")
+        if not api or tuple(map(int, api.groups())) != (2, 6):
+            raise ValueError("Candidate SDK requires the pinned client API 2.6")
+        api_version = (2 << 16) | 6
     dll = sdk / "libmpv-2.dll"
     prefix = work / "build/install/bin/cross-objdump"
     pe = subprocess.check_output([str(prefix), "-p", str(dll)], text=True)
@@ -100,7 +109,7 @@ def package(work, root, variant="baseline"):
                 "repositoryCommit": repository_revision(root)}
     if effective:
         manifest.update(baseRevision=effective["baseRevision"], patches=effective["patches"],
-                        effectiveTreeSha256=effective["effectiveTreeSha256"])
+                        effectiveTreeSha256=effective["effectiveTreeSha256"], clientApiVersion=api_version)
     (sources / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     shutil.copytree(root / "scripts/mpv", sources / "build-scripts", ignore=shutil.ignore_patterns("__pycache__"))
     shutil.copytree(work / "recipes", sources / "configured-recipes", ignore=shutil.ignore_patterns(".git"))
@@ -118,7 +127,15 @@ def package(work, root, variant="baseline"):
     archive = destination / "lampaua-libmpv-x64-sources.tar.gz"
     with tarfile.open(archive, "w:gz", compresslevel=1) as bundle:
         bundle.add(sources, arcname="lampaua-libmpv-sources")
-    subprocess.run(["7z", "a", "-t7z", "-mx=5", str(destination / "lampaua-libmpv-x64-sdk.7z"), "."], cwd=sdk, check=True)
+    sdk_archive = destination / "lampaua-libmpv-x64-sdk.7z"
+    subprocess.run(["7z", "a", "-t7z", "-mx=5", str(sdk_archive), "."], cwd=sdk, check=True)
+    if effective:
+        # Archive hashes live outside the source bundle to avoid self-hashing.
+        candidate = {key: manifest[key] for key in ("dllSha256", "clientApiVersion", "baseRevision",
+                     "patches", "effectiveTreeSha256", "repositoryCommit")}
+        candidate.update(sdkFile=sdk_archive.name, sdkSha256=digest(sdk_archive),
+                         sourceFile=archive.name, sourceSha256=digest(archive))
+        (destination / "candidate-sdk.json").write_text(json.dumps(candidate, indent=2) + "\n", encoding="utf-8")
     files = [{"file": p.name, "sha256": digest(p), "size": p.stat().st_size}
              for p in sorted(destination.iterdir()) if p.is_file()]
     (destination / "checksums.json").write_text(json.dumps(files, indent=2) + "\n")

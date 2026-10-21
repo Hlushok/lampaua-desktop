@@ -129,3 +129,34 @@ isolated portable QA, including AVI/Xvid, AC3/EAC3, IPTV, seeking, subtitles,
 repeated playback, exit and the separate YouTube browser DASH route. Publish
 only after the new DLL is accepted and the complete source/notices package has
 been checked. Preserve the old tested DLL and portable build as rollback inputs.
+
+## Isolated D3D11 Candidate
+
+The experimental `d3d11` variant uses `build/libmpv-source-build.d3d11.json`.
+It preserves the baseline source/toolchain pins and applies only the recorded
+MPV patch series. Work and output are separate: `.cache/libmpv-own-d3d11` and
+`dist/libmpv-own-d3d11`. The default remains `baseline`.
+
+In the pinned Linux container, run inputs before the long compilation:
+
+```bash
+LAMPAUA_MPV_VARIANT=d3d11 LAMPAUA_MPV_PHASE=inputs bash scripts/mpv/build-libmpv.sh
+LAMPAUA_MPV_VARIANT=d3d11 LAMPAUA_MPV_PHASE=compile bash scripts/mpv/build-libmpv.sh
+```
+
+The existing manually dispatched Build libmpv workflow accepts `variant=d3d11`
+and `target=mpv`; it stores `lampaua-libmpv-own-x64-d3d11` without publishing.
+Its own logs/recovery artifacts use candidate paths. Source preflight records
+both the preserved base and patched effective tree, and rejects changed inputs.
+
+Candidate packaging requires the installed client API 2.6 and D3D11 header.
+`manifest.json` inside the source bundle records inputs and DLL provenance.
+`candidate-sdk.json` is outside the archives and additionally records their
+actual SHA-256 values (`sdkSha256`, `sourceSha256`); keeping these outside avoids
+circular self-hashing. `clientApiVersion` is the integer C API version, 131078.
+The candidate descriptor is not a replacement for `build/libmpv-runtime.json`.
+
+A successful archive/header check does not prove that the built DLL implements
+the backend. Require an actual hardware D3D11 render-context probe, then isolated
+full-Desktop playback and source/notices verification before accepting it.
+Keep the accepted SDK and installed profile unchanged throughout this work.
