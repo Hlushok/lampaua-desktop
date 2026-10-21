@@ -5,6 +5,7 @@
 #include <mutex>
 
 namespace lampaua {
+void RegisterD3d11ContextProbe(Napi::Env env, Napi::Object exports);
 namespace {
 
 struct ProducerState {
@@ -278,5 +279,8 @@ class TestProducer : public Napi::ObjectWrap<TestProducer> {
 
 }  // namespace
 
-void RegisterD3d11TestProducer(Napi::Env env, Napi::Object exports) { TestProducer::Register(env, exports); }
+void RegisterD3d11TestProducer(Napi::Env env, Napi::Object exports) {
+  TestProducer::Register(env, exports);
+  RegisterD3d11ContextProbe(env, exports);
+}
 }  // namespace lampaua

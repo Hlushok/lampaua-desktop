@@ -46,7 +46,7 @@
           }
         }],
         ["OS=='win' and lampaua_gpu_test==1", {
-          "sources": ["src/d3d11_test_producer.cc"],
+          "sources": ["src/d3d11_test_producer.cc", "src/d3d11_context_probe.cc"],
           "defines": ["LAMPAUA_GPU_TEST=1"]
         }]
       ]
