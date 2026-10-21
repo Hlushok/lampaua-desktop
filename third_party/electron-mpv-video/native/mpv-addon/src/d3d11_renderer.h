@@ -94,7 +94,7 @@ class D3d11FramePool {
     Ptr<ID3D11Texture2D> texture;
     Ptr<ID3D11RenderTargetView> target;
     Ptr<IDXGIKeyedMutex> mutex;
-    Ptr<ID3D11Query> complete;
+    HANDLE completion_event = nullptr;
     HANDLE handle = nullptr;
     GpuFrameKey key;
     SlotState state = SlotState::Free;
@@ -115,6 +115,7 @@ class D3d11FramePool {
   Ptr<ID3D11Device> device_;
   Ptr<ID3D11DeviceContext> context_;
   Ptr<ID3D11DeviceContext1> context1_;
+  Ptr<IDXGIDevice2> dxgi_;
   std::unique_ptr<Generation> current_;
   std::unique_ptr<Generation> retired_;
   std::optional<Size> pending_;

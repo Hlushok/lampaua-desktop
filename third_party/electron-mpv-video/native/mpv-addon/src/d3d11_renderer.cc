@@ -119,6 +119,7 @@ void D3d11RenderThread::stop_all() {
 
 D3d11FramePool::Slot::~Slot() {
   if (handle) { CloseHandle(handle); live_handles--; }
+  if (completion_event) { CloseHandle(completion_event); live_handles--; }
   if (texture) live_textures--;
 }
 size_t D3d11FramePool::Generation::leases() const {
@@ -142,12 +143,11 @@ bool D3d11FramePool::initialize(int width, int height) {
   if (!check(context_.As(&multithread), "D3D11 multithread protection") ||
       !check(context_.As(&context1_), "D3D11.1 context")) return false;
   multithread->SetMultithreadProtected(TRUE);
-  Ptr<IDXGIDevice> dxgi;
   Ptr<IDXGIAdapter> adapter;
   Ptr<IDXGIAdapter1> adapter1;
   DXGI_ADAPTER_DESC1 desc{};
-  if (!check(device_.As(&dxgi), "DXGI device") ||
-      !check(dxgi->GetAdapter(&adapter), "DXGI adapter") ||
+  if (!check(device_.As(&dxgi_), "DXGI completion device") ||
+      !check(dxgi_->GetAdapter(&adapter), "DXGI adapter") ||
       !check(adapter.As(&adapter1), "DXGI hardware adapter") ||
       !check(adapter1->GetDesc1(&desc), "DXGI adapter description")) return false;
   if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) { error_ = "D3D11 software adapter is not a hardware device"; return false; }
@@ -178,7 +178,6 @@ std::unique_ptr<D3d11FramePool::Generation> D3d11FramePool::make_generation(Size
     auto& slot = generation->slots[index];
     slot.key = {static_cast<uint32_t>(index), size.generation, 0};
     Ptr<IDXGIResource1> resource;
-    D3D11_QUERY_DESC query{D3D11_QUERY_EVENT, 0};
     if (!check(device_->CreateTexture2D(&desc, nullptr, &slot.texture), "Create shared texture")) return {};
     live_textures++;
     if (!check(device_->CreateRenderTargetView(slot.texture.Get(), nullptr, &slot.target), "Create render target") ||
@@ -187,7 +186,9 @@ std::unique_ptr<D3d11FramePool::Generation> D3d11FramePool::make_generation(Size
         !check(resource->CreateSharedHandle(nullptr, DXGI_SHARED_RESOURCE_READ | DXGI_SHARED_RESOURCE_WRITE,
           nullptr, &slot.handle), "Create shared NT handle")) return {};
     live_handles++;
-    if (!check(device_->CreateQuery(&query, &slot.complete), "Create GPU completion query")) return {};
+    slot.completion_event = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    if (!slot.completion_event) { check(HRESULT_FROM_WIN32(GetLastError()), "Create GPU completion event"); return {}; }
+    live_handles++;
   }
   return generation;
 }
@@ -255,17 +256,14 @@ ID3D11Texture2D* D3d11FramePool::texture(GpuFrameKey key) {
 }
 
 bool D3d11FramePool::wait_gpu(Slot& slot) {
-  const auto deadline = Clock::now() + std::chrono::seconds(2);
-  while (Clock::now() < deadline) {
-    BOOL complete = FALSE;
-    const HRESULT status = context_->GetData(slot.complete.Get(), &complete, sizeof(complete), D3D11_ASYNC_GETDATA_DONOTFLUSH);
-    if (status == S_OK && complete) return true;
-    if (status != S_OK && status != S_FALSE) return check(status, "GPU completion");
-    if (device_->GetDeviceRemovedReason() != S_OK) return check(device_->GetDeviceRemovedReason(), "D3D11 device removed");
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  // Device completion, not presentation. This avoids Sleep(1)'s Windows timer quantum.
+  if (!check(dxgi_->EnqueueSetEvent(slot.completion_event), "Enqueue GPU completion event")) return false;
+  const DWORD status = WaitForSingleObject(slot.completion_event, 2000);
+  if (status != WAIT_OBJECT_0) {
+    error_ = "D3D11 GPU completion timeout/failure; resource remains leased";
+    return false;
   }
-  error_ = "D3D11 GPU completion timeout; resource remains leased";
-  return false;
+  return check(device_->GetDeviceRemovedReason(), "D3D11 device removed");
 }
 
 #ifdef LAMPAUA_GPU_TEST
@@ -288,7 +286,6 @@ std::optional<D3d11Frame> D3d11FramePool::render_pattern(int delay_ms) {
   const D3D11_RECT corner{0, 0, std::min(16, current_->width), std::min(16, current_->height)};
   context1_->ClearView(slot->target.Get(), white, &moving, 1);
   context1_->ClearView(slot->target.Get(), encoded, &corner, 1);
-  context_->End(slot->complete.Get());
   context_->Flush();
   if (!check(slot->mutex->ReleaseSync(0), "Shared mutex release")) return {};
   const auto submitted = Clock::now();
@@ -342,6 +339,7 @@ void D3d11FramePool::retire() {
   retired_.reset();
   context1_.Reset();
   context_.Reset();
+  dxgi_.Reset();
   device_.Reset();
 }
 

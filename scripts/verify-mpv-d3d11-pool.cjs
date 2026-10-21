@@ -10,7 +10,16 @@ async function main() {
       process.argv.includes("--electron")
         ? path.resolve(option("--electron"))
         : process.execPath,
-      ["--expose-gc", __filename, "--child", "--addon", addon],
+      [
+        "--expose-gc",
+        __filename,
+        "--child",
+        "--addon",
+        addon,
+        ...(process.argv.includes("--max-gpu-ready-ms")
+          ? ["--max-gpu-ready-ms", option("--max-gpu-ready-ms")]
+          : []),
+      ],
       {
         env: {
           ...process.env,
@@ -57,6 +66,13 @@ async function main() {
     const frames = [];
     for (let i = 0; i < 3; i++) frames.push(await producer.nextFrame());
     assert.ok(frames.every(Boolean));
+    if (process.argv.includes("--max-gpu-ready-ms")) {
+      const limit = Number(option("--max-gpu-ready-ms"));
+      assert.ok(
+        frames.every((frame) => frame.gpuReadyMs <= limit),
+        `GPU completion wait exceeds ${limit}ms: ${frames.map((frame) => frame.gpuReadyMs).join(", ")}`,
+      );
+    }
     assert.equal(new Set(frames.map((f) => f.key.slot)).size, 3);
     assert.equal(await producer.nextFrame(), null);
     const before = producer.stats();
