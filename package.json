@@ -1,7 +1,7 @@
 {
   "name": "lampaua-desktop",
   "productName": "LampaUa",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Десктопний клієнт LampaUa",
   "repository": {
     "type": "git",
@@ -9,7 +9,7 @@
   },
   "main": "src/main.js",
   "engines": {
-    "node": ">=24.0.0 <25.0.0",
+    "node": ">=24.15.0 <25.0.0",
     "npm": "please-use-yarn",
     "yarn": ">= 4.0.0"
   },
@@ -17,9 +17,9 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "build-linux": "electron-builder --linux --publish=never",
-    "build-mac": "electron-builder --mac --publish=never",
+    "build-mac": "electron-builder --mac --publish=never && node scripts/finalize-macos-updates.cjs",
     "build-win": "node scripts/build-win-mpv-test.cjs --release",
-    "build-win-legacy": "electron-builder --config build/windows-legacy.cjs --win --publish=never",
+    "build-win-arm64": "electron-builder --config build/windows-arm64.cjs --win --publish=never",
     "build-win-ac3": "\"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" -NoProfile -ExecutionPolicy Bypass -File scripts/build-win-ac3.ps1",
     "lint": "yarn lint:eslint && yarn lint:prettier",
     "lint:eslint": "eslint .",
@@ -41,26 +41,26 @@
     }
   },
   "dependencies": {
-    "electron-store": "11.0.2",
+    "electron-store": "12.0.0",
     "electron-updater": "6.8.9",
     "which": "7.0.0"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
-    "@types/node": "22.20.0",
-    "commit-and-tag-version": "13.2.1",
-    "electron": "43.7.5",
+    "@types/node": "24.19.2",
+    "commit-and-tag-version": "13.3.0",
+    "electron": "45.0.0",
     "electron-builder": "26.15.3",
-    "eslint": "10.11.0",
+    "eslint": "10.13.0",
     "eslint-config-prettier": "10.1.8",
-    "globals": "17.12.0",
-    "node-addon-api": "8.9.0",
-    "node-gyp": "12.4.0",
-    "prettier": "3.9.9",
+    "globals": "17.13.0",
+    "node-addon-api": "8.9.2",
+    "node-gyp": "13.1.0",
+    "prettier": "3.9.10",
     "rcedit": "5.0.2",
-    "rolldown": "1.1.5",
-    "typescript": "5.9.3",
-    "yaml": "2.8.1"
+    "rolldown": "1.2.14",
+    "typescript": "7.0.2",
+    "yaml": "2.9.1"
   },
   "author": {
     "name": "yumata, Kolovatoff, Hlushok",
@@ -101,11 +101,19 @@
       "category": "AudioVideo"
     },
     "mac": {
+      "minimumSystemVersion": "13.0.0",
       "category": "public.app-category.utilities",
       "icon": "assets/mac.icns",
       "target": [
         {
           "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
           "arch": [
             "x64",
             "arm64"
@@ -119,7 +127,6 @@
           "target": "nsis",
           "arch": [
             "x64",
-            "ia32",
             "arm64"
           ]
         }
@@ -151,5 +158,5 @@
     "node_modules/*",
     "!dist/*"
   ],
-  "packageManager": "yarn@4.9.4"
+  "packageManager": "yarn@4.18.1"
 }

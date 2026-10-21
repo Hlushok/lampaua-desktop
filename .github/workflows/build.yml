@@ -106,6 +106,7 @@ jobs:
           name: lampa-macos
           path: |
             dist/*.dmg
+            dist/*.zip
             dist/latest-mac.yml
 
   build-windows:
@@ -144,8 +145,8 @@ jobs:
       - name: Build for Windows
         run: yarn run build-win
 
-      - name: Build other Windows architectures
-        run: yarn run build-win-legacy
+      - name: Build Windows ARM64
+        run: yarn run build-win-arm64
 
       - name: Merge architecture-specific update metadata
         run: node scripts/merge-windows-updates.cjs
@@ -159,6 +160,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Release contract failed' }
           node scripts/verify-windows-updates.cjs
           if ($LASTEXITCODE -ne 0) { throw 'Windows updater manifest contract failed' }
+          node scripts/verify-desktop-upgrade.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Desktop upgrade contract failed' }
+          node scripts/verify-electron-net-fetch.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Electron networking contract failed' }
           foreach ($test in @('verify-external-player-contract.js', 'verify-ua-player-dispatch-contract.js', 'verify-ua-player-progress-contract.js', 'verify-ua-player-session-contract.js', 'verify-mpv-ytdl-contract.js', 'verify-mpv-test-isolation.js', 'verify-mpv-renderer-contract.js', 'verify-mpv-lampa-contract.js', 'verify-mpv-ipc-contract.js', 'verify-mpv-diagnostics.js')) {
             node "scripts/$test"
             if ($LASTEXITCODE -ne 0) { throw "Contract failed: $test" }
@@ -181,7 +186,7 @@ jobs:
             throw "latest.yml does not describe package version $version"
           }
 
-          foreach ($arch in @("x64", "ia32", "arm64")) {
+          foreach ($arch in @("x64", "arm64")) {
             $installer = "lampaua-$arch-$version.exe"
             $installerPath = Join-Path "dist" $installer
             $blockmapPath = "$installerPath.blockmap"
@@ -294,13 +299,11 @@ jobs:
 
           windows_x64=$(find lampa-windows -maxdepth 1 -type f -name '*-x64-*.exe' ! -name '*-portable.exe' | sort | head -n 1)
           windows_arm64=$(find lampa-windows -maxdepth 1 -type f -name '*-arm64-*.exe' | sort | head -n 1)
-          windows_ia32=$(find lampa-windows -maxdepth 1 -type f -name '*-ia32-*.exe' | sort | head -n 1)
 
           win_recommended=$(badge_button "$windows_x64" "Windows_x64" "238636" "windows")
           win_arm=$(badge_button "$windows_arm64" "Windows_ARM64" "0969da" "windows")
-          win_32=$(badge_button "$windows_ia32" "Windows_32--bit" "6e7781" "windows")
 
-          echo "| $win_recommended | $win_arm<br><br>$win_32 |" >> downloads.md
+          echo "| $win_recommended | $win_arm |" >> downloads.md
 
           cat >> downloads.md << 'EOF'
 
@@ -387,6 +390,7 @@ jobs:
             lampa-linux/*.rpm
             lampa-linux/latest-linux.yml
             lampa-macos/*.dmg
+            lampa-macos/*.zip
             lampa-macos/latest-mac.yml
             lampa-windows/*.exe
             lampa-windows/*.exe.blockmap

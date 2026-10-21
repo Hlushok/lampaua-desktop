@@ -58,6 +58,7 @@ const updater = new EventEmitter();
 let checks = 0;
 let installed = 0;
 let choice = 0;
+let updatesEnabled = true;
 updater.checkForUpdates = async () => {
   checks++;
 };
@@ -79,7 +80,7 @@ vm.runInNewContext(
           dialog: { showMessageBox: async () => ({ response: choice }) },
           shell: { openExternal() {} },
         };
-      if (name === "./storeManager") return { get: () => true };
+      if (name === "./storeManager") return { get: () => updatesEnabled };
       if (name === "./mpv/testMode") return { isMpvTest: () => false };
       throw new Error(name);
     },
@@ -91,6 +92,9 @@ async function main() {
   assert.equal(updater.disableDifferentialDownload, true);
   timers[0]();
   assert.equal(checks, 1);
+  updatesEnabled = false;
+  timers[0]();
+  assert.equal(checks, 1, "Disabled auto-update must not check or download");
   updater.emit("update-downloaded", { version: "2.0.0" });
   await Promise.resolve();
   assert.equal(installed, 1);
@@ -99,8 +103,8 @@ async function main() {
   await Promise.resolve();
   assert.equal(installed, 1, "Later must not force an install");
   assert.equal(
-    require("../build/electron-runtime-ac3-eac3.json").version,
-    "44.4.4",
+    require("../build/electron-runtime-windows-x64.json").version,
+    pkg.devDependencies.electron,
   );
   assert.equal(
     runtime.dllSha256,

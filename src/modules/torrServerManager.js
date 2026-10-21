@@ -8,6 +8,7 @@ const https = require("node:https");
 const { pipeline } = require("node:stream/promises");
 const { createWriteStream } = require("node:fs");
 const store = require("./storeManager");
+const { electronNetFetch } = require("./utils/electronNetFetch");
 
 // Конфигурация
 const GITHUB_API =
@@ -110,7 +111,7 @@ class TorrServerManager {
   // Получение последней версии с GitHub
   async getLatestRelease() {
     try {
-      const response = await fetch(GITHUB_API, {
+      const response = await electronNetFetch(GITHUB_API, {
         headers: { "User-Agent": "Electron-App" },
       });
       const data = await response.json();
@@ -301,7 +302,7 @@ class TorrServerManager {
       const baseUrl = `http://localhost:${port}`;
 
       // Проверяем /gst/echo
-      const response = await fetch(`${baseUrl}/gst/echo`, {
+      const response = await electronNetFetch(`${baseUrl}/gst/echo`, {
         signal: AbortSignal.timeout(3000),
       });
 
@@ -337,7 +338,7 @@ class TorrServerManager {
   // Получение версии TorrServer
   async getVersion(port = 8090) {
     try {
-      const response = await fetch(`http://localhost:${port}/echo`, {
+      const response = await electronNetFetch(`http://localhost:${port}/echo`, {
         signal: AbortSignal.timeout(3000),
       });
 

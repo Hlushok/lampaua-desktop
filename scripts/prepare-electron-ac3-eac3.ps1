@@ -52,7 +52,7 @@ if ($version -ne $manifest.version) {
     throw "Expected Electron $($manifest.version), got $version"
 }
 
-node (Join-Path $PSScriptRoot 'verify-electron-runtime.cjs') (Join-Path $runtime 'electron.exe') (Join-Path $runtime 'ffmpeg.dll')
+node (Join-Path $PSScriptRoot 'verify-electron-runtime.cjs') (Join-Path $runtime 'electron.exe') (Join-Path $runtime 'ffmpeg.dll') $manifestPath
 if ($LASTEXITCODE -ne 0) {
     throw 'Custom Electron runtime verification failed.'
 }

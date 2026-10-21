@@ -15,8 +15,9 @@ release of Lampa, Electron or mpv.
 
 ## Windows x64 Runtime
 
-- Electron 44.4.4 AC3/EAC3: https://github.com/ARST113/electron,
-  tag v44.4.4-ac3-eac3. Electron/Chromium license files remain in the package.
+- Official Electron 45.0.0: https://github.com/electron/electron,
+  tag v45.0.0. Electron/Chromium license files remain in the package.
+  AC3/EAC3 playback uses the bundled libmpv rather than a custom Electron build.
 - libmpv: own baseline-x64 build, SDK lampaua-libmpv-x64-sdk.7z.
 - Build recipes: https://github.com/shinchiro/mpv-winbuild-cmake,
   commit b2856ee6deed6957380b32465f359e67f67fafd8.

@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.0.2](https://github.com/Hlushok/lampaua-desktop/compare/v2.0.1...v2.0.2) (2026-10-21)
+
+### Оновлення Компонентів І Сумісність
+
+- Перехід на офіційний Electron 45.0.0; власна libmpv DLL та виправлення зависань 2.0.1 збережені. AC3/EAC3 у Windows x64 обробляє MPV.
+- Припинено підтримку Windows 32-bit і macOS 12. Остання сумісна версія для них — 2.0.1; користувачам потрібно залишитися на ній та вимкнути автооновлення. Нові пакети: Windows x64/ARM64, macOS 13+, 64-бітний Linux.
+- Додано мінімальну версію Darwin 22 до macOS-метаданих оновлення та ZIP-пакети для автооновлення.
+- Вибірково перенесено мережеві виправлення ARST113: Chromium net.fetch, скасування потоків і таймаут отримання заголовків без обмеження тривалості відео.
+- Оновлено залежності, зокрема electron-store 12, node-gyp 13, TypeScript 7 і Yarn 4.18.1. Експорт налаштувань адаптовано до нового API; додано регресійні перевірки сумісності, мережі та збереження налаштувань.
+- Сервер, адреси LampaUa, профіль і вибір плеєра не змінено.
+
 ## [2.0.1](https://github.com/Hlushok/lampaua-desktop/compare/v2.0.0...v2.0.1) (2026-10-21)
 
 ### Стабільність Вбудованого Плеєра

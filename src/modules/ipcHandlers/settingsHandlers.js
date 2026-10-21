@@ -106,7 +106,7 @@ function registerSettingsHandlers(store, getMainWindow, injectPlugin) {
       const settings = {
         appVersion: app.getVersion(),
         dateCreated: new Date().toISOString(),
-        app: publicStoreSnapshot(store.get()),
+        app: publicStoreSnapshot(store.store),
         lampa: localStorageData,
       };
 

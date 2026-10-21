@@ -1,0 +1,14 @@
+{
+  "version": "45.0.0",
+  "repository": "electron/electron",
+  "tag": "v45.0.0",
+  "asset": "electron-v45.0.0-win32-x64.zip",
+  "sha256": "ae53887a23bb640369c93dbd38c408a2af5c0deb86f2fa76c6c244cb444b7f47",
+  "ffmpegSha256": "cdf2b70f0f0a97c9840af1466dd86a90e564c98f6892d783635cf9c3b303d613",
+  "inputs": {
+    "electron.exe": "8e84549b05d27d444da2957653200d1e0ac287eff0fc5722b92835b9e0821a59",
+    "ffmpeg.dll": "cdf2b70f0f0a97c9840af1466dd86a90e564c98f6892d783635cf9c3b303d613",
+    "vulkan-1.dll": "0802c28ebf8226fccaef45fc44b528873eb4814f714a817b01cc2f6ab49c24da"
+  },
+  "checksumsUrl": "https://github.com/electron/electron/releases/download/v45.0.0/SHASUMS256.txt"
+}

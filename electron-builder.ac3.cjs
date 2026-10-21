@@ -27,6 +27,7 @@ module.exports = {
           `${context.packager.appInfo.productFilename}.exe`,
         ),
         join(context.appOutDir, "ffmpeg.dll"),
+        join(__dirname, "build", "electron-runtime-ac3-eac3.json"),
       ],
       { stdio: "inherit", windowsHide: true },
     );

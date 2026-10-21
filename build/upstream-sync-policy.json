@@ -8,6 +8,8 @@
     "LICENSE",
     "build/libmpv-runtime.json",
     "build/electron-runtime-ac3-eac3.json",
+    "build/electron-runtime-windows-x64.json",
+    "build/windows-arm64.cjs",
     "build/upstream-sync-policy.json",
     "scripts/sync-upstream.cjs",
     "scripts/verify-upstream-sync.cjs",

@@ -7,7 +7,7 @@ const version = require("../package.json").version;
 function mergeWindowsUpdates(root = path.resolve(__dirname, "../dist")) {
   const sources = [
     ["release-x64", ["x64"]],
-    ["legacy", ["ia32", "arm64"]],
+    ["arm64", ["arm64"]],
   ].map(([directory, arches]) => {
     const folder = path.join(root, directory);
     const manifest = yaml.parse(
@@ -35,7 +35,7 @@ function mergeWindowsUpdates(root = path.resolve(__dirname, "../dist")) {
   const files = sources
     .flatMap(({ manifest }) => manifest.files)
     .filter((file) => !file.url.includes("-portable"));
-  for (const arch of ["x64", "ia32", "arm64"])
+  for (const arch of ["x64", "arm64"])
     assert.ok(
       files.some((file) => file.url === `lampaua-${arch}-${version}.exe`),
       arch,
@@ -44,7 +44,7 @@ function mergeWindowsUpdates(root = path.resolve(__dirname, "../dist")) {
   const primary = files.find(
     (file) => file.url === `lampaua-x64-${version}.exe`,
   );
-  // Validate every source before copying: legacy output must never replace MPV.
+  // Validate every source before copying: ARM64 output must never replace MPV.
   for (const { folder, manifest } of sources) {
     for (const file of manifest.files) {
       fs.copyFileSync(path.join(folder, file.url), path.join(root, file.url));
@@ -70,7 +70,7 @@ function mergeWindowsUpdates(root = path.resolve(__dirname, "../dist")) {
     }),
   );
   console.log(
-    "Windows update metadata verified: x64 MPV, ia32/arm64 browser runtime",
+    "Windows update metadata verified: x64 MPV, ARM64 browser runtime; no ia32",
   );
 }
 module.exports = mergeWindowsUpdates;

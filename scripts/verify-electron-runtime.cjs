@@ -4,7 +4,9 @@ const { createHash } = require("node:crypto");
 const { readFileSync } = require("node:fs");
 const { resolve } = require("node:path");
 
-const runtime = require("../build/electron-runtime-ac3-eac3.json");
+const runtime = require(
+  resolve(process.argv[4] || "build/electron-runtime-windows-x64.json"),
+);
 
 const [executable, ffmpeg] = process.argv.slice(2);
 assert(
@@ -18,7 +20,7 @@ const ffmpegHash = createHash("sha256")
 assert.equal(
   ffmpegHash,
   runtime.ffmpegSha256,
-  "The custom ffmpeg.dll was replaced",
+  "The pinned ffmpeg.dll was replaced",
 );
 
 const probe = spawnSync(

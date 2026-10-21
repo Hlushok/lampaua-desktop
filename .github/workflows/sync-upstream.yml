@@ -63,6 +63,8 @@ jobs:
           done
           node scripts/verify-upstream-sync.cjs
           node scripts/verify-windows-updates.cjs
+          node scripts/verify-desktop-upgrade.cjs
+          node scripts/verify-electron-net-fetch.cjs
           corepack yarn lint
 
       - name: Verify pinned libmpv input contract

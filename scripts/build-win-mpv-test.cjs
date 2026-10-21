@@ -63,10 +63,7 @@ function stageDependencies(stage, dependencies) {
 }
 async function main() {
   if (release) {
-    for (const script of [
-      "prepare-electron-ac3-eac3.ps1",
-      "prepare-libmpv.ps1",
-    ])
+    for (const script of ["prepare-electron-runtime.ps1", "prepare-libmpv.ps1"])
       run("powershell.exe", [
         "-NoProfile",
         "-ExecutionPolicy",
@@ -76,20 +73,14 @@ async function main() {
       ]);
   }
   fs.mkdirSync(cache, { recursive: true });
-  const electronRuntime = require("../build/electron-runtime-ac3-eac3.json");
-  const electronDirectory = path.join(root, ".cache/electron-ac3-eac3");
+  const electronRuntime = require("../build/electron-runtime-windows-x64.json");
+  const electronDirectory = path.join(root, ".cache/electron-windows-x64");
   if (
-    hash(path.join(root, ".cache/electron-runtime-ac3-eac3.zip")) !==
+    hash(path.join(root, ".cache/electron-runtime-windows-x64.zip")) !==
     electronRuntime.sha256
   )
     throw new Error("Production Electron archive hash mismatch");
-  const electronInputs = {
-    "electron.exe":
-      "93f9eacd8ca3ff42c6683700f8a680f6d68f31554f3c764752a2329dfd71a85f",
-    "ffmpeg.dll": electronRuntime.ffmpegSha256,
-    "vulkan-1.dll":
-      "3e427037630adaea22465209ce82137df58b2bd067cae31fa27d2db14a677103",
-  };
+  const electronInputs = electronRuntime.inputs;
   for (const [file, digest] of Object.entries(electronInputs))
     if (hash(path.join(electronDirectory, file)) !== digest)
       throw new Error(`Production Electron input hash mismatch: ${file}`);
@@ -97,6 +88,11 @@ async function main() {
     path.join(root, "scripts/verify-electron-runtime.cjs"),
     path.join(electronDirectory, "electron.exe"),
     path.join(electronDirectory, "ffmpeg.dll"),
+  ]);
+  run(process.execPath, [
+    path.join(root, "scripts/verify-electron-net-fetch.cjs"),
+    "--electron",
+    path.join(electronDirectory, "electron.exe"),
   ]);
   const mpvRuntime = require("../build/libmpv-runtime.json");
   const expectedSdk = mpvRuntime.sha256;

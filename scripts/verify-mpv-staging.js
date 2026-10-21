@@ -43,7 +43,7 @@ for (const name of Object.keys(pkg.dependencies))
 const manifest = JSON.parse(
   fs.readFileSync(path.join(stage, "build-manifest.json")),
 );
-const productionRuntime = require("../build/electron-runtime-ac3-eac3.json");
+const productionRuntime = require("../build/electron-runtime-windows-x64.json");
 assert.equal(manifest.electron, productionRuntime.version);
 assert.equal(manifest.electronArchiveSha256, productionRuntime.sha256);
 assert.equal(

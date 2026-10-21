@@ -7,6 +7,7 @@ const crypto = require("node:crypto");
 const { spawn, execFileSync } = require("node:child_process");
 const { parse } = require("acorn");
 const root = path.resolve(__dirname, "..");
+const qualityOnly = process.argv.includes("--quality-only");
 const exe = process.argv[process.argv.indexOf("--exe") + 1];
 assert.ok(
   exe && fs.existsSync(exe),
@@ -246,7 +247,11 @@ async function main() {
       `--remote-debugging-port=${debugPort}`,
       "--remote-debugging-address=127.0.0.1",
     ],
-    { windowsHide: true, env, stdio: ["ignore", "pipe", "pipe"] },
+    {
+      windowsHide: false,
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    },
   );
   child.stdout.pipe(log, { end: false });
   child.stderr.pipe(log, { end: false });
@@ -417,7 +422,7 @@ async function main() {
   }
   async function play(name, params, data = {}) {
     await evaluate(
-      `if(Lampa.PlayerVideo.video())Lampa.Player.close();window.__native={}; ${params ? `Lampa.PlayerVideo.setParams(${JSON.stringify(params)});` : ""} Lampa.Player.play(${JSON.stringify({ url: `${base}/${name}`, title: "LampaUa MPV test", launch_player: "inner", timeline: { hash: name, time: 0, percent: 0, duration: 0 }, ...data })})`,
+      `if(Lampa.PlayerVideo.video())Lampa.Player.close();window.__native={}; ${params ? `Lampa.PlayerVideo.setParams(${JSON.stringify(params)});` : ""} Lampa.Player.play(${JSON.stringify({ url: `${base}/${name}`, title: `Перевірка: ${name}`, launch_player: "inner", timeline: { hash: name, time: 0, percent: 0, duration: 0 }, ...data })})`,
     );
     try {
       await wait("Lampa.PlayerVideo.video()?.currentTime>0.6", `play ${name}`);
@@ -435,6 +440,20 @@ async function main() {
     );
     assert.ok(info.duration > 10, JSON.stringify(info));
     results.push({ media: name, ...info });
+  }
+  if (process.argv.includes("--visual-only")) {
+    await sleep(10_000);
+    await play("h264-aac.mp4");
+    await screenshot("visible-playback");
+    await sleep(30_000);
+    results.push({ shutdown: await closeApplication() });
+    assert.deepEqual(profileSnapshot(), productionBefore);
+    fs.writeFileSync(
+      path.join(output, "results.json"),
+      JSON.stringify({ exe, runId, ok: true, results }, null, 2),
+    );
+    console.log("Visible desktop diagnostic finished", output);
+    return;
   }
   async function checkNetworkCancellation(
     name,
@@ -558,7 +577,12 @@ async function main() {
     return;
   }
   if (!process.argv.includes("--offline-only")) {
+    if (qualityOnly)
+      await evaluate(
+        "window.__qualityErrors=[];document.addEventListener('error',e=>{if(['VIDEO','MPV-VIDEO'].includes(e.target.nodeName))__qualityErrors.push({src:e.target.src,error:String(e.target.error?.message||e.target.error)})},true)",
+      );
     for (const name of [
+      ...(qualityOnly ? ["hevc-4k-hdr.mp4"] : []),
       "h264-aac.mp4",
       "h264-ac3.mkv",
       "h264-eac3.mkv",
@@ -566,6 +590,19 @@ async function main() {
     ]) {
       await play(name);
       await screenshot(name);
+      if (qualityOnly) {
+        await sleep(5000);
+        assert.equal(
+          await evaluate("Boolean(Lampa.PlayerVideo.video()?.error)"),
+          false,
+          name,
+        );
+        if (name === "hevc-4k-hdr.mp4") {
+          assert.equal(await evaluate("__native.width"), 3840);
+          assert.equal(await evaluate("__native.height"), 2160);
+          results.push({ positiveQuality: "4K HEVC", error: false });
+        }
+      }
     }
     await evaluate("Lampa.PlayerVideo.pause()");
     await sleep(400);
@@ -649,6 +686,14 @@ async function main() {
       "Lampa.PlayerVideo.video().videoWidth===1280",
       "browser DASH 720p video",
     );
+    if (qualityOnly) {
+      await sleep(5000);
+      assert.equal(
+        await evaluate("Boolean(Lampa.PlayerVideo.video()?.error)"),
+        false,
+      );
+      results.push({ positiveQuality: "720p browser DASH", error: false });
+    }
     await evaluate(
       `window.__native={};Lampa.PlayerPanel.listener.send('quality',{name:'1080p',url:${JSON.stringify(dash1080)}})`,
     );
@@ -673,6 +718,14 @@ async function main() {
     await evaluate("Lampa.PlayerVideo.to(5);Lampa.PlayerVideo.play()");
     await wait("Lampa.PlayerVideo.video().currentTime>5.3", "DASH seek/resume");
     await screenshot("ytdl-dash-1080p");
+    if (qualityOnly) {
+      await sleep(5000);
+      assert.equal(
+        await evaluate("Boolean(Lampa.PlayerVideo.video()?.error)"),
+        false,
+      );
+      results.push({ positiveQuality: "1080p browser DASH", error: false });
+    }
     assert.ok(
       requests.some((entry) => /dash-1080-chunk-0/.test(entry.name)),
       "Separate video segment requested",
@@ -697,8 +750,30 @@ async function main() {
       fallback360p: false,
       engine: "browser DASH",
     });
+    if (qualityOnly) {
+      await play("native-dash/manifest.mpd?quality=1080");
+      await sleep(5000);
+      assert.equal(
+        await evaluate("Boolean(Lampa.PlayerVideo.video()?.error)"),
+        false,
+      );
+      assert.deepEqual(await evaluate("__qualityErrors"), []);
+      results.push({
+        positiveQuality: "1080p native DASH",
+        error: false,
+        intentionalFailuresSkipped: true,
+      });
+      results.push({ shutdown: await closeApplication() });
+      assert.deepEqual(profileSnapshot(), productionBefore);
+      fs.writeFileSync(
+        path.join(output, "results.json"),
+        JSON.stringify({ exe, runId, ok: true, results }, null, 2),
+      );
+      console.log("Positive 720p/1080p/4K quality checks passed", output);
+      return;
+    }
     await evaluate(
-      `Lampa.Player.close();Lampa.Player.play({url:${JSON.stringify(dashBlocked)},title:'DASH network failure',launch_player:'inner'})`,
+      `Lampa.Player.close();Lampa.Player.play({url:${JSON.stringify(dashBlocked)},title:'Очікувана тестова помилка HTTP 503',launch_player:'inner'})`,
     );
     for (
       let i = 0;
@@ -736,7 +811,7 @@ async function main() {
       "sisi/video.mp4",
     ]) {
       await evaluate(
-        `Lampa.Player.close();Lampa.Player.play({url:${JSON.stringify(`${base}/${name}`)},title:'Expected stream failure',launch_player:'inner'})`,
+        `Lampa.Player.close();Lampa.Player.play({url:${JSON.stringify(`${base}/${name}`)},title:'Очікувана тестова помилка потоку',launch_player:'inner'})`,
       );
       await wait(
         "Boolean(Lampa.PlayerVideo.video()?.error)",
@@ -928,10 +1003,21 @@ async function main() {
     await cdp("Emulation.clearDeviceMetricsOverride");
     await evaluate("Lampa.Controller.toggle('content')");
     await play("xvid-mp3.avi");
-    await evaluate(
-      `(async()=>{Lampa.Player.close();await Lampa.PlayerVideo.video()?.destroy();for(let i=0;i<20;i++){const p=await _electronMpvVideo.create({renderMode:'canvas2d',width:320,height:180});await p.open(${JSON.stringify(`${base}/h264-aac.mp4`)});await p.play();await new Promise(r=>setTimeout(r,80));await p.destroy()}})()`,
-    );
-    results.push({ nativeCallbackStressCycles: 20 });
+    await evaluate("Lampa.Player.close();Lampa.PlayerVideo.video()?.destroy()");
+    const stressLatencies = [];
+    for (let cycle = 0; cycle < 20; cycle++) {
+      const start = Date.now();
+      await evaluate(
+        `(async()=>{const p=await _electronMpvVideo.create({renderMode:'canvas2d',width:320,height:180});await p.open(${JSON.stringify(`${base}/h264-aac.mp4`)});await p.play();await new Promise(r=>setTimeout(r,80));await p.destroy()})()`,
+      );
+      const elapsed = Date.now() - start;
+      assert.ok(
+        elapsed < 5000,
+        `Native stress cycle ${cycle} took ${elapsed} ms`,
+      );
+      stressLatencies.push(elapsed);
+    }
+    results.push({ nativeCallbackStressCycles: 20, stressLatencies });
   }
   await cdp("Network.enable");
   await cdp("Network.setCacheDisabled", { cacheDisabled: true });

@@ -40,4 +40,6 @@ jobs:
           done
           corepack yarn lint
           node scripts/verify-windows-updates.cjs
+          node scripts/verify-desktop-upgrade.cjs
+          node scripts/verify-electron-net-fetch.cjs
           node scripts/verify-upstream-sync.cjs

@@ -1,5 +1,6 @@
 // modules/playerOptionsInterceptor.js
 const { protocol } = require("electron");
+const { electronNetFetch } = require("./utils/electronNetFetch");
 
 class PlayerOptionsInterceptor {
   constructor() {
@@ -36,7 +37,7 @@ class PlayerOptionsInterceptor {
         });
       }
 
-      return fetch(request);
+      return electronNetFetch(request);
     });
     this.isInitialized = true;
     console.log("✅ Перехват OPTIONS для VLC настроен через protocol.handle");

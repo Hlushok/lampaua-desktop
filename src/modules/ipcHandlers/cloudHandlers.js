@@ -7,6 +7,7 @@ const {
 
 const { importSettings } = require("./settingsHandlers");
 const { publicStoreSnapshot } = require("../storeAccessPolicy");
+const { electronNetFetch } = require("../utils/electronNetFetch");
 
 const BACKUP_API_BASE_URL = "http://lampaua.mooo.com/database/desktop-backup";
 
@@ -30,7 +31,7 @@ function registerCloudHandlers(store, getMainWindow, injectPlugin) {
       const settings = {
         appVersion: app.getVersion(),
         dateCreated: new Date().toISOString(),
-        app: publicStoreSnapshot(store.get()),
+        app: publicStoreSnapshot(store.store),
         lampa: storageData,
       };
 
@@ -105,7 +106,7 @@ async function uploadJson(jsonData, pin) {
   const pinStr = String(pin).padStart(4, "0");
   const encrypted = encryptJson(jsonData, pinStr);
 
-  const response = await fetch(`${BACKUP_API_BASE_URL}/upload.php`, {
+  const response = await electronNetFetch(`${BACKUP_API_BASE_URL}/upload.php`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ data: encrypted }),
@@ -119,7 +120,7 @@ async function uploadJson(jsonData, pin) {
 async function downloadJson(fileId, pin) {
   const pinStr = String(pin).padStart(4, "0");
 
-  const response = await fetch(
+  const response = await electronNetFetch(
     `${BACKUP_API_BASE_URL}/download.php?id=${encodeURIComponent(fileId)}`,
   );
   const result = await response.json();

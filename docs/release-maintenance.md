@@ -1,5 +1,9 @@
 # LampaUa Desktop 2.x: Release Maintenance
 
+Актуальні зміни збірки та межі сумісності від 2.0.2:
+[2.0.2-maintenance.md](2.0.2-maintenance.md). Windows 32-bit і macOS 12 більше
+не підтримуються; для них останнім залишається 2.0.1.
+
 ## Architecture And Boundaries
 
 Version 1.5.24 (ordinary and AC3/EAC3) closes series 1.x. Version 2.0.0 promotes
@@ -12,7 +16,7 @@ Sources have distinct roles:
 
 - Kolovatoff/lampa-desktop: base app, existing sync-upstream.yml merges main.
 - ARST113/lampa-desktop: selective codec-integration reference, not a wholesale merge.
-- ARST113/electron: pinned Windows x64 Electron/Chromium AC3/EAC3 binary.
+- electron/electron: official pinned runtime from 2.0.2; ARST113/electron remains a historical reference.
 - yscoder/electron-mpv-video: vendored source at the recorded commit plus local patches.
 - shinchiro/mpv-winbuild-cmake: pinned build recipes for the baseline-x64 libmpv runtime.
 - Hlushok/lampaua-desktop: app identity, integrations, patches, QA and release channel.
@@ -25,7 +29,7 @@ native HLS/DASH and protected media playback.
 
 ## Reproducible Build
 
-Use Node 24, Yarn 4.9.4, Python, Visual Studio C++ build tools and 7-Zip.
+Use Node 24.15+, Yarn 4.18.1, Python, Visual Studio C++ build tools and 7-Zip.
 No private stream URL, authorization code, user profile or local SDK installation
 may be required by CI. yarn.lock pins the native/TypeScript/bundler tools.
 
@@ -34,7 +38,7 @@ may be required by CI. yarn.lock pins the native/TypeScript/bundler tools.
    libmpv archives, creates an MSVC import library, compiles the addon for the
    pinned Electron ABI, compiles TypeScript and stages the full app.
 3. Inspect dist/release-x64: NSIS installer, portable and updater metadata.
-4. Run yarn build-win-legacy for Windows ia32/arm64, then
+4. Run yarn build-win-arm64 for Windows ARM64, then
    node scripts/merge-windows-updates.cjs. It verifies SHA-512 and sizes before
    merging metadata; Windows x64 MPV is the primary entry.
 5. Linux/macOS use their existing build jobs and do not bundle this Windows DLL.
