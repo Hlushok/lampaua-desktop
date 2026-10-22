@@ -7,8 +7,10 @@ from pathlib import Path, PurePosixPath
 import re
 import tarfile
 
-from package_build import validate_sources
+from package_build import validate_sources, variant_paths
 from preflight_sources import load_lock, verify
+from apply_source_patches import load_config, verify_patches, within
+from capture_source import digest
 
 
 def collect_notices(archive, component, output):
@@ -36,13 +38,31 @@ def collect_notices(archive, component, output):
     return notices
 
 
-def audit(sources, manifest_path, root, output):
+def verify_candidate_inputs(sources, manifest, config_path):
+    config = load_config(config_path)
+    effective = verify_patches(sources, config)
+    if manifest.get("clientApiVersion") != ((2 << 16) | 6):
+        raise ValueError("Candidate source manifest requires client API 2.6")
+    provenance = {key: effective[key] for key in ("baseRevision", "patches", "effectiveTreeSha256")}
+    for key, value in provenance.items():
+        if manifest.get(key) != value:
+            raise ValueError(f"Candidate source provenance mismatch: {key}")
+    for item in effective["patches"]:
+        if digest(within(sources, item["file"])) != item["sha256"]:
+            raise ValueError("Bundled patch differs from the pinned patch")
+    return {"sourceVariant": "d3d11", "clientApiVersion": manifest["clientApiVersion"],
+            "container": config["container"], **provenance}
+
+
+def audit(sources, manifest_path, root, output, variant="baseline"):
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest != json.loads((sources / "manifest.json").read_text(encoding="utf-8")):
         raise ValueError("Source and SDK build manifests differ")
-    config = json.loads((root / "build/libmpv-source-build.json").read_text(encoding="utf-8"))
+    config_path, _ = variant_paths(root, variant)
+    config = json.loads(config_path.read_text(encoding="utf-8"))
     if manifest["configuration"] != config:
         raise ValueError("Source configuration differs from the app's pinned build")
+    candidate = verify_candidate_inputs(sources, manifest, config_path) if variant == "d3d11" else {}
     receipts = manifest["components"]
     by_name = {record["name"]: record for record in receipts}
     if len(by_name) != len(receipts):
@@ -90,7 +110,7 @@ def audit(sources, manifest_path, root, output):
         print(f"{record['name']}: verified source, {len(notices)} notice files", flush=True)
     report = {"repositoryCommit": manifest["repositoryCommit"], "dllSha256": manifest["dllSha256"],
               "pinnedInputs": len(pinned), "components": components,
-              "withoutNoticeFiles": [record["name"] for record in components if not record["notices"]]}
+              "withoutNoticeFiles": [record["name"] for record in components if not record["notices"]], **candidate}
     (output / "inventory.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     return report
 
@@ -101,6 +121,7 @@ if __name__ == "__main__":
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True, help="New directory for original notices and inventory")
+    parser.add_argument("--variant", choices=("baseline", "d3d11"), default="baseline")
     args = parser.parse_args()
-    result = audit(args.sources, args.manifest, args.root, args.output)
+    result = audit(args.sources, args.manifest, args.root, args.output, args.variant)
     print(json.dumps({key: value for key, value in result.items() if key != "components"}, indent=2))

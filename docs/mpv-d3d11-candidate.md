@@ -34,12 +34,37 @@ CMake >=3.31 із Ninja generator, Meson >=1.3, Ninja >=1.10 та потрібн
 діагностичному артефакті навіть після помилки. Жодні пакети контейнера при цьому
 не оновлюються.
 
-Нова DLL ще має пройти окрему компіляцію та runtime-приймання; локальні unit
-тести цієї перевірки не підміняють виконання в реальному контейнері.
+Запуск [39725003994](https://github.com/Hlushok/lampaua-desktop/actions/runs/39725003994)
+успішно пройшов новий контейнер та реальний C++20 smoke test. Host tools:
+Python 3.14.8, CMake 4.4.4, Ninja 1.13.2, Meson 1.12.1, GCC/G++ 16.2.1.
+Одна baseline unit fixture успадкувала `LAMPAUA_MPV_VARIANT=d3d11`; коміт
+`57e26c099a73494eff1f28fbe3c221025349cad4` явно ізолює її baseline-середовище,
+не змінюючи production build або перевірку конфліктних pins.
+
+## Відновлення Завантаження Джерел
+
+Запуск [39725369962](https://github.com/Hlushok/lampaua-desktop/actions/runs/39725369962)
+пройшов контейнер, environment gate і source-тести, але зупинився до компіляції:
+`lib.openmpt.org:443` повернув `Connection refused` при завантаженні libopenmpt.
+Це окрема мережева помилка, не помилка D3D11 backend.
+
+Лише candidate inputs phase тепер попередньо завантажує libopenmpt 0.7.12:
+спочатку original URL, потім [офіційне дзеркало OpenMPT](https://lib.openmpt.org/libopenmpt/download/)
+на `ftp.gathering.org`. Резервний архів перевірений наживо 22.10.2026; SHA-256
+`79ab3ce3672601e525b5cc944f026c80c03032f37d39caa84c8ca3fdd75e0c98`
+точно збігається з незмінним source lock. Інший hash або pin відхиляється.
+URL/hash оригіналу в recipe та source receipts не підміняються; фактичний
+download URL записується окремо в `sources/downloads/libopenmpt.json`.
+CMake повторно перевіряє архів у своєму `DOWNLOAD_DIR` перед розпакуванням.
+Baseline, dependency versions та accepted DLL не змінені.
+
+Нова DLL ще має пройти компіляцію та runtime-приймання. Успішні локальні тести
+не підміняють ці перевірки.
 
 ## Локальні Перевірки
 
-- 60 source/package тестів та структурна перевірка YAML workflow: PASS.
+- 81 source/package тест та структурна перевірка YAML workflow: PASS.
+- Реальне fallback-завантаження з точним SHA-256 та CMake cached extraction: PASS.
 - Підготовлений effective MPV archive та його tree hash перевірені повторно.
 - Candidate SDK descriptor містить реальні hashes DLL, SDK і source archive.
 - Test-only native context probe компілюється проти exact patched API 2.6 headers.
@@ -60,6 +85,7 @@ HEAD гілки. Descriptor `candidate-sdk.json` лежить поза архі�
 ```text
 node scripts/verify-mpv-d3d11-native.cjs --unit
 node scripts/verify-mpv-d3d11-native.cjs --context-only --electron PATH --addon TEST_ADDON --sdk .cache/libmpv-d3d11-candidate/sdk --build-commit FULL_BUILD_SHA
+python scripts/mpv/audit_runtime_sources.py --variant d3d11 --root . --sources SOURCES --manifest SDK_MANIFEST --output NEW_NOTICES_DIRECTORY
 ```
 
 Другий запуск перевіряє descriptor, actual archive/DLL hashes, base/patch pins і

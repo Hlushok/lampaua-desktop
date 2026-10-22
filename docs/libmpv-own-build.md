@@ -156,6 +156,12 @@ The candidate environment gate checks host tools and actually builds/runs a
 C++20 smoke program before source/compiler builds. Its version/failure report
 is preserved with the diagnostics; it does not install or upgrade host packages.
 
+Candidate inputs also seed the pinned libopenmpt 0.7.12 archive into its CMake
+download directory. If the original host is unavailable, the official OpenMPT
+mirror is tried with the exact same locked SHA-256. Changed pins/bytes fail;
+neither the recipe URL nor source identity is changed. The actual download URL
+is preserved under `sources/downloads/`. Baseline does not invoke this helper.
+
 Candidate packaging requires the installed client API 2.6 and D3D11 header.
 `manifest.json` inside the source bundle records inputs and DLL provenance.
 `candidate-sdk.json` is outside the archives and additionally records their
@@ -166,4 +172,7 @@ The candidate descriptor is not a replacement for `build/libmpv-runtime.json`.
 A successful archive/header check does not prove that the built DLL implements
 the backend. Require an actual hardware D3D11 render-context probe, then isolated
 full-Desktop playback and source/notices verification before accepting it.
+Use `audit_runtime_sources.py --variant d3d11` for this candidate; it verifies
+API 2.6, base/patch/effective-tree provenance and the bundled patch bytes as well
+as the existing full dependency/source/notices checks. Default audit is baseline.
 Keep the accepted SDK and installed profile unchanged throughout this work.

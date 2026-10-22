@@ -83,6 +83,9 @@ if [ "$phase" != compile ]; then
   python3 "$LAMPAUA_MPV_SCRIPTS/preflight_sources.py" --sources "$LAMPAUA_MPV_SOURCES" \
     --lock "$root/build/${pins[4]}" --plan > "$work/preflight-targets.txt"
   readarray -t source_targets < "$work/preflight-targets.txt"
+  if [ "$variant" = d3d11 ]; then
+    python3 "$LAMPAUA_MPV_SCRIPTS/seed_source_download.py" --work "$work" --lock "$root/build/${pins[4]}"
+  fi
   cmake --build "$work/build" --target "${source_targets[@]}" --parallel 2
   bash "$LAMPAUA_MPV_SCRIPTS/vendor-rust.sh" "$work/trees/subrandr"
 fi
