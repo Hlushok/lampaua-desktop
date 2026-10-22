@@ -218,7 +218,9 @@ class SourcePreflightTests(unittest.TestCase):
         python.chmod(0o755)
         cmake.chmod(0o755)
         bash = "C:/Program Files/Git/bin/bash.exe" if os.name == "nt" else shutil.which("bash")
-        env = {**os.environ, "LAMPAUA_MPV_PHASE": "compile",
+        # This fixture deliberately materializes only the baseline build tree.
+        env = {**os.environ, "LAMPAUA_MPV_PHASE": "compile", "LAMPAUA_MPV_VARIANT": "baseline",
+               "LAMPAUA_MPV_TARGET": "mpv",
                "PATH": str(binaries) + os.pathsep + os.environ["PATH"]}
         result = subprocess.run([bash, "scripts/mpv/build-libmpv.sh"], cwd=self.root, env=env,
                                 text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
