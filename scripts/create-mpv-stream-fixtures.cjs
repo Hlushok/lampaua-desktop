@@ -4,6 +4,33 @@ const { execFileSync } = require("node:child_process");
 const folder = path.resolve(__dirname, "../.cache/mpv-prototype/fixtures");
 const output = path.join(folder, "streams");
 fs.mkdirSync(output, { recursive: true });
+if (process.argv.includes("--d3d11-color")) {
+  execFileSync(
+    "ffmpeg",
+    [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "color=red:size=128x72:rate=24",
+      "-t",
+      "5",
+      "-c:v",
+      "libx264",
+      "-preset",
+      "ultrafast",
+      "-pix_fmt",
+      "yuv420p",
+      path.join(folder, "d3d11-red.mp4"),
+    ],
+    { stdio: "inherit", windowsHide: true },
+  );
+  console.log("D3D11 SDR color reference fixture created", folder);
+  process.exit(0);
+}
 if (process.argv.includes("--4k-only")) {
   execFileSync(
     "ffmpeg",

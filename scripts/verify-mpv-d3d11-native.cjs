@@ -237,12 +237,17 @@ async function main() {
     return;
   }
   if (process.argv.includes("--child")) {
-    await child();
+    if (process.argv.includes("--player-tests"))
+      await require("./mpv/d3d11-player-tests.cjs")(
+        require(path.resolve(option("--addon"))),
+      );
+    else await child();
     return;
   }
   assert.ok(
-    process.argv.includes("--context-only"),
-    "This verifier currently requires --context-only",
+    process.argv.includes("--context-only") ||
+      process.argv.includes("--player-tests"),
+    "Select --context-only or --player-tests",
   );
   const sdk = path.resolve(option("--sdk"));
   if (!process.argv.includes("--expect-api-rejection"))
@@ -260,6 +265,12 @@ async function main() {
     "--child",
     "--addon",
     path.resolve(option("--addon")),
+    ...[
+      "--player-tests",
+      "--player-smoke",
+      "--player-lifecycle-only",
+      "--production-only",
+    ].filter((name) => process.argv.includes(name)),
     ...(process.argv.includes("--expect-api-rejection")
       ? ["--expect-api-rejection"]
       : []),
@@ -268,7 +279,7 @@ async function main() {
     cwd: root,
     encoding: "utf8",
     windowsHide: true,
-    timeout: 60000,
+    timeout: process.argv.includes("--player-tests") ? 180000 : 60000,
     env: {
       ...process.env,
       ELECTRON_RUN_AS_NODE: "1",

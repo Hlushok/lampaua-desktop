@@ -26,7 +26,7 @@
           }
         }],
         ["OS=='win'", {
-          "sources": ["src/d3d11_renderer.cc"],
+          "sources": ["src/d3d11_renderer.cc", "src/d3d11_player.cc"],
           "include_dirs": [
             "<!(node -p \"process.env.MPV_INCLUDE_DIR || require('path').join(require('os').homedir(), 'libmpv', 'include')\")"
           ],

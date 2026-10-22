@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import type { RenderPipeline } from '../shared/types.js'
+import type { GpuFrameKey, NativeGpuFrame } from '../shared/gpu-frame.js'
 
 const CHANNEL_PREFIX = 'electron-mpv-video:v1'
 const channel = (name: string) => `${CHANNEL_PREFIX}:${name}`
@@ -56,8 +57,14 @@ type NativePlayer = {
   destroy(): Promise<void>
 }
 
+type NativeD3d11Player = Omit<NativePlayer, 'renderFrame' | 'renderSharedTexture'> & {
+  renderD3d11Frame(width: number, height: number, generation: number): Promise<NativeGpuFrame | null>
+  releaseD3d11Frame(key: GpuFrameKey): Promise<boolean>
+}
+
 type NativeModule = {
   MpvPlayer: new (options?: { mode?: RenderPipeline }) => NativePlayer
+  createD3d11Player?: (options: { width: number; height: number }) => Promise<NativeD3d11Player>
 }
 
 type RenderSize = {

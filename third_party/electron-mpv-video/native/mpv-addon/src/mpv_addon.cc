@@ -21,6 +21,8 @@ namespace lampaua { void RegisterD3d11TestProducer(Napi::Env env, Napi::Object e
 #include <d3d11.h>
 #include <dxgi1_2.h>
 #include <GL/gl.h>
+#include "d3d11_player.h"
+#include "d3d11_napi.h"
 #endif
 
 #include <algorithm>
@@ -148,8 +150,25 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
       InstanceMethod("renderSharedTexture", &MpvPlayer::RenderSharedTexture),
       InstanceMethod("pollEvents", &MpvPlayer::PollEvents),
       InstanceMethod("destroy", &MpvPlayer::Destroy),
+#ifdef _WIN32
+      InstanceMethod("renderD3d11Frame", &MpvPlayer::RenderD3d11Frame),
+      InstanceMethod("releaseD3d11Frame", &MpvPlayer::ReleaseD3d11Frame),
+#ifdef LAMPAUA_GPU_TEST
+      InstanceMethod("injectD3d11Fault", &MpvPlayer::InjectD3d11Fault),
+      InstanceMethod("readD3d11Marker", &MpvPlayer::ReadD3d11Marker),
+#endif
+#endif
     });
     exports.Set("MpvPlayer", ctor);
+#ifdef _WIN32
+    auto* reference = new Napi::FunctionReference(Napi::Persistent(ctor));
+    env.AddCleanupHook([](Napi::FunctionReference* value) {
+      lampaua::D3d11RenderThread::stop_all();
+      value->Reset();
+      delete value;
+    }, reference);
+    exports.Set("createD3d11Player", Napi::Function::New(env, CreateD3d11Player, "createD3d11Player", reference));
+#endif
     return exports;
   }
 
@@ -163,6 +182,18 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
       }
     }
 
+    if (mode_ == "d3d11") {
+#ifdef _WIN32
+      if (info.Length() > 1 && info[1].IsExternal() &&
+          info[1].As<Napi::External<int>>().Data() == &d3d11_factory_token_) {
+        d3d11_state_ = std::make_shared<lampaua::D3d11PlayerState>();
+        d3d11_callbacks_ = std::make_shared<lampaua::D3d11Callbacks>();
+        return;
+      }
+#endif
+      Napi::Error::New(env, "D3D11 requires the asynchronous createD3d11Player factory").ThrowAsJavaScriptException();
+      return;
+    }
     handle_ = mpv_create();
     if (!handle_) {
       Napi::Error::New(env, "mpv_create failed").ThrowAsJavaScriptException();
@@ -295,6 +326,184 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
   }
 
  private:
+#ifdef _WIN32
+  inline static int d3d11_factory_token_ = 0;
+  enum class D3d11Operation { Initialize, Render, Release, Close
+#ifdef LAMPAUA_GPU_TEST
+    , Marker, Fault
+#endif
+  };
+  struct D3d11Request {
+    D3d11Operation operation;
+    int width = 0;
+    int height = 0;
+    uint64_t generation = 0;
+    lampaua::GpuFrameKey key;
+    std::string fault;
+  };
+  struct D3d11Result {
+    std::optional<lampaua::D3d11Frame> frame;
+    bool released = false;
+    std::optional<uint32_t> marker;
+    std::string error;
+  };
+  class D3d11Worker : public Napi::AsyncWorker {
+   public:
+    D3d11Worker(MpvPlayer* owner, D3d11Operation operation, std::shared_ptr<D3d11Result> result,
+                std::future<void> completion)
+      : Napi::AsyncWorker(owner->Env(), "MPV D3D11 job"), owner_(owner), operation_(operation),
+        result_(result), completion_(std::move(completion)),
+        deferred_(Napi::Promise::Deferred::New(owner->Env())), state_(owner->d3d11_state_) { owner_->Ref(); }
+    ~D3d11Worker() { owner_->Unref(); }
+    Napi::Promise promise() { return deferred_.Promise(); }
+    void Execute() override {
+      completion_.wait();
+      if (operation_ == D3d11Operation::Close) state_->thread.stop();
+      if (!result_->error.empty()) {
+        if (operation_ == D3d11Operation::Initialize) {
+          auto cleanup = state_->close();
+          if (cleanup.valid()) cleanup.wait();
+          state_->thread.stop();
+        }
+        SetError(result_->error);
+      }
+    }
+    void OnOK() override {
+      if (operation_ == D3d11Operation::Initialize) {
+        owner_->handle_ = state_->handle();
+        owner_->render_context_ = state_->context();
+        deferred_.Resolve(owner_->Value());
+      } else if (operation_ == D3d11Operation::Render) {
+        deferred_.Resolve(result_->frame && !owner_->cleanup_requested_ ? lampaua::gpu_frame(Env(), *result_->frame) : Env().Null());
+      } else if (operation_ == D3d11Operation::Release) {
+        deferred_.Resolve(Napi::Boolean::New(Env(), result_->released));
+#ifdef LAMPAUA_GPU_TEST
+      } else if (operation_ == D3d11Operation::Marker) {
+        deferred_.Resolve(result_->marker ? Napi::Number::New(Env(), *result_->marker) : Env().Null());
+      } else if (operation_ == D3d11Operation::Fault) {
+        deferred_.Resolve(Env().Undefined());
+#endif
+      } else {
+        owner_->cleanup_deferred_->Resolve(Env().Undefined());
+        deferred_.Resolve(Env().Undefined());
+      }
+      finish();
+    }
+    void OnError(const Napi::Error& error) override {
+      if (operation_ == D3d11Operation::Close) owner_->cleanup_deferred_->Reject(error.Value());
+      deferred_.Reject(error.Value());
+      finish();
+    }
+   private:
+    void finish() {
+      if (operation_ == D3d11Operation::Render) {
+        owner_->frame_active_ = false;
+        if (owner_->cleanup_requested_) owner_->cleanup(true);
+      }
+    }
+    MpvPlayer* owner_;
+    D3d11Operation operation_;
+    std::shared_ptr<D3d11Result> result_;
+    std::future<void> completion_;
+    Napi::Promise::Deferred deferred_;
+    std::shared_ptr<lampaua::D3d11PlayerState> state_;
+  };
+  static Napi::Value D3d11Reject(Napi::Env env, const std::string& message) {
+    auto promise = Napi::Promise::Deferred::New(env);
+    promise.Reject(Napi::Error::New(env, message).Value());
+    return promise.Promise();
+  }
+  static Napi::Value CreateD3d11Player(const Napi::CallbackInfo& info) {
+    auto env = info.Env();
+    uint64_t width, height;
+    if (!info.Length() || !info[0].IsObject() ||
+        !lampaua::gpu_integer(info[0].As<Napi::Object>().Get("width"), width, 3840) || !width ||
+        !lampaua::gpu_integer(info[0].As<Napi::Object>().Get("height"), height, 2160) || !height)
+      return D3d11Reject(env, "Invalid D3D11 dimensions");
+    auto api = mpv_client_api_version();
+    if (api != MPV_MAKE_VERSION(2, 6)) {
+      auto promise = Napi::Promise::Deferred::New(env);
+      auto error = Napi::Error::New(env, "MPV D3D11 requires runtime API 2.6");
+      error.Set("code", "MPV_D3D11_API");
+      error.Set("apiVersion", static_cast<double>(api));
+      promise.Reject(error.Value());
+      return promise.Promise();
+    }
+    auto options = Napi::Object::New(env);
+    options.Set("mode", "d3d11");
+    auto* reference = static_cast<Napi::FunctionReference*>(info.Data());
+    auto instance = reference->New({options, Napi::External<int>::New(env, &d3d11_factory_token_)});
+    auto* owner = Unwrap(instance);
+    D3d11Request request{D3d11Operation::Initialize};
+    request.width = static_cast<int>(width);
+    request.height = static_cast<int>(height);
+    return owner->QueueD3d11(request);
+  }
+  Napi::Value QueueD3d11(D3d11Request request) {
+    if (!d3d11_state_) return D3d11Reject(Env(), "D3D11 player is unavailable");
+    auto result = std::make_shared<D3d11Result>();
+    auto job = [state = d3d11_state_, callbacks = d3d11_callbacks_, request, result] {
+      switch (request.operation) {
+        case D3d11Operation::Initialize:
+          state->initialize(request.width, request.height, lampaua::D3d11Callbacks::wakeup,
+            lampaua::D3d11Callbacks::render_update, callbacks.get(), callbacks);
+          break;
+        case D3d11Operation::Render: result->frame = state->render(request.width, request.height, request.generation); break;
+        case D3d11Operation::Release: result->released = state->release(request.key); break;
+        case D3d11Operation::Close: break;
+#ifdef LAMPAUA_GPU_TEST
+        case D3d11Operation::Marker: result->marker = state->marker(request.key); break;
+        case D3d11Operation::Fault: state->fault(request.fault); break;
+#endif
+      }
+      if (request.operation == D3d11Operation::Initialize || request.operation == D3d11Operation::Render)
+        result->error = state->error();
+    };
+    auto completion = request.operation == D3d11Operation::Close ? d3d11_state_->close() : d3d11_state_->thread.submit(std::move(job));
+    if (!completion.valid()) {
+      if (request.operation == D3d11Operation::Render) frame_active_ = false;
+      return D3d11Reject(Env(), "D3D11 queue is closed or full");
+    }
+    auto* worker = new D3d11Worker(this, request.operation, result, std::move(completion));
+    auto promise = worker->promise();
+    worker->Queue();
+    return promise;
+  }
+  Napi::Value RenderD3d11Frame(const Napi::CallbackInfo& info) {
+    uint64_t width, height, generation;
+    if (info.Length() != 3 || !lampaua::gpu_integer(info[0], width, 3840) || !width ||
+        !lampaua::gpu_integer(info[1], height, 2160) || !height ||
+        !lampaua::gpu_integer(info[2], generation, 9007199254740991ULL) || !generation)
+      return D3d11Reject(Env(), "Invalid D3D11 frame dimensions or generation");
+    if (frame_active_ || cleanup_requested_ || !d3d11_state_) return D3d11Reject(Env(), "D3D11 player busy or closing");
+    D3d11Request request{D3d11Operation::Render};
+    request.width = static_cast<int>(width);
+    request.height = static_cast<int>(height);
+    request.generation = generation;
+    frame_active_ = true;
+    return QueueD3d11(request);
+  }
+  Napi::Value ReleaseD3d11Frame(const Napi::CallbackInfo& info) {
+    D3d11Request request{D3d11Operation::Release};
+    if (!info.Length() || !lampaua::gpu_key(info[0], request.key)) return D3d11Reject(Env(), "Invalid D3D11 frame key");
+    return QueueD3d11(request);
+  }
+#ifdef LAMPAUA_GPU_TEST
+  Napi::Value InjectD3d11Fault(const Napi::CallbackInfo& info) {
+    if (!info.Length() || !info[0].IsString()) return D3d11Reject(Env(), "Invalid D3D11 fault");
+    D3d11Request request{D3d11Operation::Fault};
+    request.fault = info[0].As<Napi::String>().Utf8Value();
+    if (request.fault != "device-removed" && request.fault != "mutex-timeout" && request.fault != "timestamp-disjoint")
+      return D3d11Reject(Env(), "Invalid D3D11 fault");
+    return QueueD3d11(request);
+  }
+  Napi::Value ReadD3d11Marker(const Napi::CallbackInfo& info) {
+    D3d11Request request{D3d11Operation::Marker};
+    if (!info.Length() || !lampaua::gpu_key(info[0], request.key)) return D3d11Reject(Env(), "Invalid D3D11 frame key");
+    return QueueD3d11(request);
+  }
+#endif
+#endif
   class FrameWorker : public Napi::AsyncWorker {
    public:
     FrameWorker(MpvPlayer* owner, int width, int height)
@@ -654,6 +863,9 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
 
   Napi::Value SetUpdateCallback(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
+#ifdef _WIN32
+    if (d3d11_callbacks_) return SetD3d11Callback(info, true);
+#endif
     std::lock_guard<std::mutex> lock(callback_mutex_);
     if (update_callback_) {
       update_callback_.Release();
@@ -673,6 +885,9 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
 
   Napi::Value SetEventCallback(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
+#ifdef _WIN32
+    if (d3d11_callbacks_) return SetD3d11Callback(info, false);
+#endif
     std::lock_guard<std::mutex> lock(callback_mutex_);
     if (event_callback_) {
       event_callback_.Release();
@@ -692,6 +907,10 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
 
   Napi::Value RenderFrame(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
+    if (mode_ == "d3d11") {
+      Napi::Error::New(env, "CPU renderFrame is unavailable in D3D11 mode").ThrowAsJavaScriptException();
+      return env.Undefined();
+    }
     if (mode_ == "shared-texture") {
       Napi::Error::New(env, "renderFrame is unavailable in shared-texture mode").ThrowAsJavaScriptException();
       return env.Null();
@@ -999,6 +1218,16 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
       command_errors_.pop_front();
     }
 
+#ifdef _WIN32
+    if (d3d11_callbacks_ && d3d11_callbacks_->failed && !d3d11_callbacks_->reported) {
+      d3d11_callbacks_->reported = true;
+      auto item = Napi::Object::New(env);
+      item.Set("type", "command-error");
+      item.Set("name", "callback");
+      item.Set("error", "MPV notification callback failed");
+      events.Set(index++, item);
+    }
+#endif
     return events;
   }
 
@@ -1008,6 +1237,9 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
       cleanup_promise_ = Napi::Persistent(cleanup_deferred_->Promise());
       Ref();
       cleanup_requested_ = true;
+#ifdef _WIN32
+      if (d3d11_state_) d3d11_state_->thread.cancel_wait();
+#endif
       cleanup(true);
     }
     return cleanup_promise_.Value();
@@ -1022,6 +1254,20 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
     command_errors_.clear();
     command_active_ = false;
     alive_ = false;
+#ifdef _WIN32
+    if (d3d11_state_) {
+      d3d11_callbacks_->close();
+      handle_ = nullptr;
+      render_context_ = nullptr;
+      if (asynchronous) {
+        QueueD3d11(D3d11Request{D3d11Operation::Close});
+        Unref(); // destroy's reference is replaced by the close worker's reference.
+      } else {
+        d3d11_state_.reset();
+      }
+      return;
+    }
+#endif
     if (handle_) {
       set_mpv_wakeup_callback(handle_, nullptr, nullptr);
     }
@@ -1498,6 +1744,16 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
   int surface_height_ = 0;
 #endif
 #ifdef _WIN32
+  Napi::Value SetD3d11Callback(const Napi::CallbackInfo& info, bool update) {
+    std::lock_guard<std::mutex> lock(d3d11_callbacks_->mutex);
+    auto& callback = update ? d3d11_callbacks_->update : d3d11_callbacks_->event;
+    if (callback) { callback.Release(); callback = nullptr; }
+    if (!d3d11_callbacks_->closed && info.Length() && info[0].IsFunction())
+      callback = Napi::ThreadSafeFunction::New(info.Env(), info[0].As<Napi::Function>(), "mpv-d3d11-notify", 1, 1);
+    return info.Env().Undefined();
+  }
+  std::shared_ptr<lampaua::D3d11PlayerState> d3d11_state_;
+  std::shared_ptr<lampaua::D3d11Callbacks> d3d11_callbacks_;
   HWND win_hwnd_ = nullptr;
   HDC win_dc_ = nullptr;
   HGLRC win_gl_context_ = nullptr;

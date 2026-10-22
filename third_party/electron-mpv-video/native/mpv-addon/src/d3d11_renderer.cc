@@ -33,6 +33,7 @@ struct D3d11RenderThread::Core {
   std::condition_variable wake;
   std::deque<Job> jobs;
   bool stopping = false;
+  bool wait_cancelled = false;
   std::promise<void> finished;
   std::shared_future<void> completion = finished.get_future().share();
   static std::mutex registry_mutex;
@@ -95,6 +96,17 @@ std::future<void> D3d11RenderThread::submit_final(std::function<void()> function
 void D3d11RenderThread::request_stop() {
   std::lock_guard<std::mutex> lock(core_->mutex);
   core_->stopping = true;
+  core_->wake.notify_one();
+}
+
+bool D3d11RenderThread::wait_for(std::chrono::nanoseconds duration) {
+  std::unique_lock<std::mutex> lock(core_->mutex);
+  return !core_->wake.wait_for(lock, duration, [&] { return core_->stopping || core_->wait_cancelled; });
+}
+
+void D3d11RenderThread::cancel_wait() {
+  std::lock_guard<std::mutex> lock(core_->mutex);
+  core_->wait_cancelled = true;
   core_->wake.notify_one();
 }
 
@@ -186,6 +198,11 @@ std::unique_ptr<D3d11FramePool::Generation> D3d11FramePool::make_generation(Size
         !check(resource->CreateSharedHandle(nullptr, DXGI_SHARED_RESOURCE_READ | DXGI_SHARED_RESOURCE_WRITE,
           nullptr, &slot.handle), "Create shared NT handle")) return {};
     live_handles++;
+    const D3D11_QUERY_DESC timestamp{D3D11_QUERY_TIMESTAMP, 0};
+    const D3D11_QUERY_DESC disjoint{D3D11_QUERY_TIMESTAMP_DISJOINT, 0};
+    if (!check(device_->CreateQuery(&timestamp, &slot.timestamp_start), "Create GPU start timestamp") ||
+        !check(device_->CreateQuery(&timestamp, &slot.timestamp_end), "Create GPU end timestamp") ||
+        !check(device_->CreateQuery(&disjoint, &slot.timestamp_disjoint), "Create GPU timestamp frequency")) return {};
     slot.completion_event = CreateEventW(nullptr, FALSE, FALSE, nullptr);
     if (!slot.completion_event) { check(HRESULT_FROM_WIN32(GetLastError()), "Create GPU completion event"); return {}; }
     live_handles++;
@@ -266,6 +283,49 @@ bool D3d11FramePool::wait_gpu(Slot& slot) {
   return check(device_->GetDeviceRemovedReason(), "D3D11 device removed");
 }
 
+std::optional<D3d11Frame> D3d11FramePool::render(uint64_t generation, int64_t target_time_ns, uint64_t flags,
+                                              const std::function<bool(ID3D11Texture2D*)>& draw) {
+  auto key = acquire(generation);
+  if (!key) return {};
+  auto* slot = find(*key);
+  if (!check(slot->mutex->AcquireSync(0, 0), "Shared mutex acquire")) return {};
+  const auto start = Clock::now();
+  context_->Begin(slot->timestamp_disjoint.Get());
+  context_->End(slot->timestamp_start.Get());
+  const bool rendered = draw(slot->texture.Get());
+  context_->End(slot->timestamp_end.Get());
+  context_->End(slot->timestamp_disjoint.Get());
+  context_->Flush();
+  const bool unlocked = check(slot->mutex->ReleaseSync(0), "Shared mutex release");
+  if (!rendered || !unlocked) {
+    if (error_.empty()) error_ = "D3D11 frame rendering failed";
+    return {};
+  }
+  const auto submitted = Clock::now();
+  if (!wait_gpu(*slot)) return {};
+  UINT64 begin = 0, end = 0;
+  D3D11_QUERY_DATA_TIMESTAMP_DISJOINT frequency{};
+  const HRESULT begin_status = context_->GetData(slot->timestamp_start.Get(), &begin, sizeof(begin), D3D11_ASYNC_GETDATA_DONOTFLUSH);
+  const HRESULT end_status = context_->GetData(slot->timestamp_end.Get(), &end, sizeof(end), D3D11_ASYNC_GETDATA_DONOTFLUSH);
+  const HRESULT frequency_status = context_->GetData(slot->timestamp_disjoint.Get(), &frequency, sizeof(frequency), D3D11_ASYNC_GETDATA_DONOTFLUSH);
+  for (HRESULT status : {begin_status, end_status, frequency_status})
+    if (FAILED(status)) { check(status, "GPU timestamp query"); return {}; }
+#ifdef LAMPAUA_GPU_TEST
+  if (disjoint_next_frame_) { frequency.Disjoint = TRUE; disjoint_next_frame_ = false; }
+#endif
+  slot->state = SlotState::Reading;
+  frames_++;
+  D3d11Frame frame{*key, slot->handle, current_->width, current_->height};
+  frame.target_time_ns = target_time_ns;
+  frame.frame_flags = flags;
+  frame.render_submission_ms = milliseconds(submitted - start);
+  frame.gpu_ready_ms = milliseconds(Clock::now() - submitted);
+  if (begin_status == S_OK && end_status == S_OK && frequency_status == S_OK &&
+      !frequency.Disjoint && frequency.Frequency && end >= begin)
+    frame.gpu_execution_ms = 1000.0 * static_cast<double>(end - begin) / frequency.Frequency;
+  return frame;
+}
+
 #ifdef LAMPAUA_GPU_TEST
 std::optional<D3d11Frame> D3d11FramePool::render_pattern(int delay_ms) {
   if (!current_) return {};
@@ -328,6 +388,7 @@ std::optional<uint32_t> D3d11FramePool::read_marker(GpuFrameKey key) {
 }
 
 void D3d11FramePool::inject_fault(const std::string& fault) {
+  if (fault == "timestamp-disjoint") { disjoint_next_frame_ = true; return; }
   error_ = fault == "device-removed" ? "Injected D3D11 device removed" : "Injected shared mutex timeout";
 }
 #endif

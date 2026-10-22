@@ -22,6 +22,9 @@ export interface NativeGpuFrame {
   frameFlags: number
   renderSubmissionMs: number
   gpuReadyMs: number
+  clockTimeNs?: number
+  gpuExecutionMs?: number | null
+  targetWaitMs?: number
 }
 
 export interface GpuAck extends GpuFrameKey {

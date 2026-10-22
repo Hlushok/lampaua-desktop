@@ -12,6 +12,7 @@
 #include <dxgi1_2.h>
 #include <wrl/client.h>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <future>
@@ -36,6 +37,9 @@ struct D3d11Frame {
   uint64_t frame_flags = 1;
   double render_submission_ms = 0;
   double gpu_ready_ms = 0;
+  int64_t clock_time_ns = 0;
+  double gpu_execution_ms = -1;
+  double target_wait_ms = 0;
 };
 
 struct D3d11Stats {
@@ -61,6 +65,8 @@ class D3d11RenderThread {
   std::future<void> submit(std::function<void()> job);
   std::future<void> submit_final(std::function<void()> cleanup);
   void request_stop();
+  void cancel_wait();
+  bool wait_for(std::chrono::nanoseconds duration);
   void stop();
   static void stop_all();
  private:
@@ -81,6 +87,8 @@ class D3d11FramePool {
   ID3D11Device* device() const { return device_.Get(); }
   ID3D11DeviceContext* context() const { return context_.Get(); }
   ID3D11Texture2D* texture(GpuFrameKey key);
+  std::optional<D3d11Frame> render(uint64_t generation, int64_t target_time_ns, uint64_t flags,
+                                 const std::function<bool(ID3D11Texture2D*)>& draw);
 #ifdef LAMPAUA_GPU_TEST
   std::optional<D3d11Frame> render_pattern(int delay_ms);
   std::optional<uint32_t> read_marker(GpuFrameKey key);
@@ -94,6 +102,9 @@ class D3d11FramePool {
     Ptr<ID3D11Texture2D> texture;
     Ptr<ID3D11RenderTargetView> target;
     Ptr<IDXGIKeyedMutex> mutex;
+    Ptr<ID3D11Query> timestamp_start;
+    Ptr<ID3D11Query> timestamp_end;
+    Ptr<ID3D11Query> timestamp_disjoint;
     HANDLE completion_event = nullptr;
     HANDLE handle = nullptr;
     GpuFrameKey key;
@@ -126,6 +137,9 @@ class D3d11FramePool {
   bool destroyed_ = false;
   std::string adapter_luid_;
   std::string error_;
+#ifdef LAMPAUA_GPU_TEST
+  bool disjoint_next_frame_ = false;
+#endif
 };
 
 }  // namespace lampaua
