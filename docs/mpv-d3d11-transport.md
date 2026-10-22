@@ -82,8 +82,9 @@ Performance-запуски виконуються послідовно, без �
 
 ## Наступний Етап
 
-Потрібні окреме погодження candidate push/CI, pinned MPV DLL із D3D11 render API,
-апаратний context probe, інтеграція у повну тестову LampaUa та приймання на
+Погоджені candidate push/CI і Task 4 завершені 22.10.2026: DLL із D3D11 API,
+апаратний context probe та source audit пройшли (див. `mpv-d3d11-candidate.md`).
+Далі потрібні player factory, інтеграція у повну тестову LampaUa та приймання на
 реальному 86.47-ГБ торенті. Немає підтвердження для 4К output/60 FPS, A/V sync
 або actual HEVC decoder у цьому транспортному тесті.
 

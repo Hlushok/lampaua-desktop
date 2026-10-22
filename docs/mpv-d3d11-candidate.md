@@ -58,8 +58,45 @@ download URL записується окремо в `sources/downloads/libopenmp
 CMake повторно перевіряє архів у своєму `DOWNLOAD_DIR` перед розпакуванням.
 Baseline, dependency versions та accepted DLL не змінені.
 
-Нова DLL ще має пройти компіляцію та runtime-приймання. Успішні локальні тести
-не підміняють ці перевірки.
+## Прийнятий Локальний Кандидат 22.10.2026
+
+Збірка [39726751671](https://github.com/Hlushok/lampaua-desktop/actions/runs/39726751671)
+успішно завершила компіляцію, source preflight та packaging. Точний build commit:
+`530ed50499e4afeed19b8070f149dc5bb1818931`; пізніші documentation commits не
+змінюють походження цієї DLL.
+
+| Файл / Доказ       | SHA-256                                                            |
+| ------------------ | ------------------------------------------------------------------ |
+| `libmpv-2.dll`     | `5371076ac7b2cc7ba92eda3dd16e2569e82ddf122204b18ad0c203eea467d0f1` |
+| SDK archive        | `f8e2958cc3210d5ba833bb101c34b713fbf4202a1f3516b60d099db29a54303f` |
+| Source archive     | `de0002968ad9ef5fb1bc59f3800a95789d68257f2dc6bde08901ecdcc9d18c10` |
+| Effective MPV tree | `b6347890843a7ec5753d631ff1283be2770d2d980d91febe5f8c3cfa856f9e09` |
+
+Повний downloaded CI ZIP перевірений за digest GitHub artifact
+`12405854134`: `fbd70d47c63bcfe4c6676c8d2d518c46708bf9d7dc2adc8cc32d00bebb587b7f`.
+Далі перевірені ZIP CRC, усі записи `checksums.json` та actual DLL/SDK/source
+hashes. PE: x64, 54 exports `mpv_*`, ті самі 50 унікальних DLL dependencies,
+що у прийнятого runtime, без нових зовнішніх бібліотек. Vulkan loader, як і
+раніше, лишається залежністю Windows graphics environment.
+
+Окремий test-addon зібраний проти саме цього SDK. П'ять hardware D3D11 context
+cycles повернули API 131078, `hardware=true`, adapter LUID `0:1432c`,
+`renderThread=true`. Повний verifier із перевіркою всього source archive мав
+max main heartbeat gap 20.18 мс (<100 мс), після кожного циклу texture/handle/
+thread counts повернулися до нуля. Старий API 2.5 відхилений у п'яти циклах.
+GPU pool/resize/fault/lifecycle тести також пройшли. Default production-addon
+без трьох test-only exports зібраний, чинний software lifecycle пройшов.
+
+Source/notices audit перевірив 91 pinned input, 96 components, 827 notice files,
+API/base/patch/effective-tree та bundled patch. Без окремо названих notice files
+залишилися ті самі `build-recipes`, `nvcodec-headers`, `opus-dnn`, що й у baseline;
+це не нова втрата атрибуції. Inventory збережений локально; його результат не
+підміняє ліцензійні тексти всередині архівів.
+
+Кандидат прийнятий для наступного етапу реалізації, не для релізу. Контекст ще
+не відтворює відео через нову player factory; HEVC zero-copy, плавність, A/V sync
+та повна LampaUa мають пройти Tasks 5-7. Installed Desktop, updater і
+`build/libmpv-runtime.json` не змінені.
 
 ## Локальні Перевірки
 
@@ -67,12 +104,17 @@ Baseline, dependency versions та accepted DLL не змінені.
 - Реальне fallback-завантаження з точним SHA-256 та CMake cached extraction: PASS.
 - Підготовлений effective MPV archive та його tree hash перевірені повторно.
 - Candidate SDK descriptor містить реальні hashes DLL, SDK і source archive.
-- Test-only native context probe компілюється проти exact patched API 2.6 headers.
+- Test-only native context probe компілюється проти отриманого candidate SDK API 2.6.
+- Реальні hardware D3D11 context cycles та source/notices audit: PASS.
 - П'ять викликів із прийнятою DLL API 2.5 явно відхиляються, ресурси повертаються до нуля.
 - Bounded GPU pool, resize, fault і cleanup тести нового test-addon: PASS.
 
-Останні два пункти не є доказом працездатності нового D3D11 backend: для цього
-потрібна нова зібрана DLL та успішне створення реального hardware context.
+Ці перевірки не є доказом плавності декодування або показу реального 4К-торента.
+
+Локальні докази: `.cache/libmpv-d3d11-candidate/{artifacts,sdk,extracted,notices}/`,
+`context-probe-sdk.json`, `dll-{dependents,headers,exports}.txt`;
+журнали CI — `.cache/libmpv-d3d11-ci/39726751671/`. Прийнятий baseline SDK
+залишається у власному попередньому каталозі.
 
 ## Перевірка Отриманого SDK
 
