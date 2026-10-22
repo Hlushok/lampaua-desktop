@@ -14,7 +14,7 @@ function verify(workflow) {
   assert.equal(job["timeout-minutes"], 360);
   assert.equal(
     job.container.image,
-    "ghcr.io/shinchiro/archlinux@sha256:2b81f07c567b051455b9539770a71b53dd3add5f9ef52eca95ac01a2272e9fdf",
+    `\${{ inputs.variant == 'd3d11' && '${candidateConfig.container}' || '${baselineConfig.container}' }}`,
   );
   assert.equal(job.env.LAMPAUA_MPV_VARIANT, "${{ inputs.variant }}");
   assert.equal(
@@ -29,6 +29,19 @@ function verify(workflow) {
     step.uses?.startsWith("actions/checkout@"),
   );
   assert.equal(checkout.with["persist-credentials"], false);
+  const preflight = job.steps.find((step) =>
+    step.run?.includes("preflight_environment.py"),
+  );
+  assert.equal(preflight.if, "inputs.variant == 'd3d11'");
+  assert.match(
+    preflight.run,
+    /--config build\/libmpv-source-build\.d3d11\.json/,
+  );
+  const checks = job.steps.findIndex((step) =>
+    step.run?.includes("unittest discover"),
+  );
+  assert.ok(job.steps.indexOf(preflight) > job.steps.indexOf(checkout));
+  assert.ok(job.steps.indexOf(preflight) < checks);
   const commands = job.steps
     .filter((step) => step.run)
     .map((step) => step.run)
@@ -78,6 +91,20 @@ function verify(workflow) {
 }
 
 const root = path.resolve(__dirname, "..");
+const baselineConfig = JSON.parse(
+  fs.readFileSync(path.join(root, "build/libmpv-source-build.json"), "utf8"),
+);
+const candidateConfig = JSON.parse(
+  fs.readFileSync(
+    path.join(root, "build/libmpv-source-build.d3d11.json"),
+    "utf8",
+  ),
+);
+assert.notEqual(candidateConfig.container, baselineConfig.container);
+assert.match(
+  candidateConfig.container,
+  /^ghcr\.io\/shinchiro\/archlinux@sha256:[a-f0-9]{64}$/,
+);
 const doc = YAML.parseDocument(
   fs.readFileSync(
     path.join(root, ".github/workflows/build-libmpv.yml"),
@@ -94,6 +121,17 @@ assert.throws(() => verify(wrong));
 const publication = structuredClone(workflow);
 publication.permissions.contents = "write";
 assert.throws(() => verify(publication));
+const missingPreflight = structuredClone(workflow);
+missingPreflight.jobs.build.steps = missingPreflight.jobs.build.steps.filter(
+  (step) => !step.run?.includes("preflight_environment.py"),
+);
+assert.throws(() => verify(missingPreflight));
+const wrongImage = structuredClone(workflow);
+wrongImage.jobs.build.container.image = candidateConfig.container;
+assert.throws(
+  () => verify(wrongImage),
+  "The candidate image must not replace the baseline image",
+);
 console.log(
   "D3D11 workflow contract passed: isolated variant, pinned tools, artifacts only",
 );

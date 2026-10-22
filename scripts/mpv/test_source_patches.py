@@ -174,12 +174,17 @@ class SourcePatchTests(unittest.TestCase):
 class CandidateBuildContracts(unittest.TestCase):
     root = Path(__file__).resolve().parents[2]
 
-    def test_candidate_retains_all_baseline_pins_and_exact_patch(self):
+    def test_candidate_retains_source_pins_and_only_refreshes_approved_container(self):
         from apply_source_patches import load_config, patch_series
         baseline = json.loads((self.root / "build/libmpv-source-build.json").read_text())
         candidate = load_config(self.root / "build/libmpv-source-build.d3d11.json")
         for key, value in baseline.items():
-            self.assertEqual(candidate[key], value, key)
+            if key != "container":
+                self.assertEqual(candidate[key], value, key)
+        self.assertEqual(baseline["container"],
+            "ghcr.io/shinchiro/archlinux@sha256:2b81f07c567b051455b9539770a71b53dd3add5f9ef52eca95ac01a2272e9fdf")
+        self.assertEqual(candidate["container"],
+            "ghcr.io/shinchiro/archlinux@sha256:4a65616f389fa2a76955876a3e380284d3057cc04bfcac986008f20a710a0b76")
         self.assertEqual(candidate["sourceVersionSuffix"], "-lampaua-d3d11")
         patches = patch_series("mpv", candidate)
         self.assertEqual(len(patches), 1)

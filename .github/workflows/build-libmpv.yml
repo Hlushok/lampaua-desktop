@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     container:
-      image: ghcr.io/shinchiro/archlinux@sha256:2b81f07c567b051455b9539770a71b53dd3add5f9ef52eca95ac01a2272e9fdf
+      image: ${{ inputs.variant == 'd3d11' && 'ghcr.io/shinchiro/archlinux@sha256:4a65616f389fa2a76955876a3e380284d3057cc04bfcac986008f20a710a0b76' || 'ghcr.io/shinchiro/archlinux@sha256:2b81f07c567b051455b9539770a71b53dd3add5f9ef52eca95ac01a2272e9fdf' }}
     env:
       LAMPAUA_MPV_VARIANT: ${{ inputs.variant }}
       MPV_WORK: ${{ inputs.variant == 'd3d11' && '.cache/libmpv-own-d3d11' || '.cache/libmpv-own' }}
@@ -31,6 +31,12 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+
+      - name: Check refreshed candidate environment before compilation
+        if: inputs.variant == 'd3d11'
+        shell: bash
+        run: |
+          python3 scripts/mpv/preflight_environment.py --config build/libmpv-source-build.d3d11.json --output "$MPV_WORK/environment.json"
 
       - name: Test source and compatibility contracts
         shell: bash
@@ -91,3 +97,4 @@ jobs:
             ${{ env.MPV_WORK }}/sources/*.json
             ${{ env.MPV_WORK }}/sources/projects/*.json
             ${{ env.MPV_WORK }}/sources/rust-version.txt
+            ${{ env.MPV_WORK }}/environment.json

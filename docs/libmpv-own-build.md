@@ -133,13 +133,17 @@ been checked. Preserve the old tested DLL and portable build as rollback inputs.
 ## Isolated D3D11 Candidate
 
 The experimental `d3d11` variant uses `build/libmpv-source-build.d3d11.json`.
-It preserves the baseline source/toolchain pins and applies only the recorded
-MPV patch series. Work and output are separate: `.cache/libmpv-own-d3d11` and
+It preserves the baseline media and target-toolchain source pins and applies
+only the recorded MPV patch series. A separately approved container-only refresh
+on 2026-10-22 changes the candidate host tools, not those sources. Baseline keeps
+its original image; the candidate image is fixed by digest in its configuration.
+Work and output are separate: `.cache/libmpv-own-d3d11` and
 `dist/libmpv-own-d3d11`. The default remains `baseline`.
 
 In the pinned Linux container, run inputs before the long compilation:
 
 ```bash
+python3 scripts/mpv/preflight_environment.py --config build/libmpv-source-build.d3d11.json --output .cache/libmpv-own-d3d11/environment.json
 LAMPAUA_MPV_VARIANT=d3d11 LAMPAUA_MPV_PHASE=inputs bash scripts/mpv/build-libmpv.sh
 LAMPAUA_MPV_VARIANT=d3d11 LAMPAUA_MPV_PHASE=compile bash scripts/mpv/build-libmpv.sh
 ```
@@ -148,6 +152,9 @@ The existing manually dispatched Build libmpv workflow accepts `variant=d3d11`
 and `target=mpv`; it stores `lampaua-libmpv-own-x64-d3d11` without publishing.
 Its own logs/recovery artifacts use candidate paths. Source preflight records
 both the preserved base and patched effective tree, and rejects changed inputs.
+The candidate environment gate checks host tools and actually builds/runs a
+C++20 smoke program before source/compiler builds. Its version/failure report
+is preserved with the diagnostics; it does not install or upgrade host packages.
 
 Candidate packaging requires the installed client API 2.6 and D3D11 header.
 `manifest.json` inside the source bundle records inputs and DLL provenance.
