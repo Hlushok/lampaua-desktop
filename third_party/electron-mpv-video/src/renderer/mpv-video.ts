@@ -1,4 +1,5 @@
 import type { MpvPlayerSession, PlayerEvent, PlayerFrame, RenderMode } from '../shared/types.js';
+import type { GpuFrameMetadata } from '../shared/gpu-frame.js';
 
 
 interface FrameRenderer {
@@ -44,6 +45,7 @@ class Canvas2DRenderer implements FrameRenderer {
 class WebGLUploadRenderer implements FrameRenderer {
   readonly name = 'WebGL upload';
   readonly canvas: HTMLCanvasElement;
+  private contextLost = false;
   private readonly gl: WebGL2RenderingContext;
   private readonly texture: WebGLTexture;
   private readonly vao: WebGLVertexArrayObject;
@@ -61,6 +63,7 @@ class WebGLUploadRenderer implements FrameRenderer {
     });
     if (!gl) throw new Error('WebGL2 is not available');
     this.gl = gl;
+    canvas.addEventListener('webglcontextlost', () => { this.contextLost = true; });
 
     const program = this.createProgram(
       `#version 300 es
@@ -150,6 +153,8 @@ class WebGLUploadRenderer implements FrameRenderer {
     gl.bindVertexArray(this.vao);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
+
+  get available() { return !this.contextLost && !this.gl.isContextLost(); }
 
   private createShader(type: number, source: string) {
     const shader = this.gl.createShader(type);
@@ -280,13 +285,14 @@ class SharedTextureWebGpuRenderer implements SharedFrameRenderer {
                 vec2f( 1.0, -1.0),
                 vec2f( 1.0,  1.0)
               );
+              // VideoFrame has a top-left origin; WebGPU clip-space Y points up.
               var uvs = array<vec2f, 6>(
+                vec2f(0.0, 1.0),
+                vec2f(1.0, 1.0),
                 vec2f(0.0, 0.0),
-                vec2f(1.0, 0.0),
-                vec2f(0.0, 1.0),
-                vec2f(0.0, 1.0),
-                vec2f(1.0, 0.0),
-                vec2f(1.0, 1.0)
+                vec2f(0.0, 0.0),
+                vec2f(1.0, 1.0),
+                vec2f(1.0, 0.0)
               );
               var out: VertexOut;
               out.position = vec4f(positions[index], 0.0, 1.0);
@@ -577,10 +583,7 @@ export class MpvVideoElement extends HTMLElement {
       this.activeRenderer?.draw(frame);
     }));
     if (this.sharedRenderer) {
-      this.disposers.push(this.player.onGpuFrame(async (frame) => {
-        if (this.renderMode !== 'd3d11') return;
-        await this.sharedRenderer?.drawVideoFrame(frame, false);
-      }));
+      this.disposers.push(this.player.onGpuFrame((frame, metadata) => this.drawGpuFrame(frame, metadata)));
       this.disposers.push(this.player.onSharedTextureFrame(async (frame) => {
         if (this.renderMode !== 'shared-texture') return;
         await this.activeSharedRenderer?.drawVideoFrame(frame);
@@ -642,12 +645,17 @@ export class MpvVideoElement extends HTMLElement {
   async setAudioTrack(id: number | 'no') { await this.ensureReady(); await this.player?.setAudioTrack(id); }
   async setSubtitleTrack(id: number | 'no') { await this.ensureReady(); await this.player?.setSubtitleTrack(id); }
 
+  private async drawGpuFrame(frame: VideoFrame, metadata: GpuFrameMetadata) {
+    if (this.renderMode !== 'd3d11' || metadata.playerId !== this.player?.id) return;
+    await this.sharedRenderer?.drawVideoFrame(frame, false);
+  }
+
   private resolveRenderMode(mode: RenderMode): RenderMode {
     if (mode === 'd3d11' && this.sharedRenderer) return 'd3d11';
     if (mode === 'shared-texture' && this.sharedRenderer) return 'shared-texture';
-    if (mode === 'webgl' && this.webglRenderer) return 'webgl';
+    if (mode === 'webgl' && this.webglRenderer?.available) return 'webgl';
     if (mode === 'canvas2d') return 'canvas2d';
-    if (this.webglRenderer) return 'webgl';
+    if (this.webglRenderer?.available) return 'webgl';
     return 'canvas2d';
   }
 

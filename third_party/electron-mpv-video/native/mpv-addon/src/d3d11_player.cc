@@ -59,7 +59,7 @@ void D3d11PlayerState::initialize(int width, int height, void (*wakeup)(void*), 
       {"msg-level", "all=warn"}, {"input-default-bindings", "no"}, {"audio-display", "no"},
       {"sid", "no"}, {"pause", "yes"}, {"keep-open", "yes"}, {"hwdec", "auto-safe"},
       {"vo", "libmpv"}, {"target-colorspace-hint", "no"}, {"target-prim", "bt.709"},
-      {"target-trc", "srgb"}}) {
+      {"target-trc", "srgb"}, {"profile", "fast"}}) {
     int status = mpv_set_option_string(r.handle, item.first, item.second);
     if (status < 0) { error_ = std::string(item.first) + ": " + mpv_error_string(status); return; }
   }
@@ -90,7 +90,7 @@ void D3d11PlayerState::initialize(int width, int height, void (*wakeup)(void*), 
       {"video-params/hw-pixelformat", MPV_FORMAT_STRING}, {"container-fps", MPV_FORMAT_DOUBLE},
       {"audio-codec", MPV_FORMAT_STRING}, {"current-ao", MPV_FORMAT_STRING}, {"volume", MPV_FORMAT_DOUBLE},
       {"speed", MPV_FORMAT_DOUBLE}, {"track-list", MPV_FORMAT_NODE}, {"aid", MPV_FORMAT_STRING},
-      {"sid", MPV_FORMAT_STRING}, {"seekable", MPV_FORMAT_FLAG},
+      {"sid", MPV_FORMAT_STRING}, {"seekable", MPV_FORMAT_FLAG}, {"file-format", MPV_FORMAT_STRING},
       {"demuxer-cache-duration", MPV_FORMAT_DOUBLE}, {"paused-for-cache", MPV_FORMAT_FLAG}}) {
     status = mpv_observe_property(r.handle, observer++, item.first, item.second);
     if (status < 0) { error_ = std::string("Cannot observe ") + item.first; return; }

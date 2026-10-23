@@ -122,6 +122,37 @@ async function main() {
     0,
     "Explicit non-shared rendering must not probe WebGPU",
   );
+  const gpuPlayer = new mod.namespace.MpvVideoElement();
+  let gpuDraws = 0;
+  gpuPlayer.player = { id: "owned" };
+  gpuPlayer.renderMode = "d3d11";
+  gpuPlayer.sharedRenderer = {
+    async drawVideoFrame(_frame, waitForGpu) {
+      assert.equal(waitForGpu, false);
+      gpuDraws++;
+    },
+  };
+  await gpuPlayer.drawGpuFrame({}, { playerId: "foreign" });
+  assert.equal(gpuDraws, 0, "Foreign GPU frame reached the renderer");
+  await gpuPlayer.drawGpuFrame({}, { playerId: "owned" });
+  assert.equal(gpuDraws, 1);
+  gpuPlayer.renderMode = "webgl";
+  await gpuPlayer.drawGpuFrame({}, { playerId: "owned" });
+  assert.equal(gpuDraws, 1, "Retired GPU callback drew over software output");
+  gpuPlayer.player.setRenderSize = async () => {};
+  gpuPlayer.sharedRenderer.resize = () => {};
+  gpuPlayer.webglRenderer = { available: false, resize() {} };
+  gpuPlayer.canvasRenderer = { resize() {} };
+  gpuPlayer.handlePlayerEvent({ type: "pipeline-change", data: "software" });
+  assert.equal(
+    gpuPlayer.mode,
+    "canvas2d",
+    "GPU recovery selected a lost WebGL context",
+  );
+  assert.strictEqual(gpuPlayer.activeRenderer, gpuPlayer.canvasRenderer);
+  gpuPlayer.webglRenderer.available = true;
+  gpuPlayer.handlePlayerEvent({ type: "pipeline-change", data: "software" });
+  assert.equal(gpuPlayer.mode, "webgl", "Healthy WebGL fallback was disabled");
   console.log("MPV optional GPU fallback contract verified");
 }
 main().catch((error) => {

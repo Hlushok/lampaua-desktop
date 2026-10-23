@@ -62,6 +62,7 @@ type NativePlayer = {
 type NativeD3d11Player = Omit<NativePlayer, 'renderFrame' | 'renderSharedTexture'> & {
   renderD3d11Frame(width: number, height: number, generation: number): Promise<NativeGpuFrame | null>
   releaseD3d11Frame(key: GpuFrameKey): Promise<boolean>
+  retireD3d11Playback(): Promise<void>
 }
 
 type NativeModule = {
@@ -219,6 +220,7 @@ class PlayerSession {
   private confirmedTime = 0
   private duration = 0
   private seekable = false
+  private fileFormat: string | null = null
   private volume = 100
   private speed = 1
   private audioTrack: number | 'no' | null = null
@@ -313,10 +315,13 @@ class PlayerSession {
 
   private async retirePlayer(player: SessionNativePlayer, transport: D3d11Transport | null) {
     if (!transport) { await player.destroy(); return }
-    player.pause()
+    // Stop audio/network independently of the disabled event pump. GPU leases
+    // stay quarantined until Chromium confirms their completion.
+    const stopped = (player as NativeD3d11Player).retireD3d11Playback()
     await transport.dispose()
-    const cleanup = transport.whenDrained().then(() => player.destroy())
+    const cleanup = Promise.allSettled([stopped, transport.whenDrained()]).then(() => player.destroy())
     void cleanup.catch(() => this.diagnostic('d3d11-retirement-error', { playerId: this.id }))
+    await stopped
     if (transport.stats().leases === 0) await cleanup
   }
 
@@ -337,6 +342,7 @@ class PlayerSession {
     this.confirmedTime = 0
     this.duration = 0
     this.seekable = false
+    this.fileFormat = null
     this.audioTrack = null
     this.subtitleTrack = null
     this.stopped = false
@@ -438,7 +444,11 @@ class PlayerSession {
         restoredEvents = await this.waitForFileLoaded(replacement)
         this.assertAlive()
         const position = previousPipeline === 'd3d11' ? this.confirmedTime : this.currentTime
-        if (position > 0 && (previousPipeline !== 'd3d11' || (this.duration > 0 && this.seekable))) replacement.seek(position)
+        // HLS EVENT streams can have a duration and be seekable. Restore only
+        // finite-file formats; unknown/adaptive streams are not automatically seeked.
+        const finiteFormats = new Set(['mov', 'mp4', 'm4a', '3gp', '3g2', 'mj2', 'matroska', 'webm', 'avi', 'ogg', 'flac', 'mp3', 'wav'])
+        const finiteFile = this.fileFormat !== null && this.fileFormat.split(',').every(format => finiteFormats.has(format))
+        if (position > 0 && this.duration > 0 && this.seekable && finiteFile && manifestFormat(this.source) === 'auto') replacement.seek(position)
         const restoredTracks = restoredEvents.filter(event => event.name === 'track-list' && Array.isArray(event.data)).at(-1)?.data as Array<{id: number; type: string}> | undefined
         for (const [type, id] of [['audio', this.audioTrack], ['sub', this.subtitleTrack]] as const) {
           if (id === 'no' || (id !== null && restoredTracks?.some(track => track.type === type && track.id === id))) {
@@ -453,7 +463,8 @@ class PlayerSession {
       this.player = replacement
       this.pipeline = nextPipeline
       this.gpuTransport = replacementTransport
-      this.gpuGeneration = 1
+      this.gpuGeneration++
+      replacementTransport?.invalidate(this.gpuGeneration)
       this.sendEvent({ id: 0, type: 'pipeline-change', data: nextPipeline })
       for (const event of restoredEvents) {
         const transientProperty = event.type === 'property-change' &&
@@ -530,6 +541,8 @@ class PlayerSession {
       this.duration = typeof event.data === 'number' && Number.isFinite(event.data) && event.data > 0 ? event.data : 0
     } else if (event.name === 'seekable') {
       this.seekable = event.data === true
+    } else if (event.name === 'file-format') {
+      this.fileFormat = typeof event.data === 'string' && event.data.length > 0 ? event.data : null
     } else if (event.name === 'pause' && typeof event.data === 'boolean') {
       this.paused = event.data
     } else if (event.name === 'eof-reached' && event.data === true) {

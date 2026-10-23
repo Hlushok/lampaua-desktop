@@ -27,6 +27,7 @@ namespace lampaua { void RegisterD3d11TestProducer(Napi::Env env, Napi::Object e
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <deque>
@@ -35,6 +36,7 @@ namespace lampaua { void RegisterD3d11TestProducer(Napi::Env env, Napi::Object e
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -153,6 +155,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
 #ifdef _WIN32
       InstanceMethod("renderD3d11Frame", &MpvPlayer::RenderD3d11Frame),
       InstanceMethod("releaseD3d11Frame", &MpvPlayer::ReleaseD3d11Frame),
+      InstanceMethod("retireD3d11Playback", &MpvPlayer::RetireD3d11Playback),
 #ifdef LAMPAUA_GPU_TEST
       InstanceMethod("injectD3d11Fault", &MpvPlayer::InjectD3d11Fault),
       InstanceMethod("readD3d11Marker", &MpvPlayer::ReadD3d11Marker),
@@ -239,6 +242,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
 
     observe("time-pos", MPV_FORMAT_DOUBLE);
     observe("duration", MPV_FORMAT_DOUBLE);
+    observe("file-format", MPV_FORMAT_STRING);
     observe("pause", MPV_FORMAT_FLAG);
     observe("eof-reached", MPV_FORMAT_FLAG);
     observe("width", MPV_FORMAT_INT64);
@@ -475,7 +479,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
         !lampaua::gpu_integer(info[1], height, 2160) || !height ||
         !lampaua::gpu_integer(info[2], generation, 9007199254740991ULL) || !generation)
       return D3d11Reject(Env(), "Invalid D3D11 frame dimensions or generation");
-    if (frame_active_ || cleanup_requested_ || !d3d11_state_) return D3d11Reject(Env(), "D3D11 player busy or closing");
+    if (frame_active_ || cleanup_requested_ || retirement_requested_ || !d3d11_state_) return D3d11Reject(Env(), "D3D11 player busy or closing");
     D3d11Request request{D3d11Operation::Render};
     request.width = static_cast<int>(width);
     request.height = static_cast<int>(height);
@@ -487,6 +491,89 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
     D3d11Request request{D3d11Operation::Release};
     if (!info.Length() || !lampaua::gpu_key(info[0], request.key)) return D3d11Reject(Env(), "Invalid D3D11 frame key");
     return QueueD3d11(request);
+  }
+  class RetirementWorker : public Napi::AsyncWorker {
+   public:
+    RetirementWorker(MpvPlayer* owner, uint64_t pending)
+      : Napi::AsyncWorker(owner->Env(), "MPV playback retirement"), owner_(owner), handle_(owner->handle_), pending_(pending) {
+      owner_->Ref();
+    }
+    ~RetirementWorker() { owner_->Unref(); }
+    void Execute() override {
+      // Never wait for the core on the D3D11 render thread or the JS thread.
+      const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+      if (pending_ && !wait_reply(pending_, deadline, false)) return;
+      const char* args[] = {"stop", nullptr};
+      int result = mpv_command_async(handle_, 0, args);
+      if (result < 0) { SetError("MPV retirement stop failed: " + mpv_error_text(result)); return; }
+      if (!wait_reply(0, deadline, true)) return;
+      while (std::chrono::steady_clock::now() < deadline) {
+        int idle = 0;
+        result = mpv_get_property_async(handle_, 0, "idle-active", MPV_FORMAT_FLAG);
+        if (result < 0) { SetError("MPV idle query failed: " + mpv_error_text(result)); return; }
+        if (!wait_reply(0, deadline, true, &idle)) return;
+        if (idle) return;
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      }
+      SetError("MPV playback retirement was not confirmed");
+    }
+    void OnOK() override {
+      owner_->retirement_deferred_->Resolve(Env().Undefined());
+      finish();
+    }
+    void OnError(const Napi::Error& error) override {
+      owner_->retirement_deferred_->Reject(error.Value());
+      finish();
+    }
+   private:
+    bool wait_reply(uint64_t id, std::chrono::steady_clock::time_point deadline, bool require_success, int* idle = nullptr) {
+      while (std::chrono::steady_clock::now() < deadline) {
+        auto* event = mpv_wait_event(handle_, 0.005);
+        const bool expected = idle ? event->event_id == MPV_EVENT_GET_PROPERTY_REPLY :
+          (event->event_id == MPV_EVENT_COMMAND_REPLY || event->event_id == MPV_EVENT_SET_PROPERTY_REPLY);
+        if (expected &&
+            event->reply_userdata == id) {
+          if (require_success && event->error < 0) {
+            SetError("MPV retirement command failed: " + mpv_error_text(event->error));
+            return false;
+          }
+          if (idle) {
+            auto* property = static_cast<mpv_event_property*>(event->data);
+            if (!property || property->format != MPV_FORMAT_FLAG || !property->data) {
+              SetError("MPV idle query returned invalid data");
+              return false;
+            }
+            *idle = *static_cast<int*>(property->data);
+          }
+          return true;
+        }
+      }
+      SetError("MPV retirement command timed out");
+      return false;
+    }
+    void finish() {
+      owner_->retirement_active_ = false;
+      if (owner_->cleanup_requested_) owner_->cleanup(true);
+    }
+    MpvPlayer* owner_;
+    mpv_handle* handle_;
+    uint64_t pending_;
+  };
+  Napi::Value RetireD3d11Playback(const Napi::CallbackInfo& info) {
+    if (retirement_deferred_) return retirement_promise_.Value();
+    if (!d3d11_state_ || !handle_ || cleanup_requested_)
+      return D3d11Reject(Env(), "D3D11 player is unavailable or closing");
+    retirement_deferred_ = std::make_unique<Napi::Promise::Deferred>(Napi::Promise::Deferred::New(Env()));
+    retirement_promise_ = Napi::Persistent(retirement_deferred_->Promise());
+    retirement_requested_ = true;
+    retirement_active_ = true;
+    const uint64_t pending = command_active_ && !commands_.empty() ? commands_.front().id : 0;
+    if (pending) mpv_abort_async_command(handle_, pending);
+    commands_.clear();
+    command_active_ = false;
+    d3d11_state_->thread.cancel_wait();
+    (new RetirementWorker(this, pending))->Queue();
+    return retirement_promise_.Value();
   }
 #ifdef LAMPAUA_GPU_TEST
   Napi::Value InjectD3d11Fault(const Napi::CallbackInfo& info) {
@@ -602,7 +689,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
 
   // Keep one request in flight: libmpv does not guarantee async request order.
   int enqueue(const char* action, std::function<int(uint64_t)> submit) {
-    if (!handle_ || !alive_ || cleanup_requested_) return MPV_ERROR_UNINITIALIZED;
+    if (!handle_ || !alive_ || cleanup_requested_ || retirement_requested_) return MPV_ERROR_UNINITIALIZED;
     if (commands_.size() >= 128) return MPV_ERROR_EVENT_QUEUE_FULL;
     commands_.push_back({next_command_id_++, action, std::move(submit)});
     return command_active_ ? 0 : start_next_command(false);
@@ -1125,6 +1212,8 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
   Napi::Value PollEvents(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     Napi::Array events = Napi::Array::New(env);
+    // The retirement worker exclusively drains the client queue until close.
+    if (retirement_requested_) return events;
     uint32_t index = 0;
     std::vector<Napi::Object> failed_end_events;
 
@@ -1246,7 +1335,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
   }
 
   void cleanup(bool asynchronous = false) {
-    if (frame_active_) {
+    if (frame_active_ || retirement_active_) {
       cleanup_requested_ = true;
       return;
     }
@@ -1722,6 +1811,8 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
   mpv_render_context* render_context_ = nullptr;
   bool frame_active_ = false;
   bool cleanup_requested_ = false;
+  bool retirement_requested_ = false;
+  bool retirement_active_ = false;
   std::unique_ptr<Napi::Promise::Deferred> cleanup_deferred_;
   Napi::Reference<Napi::Promise> cleanup_promise_;
   std::deque<PendingCommand> commands_;
@@ -1753,6 +1844,8 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
     return info.Env().Undefined();
   }
   std::shared_ptr<lampaua::D3d11PlayerState> d3d11_state_;
+  std::unique_ptr<Napi::Promise::Deferred> retirement_deferred_;
+  Napi::Reference<Napi::Promise> retirement_promise_;
   std::shared_ptr<lampaua::D3d11Callbacks> d3d11_callbacks_;
   HWND win_hwnd_ = nullptr;
   HDC win_dc_ = nullptr;

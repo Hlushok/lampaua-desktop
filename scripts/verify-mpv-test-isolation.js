@@ -4,6 +4,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 const { createRequire } = require("node:module");
 const { EventEmitter } = require("node:events");
+const { spawnSync } = require("node:child_process");
 const root = path.resolve(__dirname, "..");
 function load(file, requires, extra = {}) {
   const module = { exports: {} };
@@ -21,6 +22,48 @@ function load(file, requires, extra = {}) {
   return module.exports;
 }
 async function main() {
+  for (const args of [[], ["--d3d11", "--release"]]) {
+    const rejected = spawnSync(
+      process.execPath,
+      [
+        path.join(root, "scripts/verify-mpv-desktop.cjs"),
+        "--reuse-test-profile",
+        ...args,
+      ],
+      { encoding: "utf8", windowsHide: true, timeout: 5000 },
+    );
+    assert.notEqual(rejected.status, 0);
+    assert.match(
+      rejected.stderr,
+      /Persistent profile requires the isolated D3D11 test package/,
+    );
+  }
+  const missingExe = spawnSync(
+    process.execPath,
+    [path.join(root, "scripts/verify-mpv-desktop.cjs"), "--d3d11"],
+    { encoding: "utf8", windowsHide: true, timeout: 5000 },
+  );
+  assert.notEqual(missingExe.status, 0);
+  assert.match(
+    missingExe.stderr,
+    /Pass --exe pointing to the full desktop build/,
+  );
+  const foreignPackage = spawnSync(
+    process.execPath,
+    [
+      path.join(root, "scripts/verify-mpv-desktop.cjs"),
+      "--d3d11",
+      "--reuse-test-profile",
+      "--exe",
+      process.execPath,
+    ],
+    { encoding: "utf8", windowsHide: true, timeout: 5000 },
+  );
+  assert.notEqual(foreignPackage.status, 0);
+  assert.match(
+    foreignPackage.stderr,
+    /Persistent profile requires the isolated D3D11 test package/,
+  );
   assert.ok(
     fs.existsSync(path.join(root, "src/modules/mpv/testMode.js")),
     "test-mode bootstrap is missing",
@@ -44,6 +87,63 @@ async function main() {
   );
   assert.equal(mode.isMpvTest(), true);
   assert.equal(mode.isMpvEnabled(), true);
+  for (const args of [[], ["--mpv-test-visible"], ["--mpv-test-window-log"]]) {
+    const testApp = new EventEmitter();
+    let bootstrapped = false;
+    const pins = [];
+    const hooks = [];
+    load(
+      "src/mpv-test-main.js",
+      {
+        electron: { app: testApp },
+        "./modules/mpv/testMode": {
+          bootstrapMpvTest() {
+            bootstrapped = true;
+          },
+        },
+        "./main": {},
+      },
+      { process: { argv: args } },
+    );
+    assert.equal(bootstrapped, true);
+    testApp.emit(
+      "browser-window-created",
+      {},
+      {
+        setAlwaysOnTop: (value) => pins.push(value),
+        on: (name) => hooks.push(name),
+      },
+    );
+    assert.deepEqual(
+      pins,
+      [],
+      "Test diagnostics must never pin the window above the user's applications",
+    );
+    assert.deepEqual(
+      hooks,
+      args.includes("--mpv-test-window-log")
+        ? ["show", "hide", "minimize", "restore", "focus", "blur"]
+        : [],
+    );
+  }
+  const productionMode = load("src/modules/mpv/testMode.js", {
+    "../../../package.json": {},
+  });
+  const productionApp = new EventEmitter();
+  assert.throws(
+    () =>
+      load(
+        "src/mpv-test-main.js",
+        {
+          electron: { app: productionApp },
+          "./modules/mpv/testMode": productionMode,
+          "./main": {},
+        },
+        { process: { argv: ["--mpv-test-visible"] } },
+      ),
+    /test package/i,
+  );
+  assert.equal(productionApp.listenerCount("browser-window-created"), 0);
   for (const [pkg, platform, arch, expected] of [
     [{ lampauaMpvTest: true, lampauaMpvD3d11Test: true }, "win32", "x64", true],
     [

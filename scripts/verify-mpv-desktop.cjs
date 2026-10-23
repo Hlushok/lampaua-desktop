@@ -9,11 +9,34 @@ const { parse } = require("acorn");
 const root = path.resolve(__dirname, "..");
 const qualityOnly = process.argv.includes("--quality-only");
 const d3d11 = process.argv.includes("--d3d11");
-const exe = process.argv[process.argv.indexOf("--exe") + 1];
+const reuseTestProfile = process.argv.includes("--reuse-test-profile");
+assert.ok(
+  !reuseTestProfile || (d3d11 && !process.argv.includes("--release")),
+  "Persistent profile requires the isolated D3D11 test package",
+);
+const exeIndex = process.argv.indexOf("--exe");
+const exe = exeIndex < 0 ? undefined : process.argv[exeIndex + 1];
 assert.ok(
   exe && fs.existsSync(exe),
   "Pass --exe pointing to the full desktop build",
 );
+if (reuseTestProfile) {
+  const packageFile = path.join(
+    path.dirname(path.resolve(exe)),
+    "resources/app/package.json",
+  );
+  assert.ok(
+    fs.existsSync(packageFile),
+    "Persistent profile requires the isolated D3D11 test package",
+  );
+  const pkg = JSON.parse(fs.readFileSync(packageFile, "utf8"));
+  assert.ok(
+    pkg.lampauaMpvTest === true &&
+      pkg.lampauaMpvD3d11Test === true &&
+      pkg.main === "src/mpv-test-main.js",
+    "Persistent profile requires the isolated D3D11 test package",
+  );
+}
 const runId = `run-${Date.now()}`;
 const output = path.join(
   root,
@@ -41,6 +64,7 @@ files.set("sisi/video.mp4", path.join(fixtures, "h264-aac.mp4"));
 const requests = [];
 let child;
 let ws;
+let traceSocket;
 let server;
 let killed = false;
 let appExited = false;
@@ -51,6 +75,7 @@ const results = [];
 function profileSnapshot() {
   const folder = path.join(process.env.APPDATA, "LampaUa");
   if (!fs.existsSync(folder)) return [];
+
   const files = [];
   function visit(directory) {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -58,6 +83,7 @@ function profileSnapshot() {
       if (entry.isDirectory()) visit(file);
       else if (entry.isFile()) {
         const stat = fs.statSync(file);
+
         files.push([path.relative(folder, file), stat.size, stat.mtimeMs]);
       }
     }
@@ -250,7 +276,12 @@ async function main() {
     [
       ...(process.argv.includes("--release")
         ? [`--user-data-dir=${path.join(output, "profile")}`]
-        : [`--mpv-test-run=${runId}`]),
+        : reuseTestProfile
+          ? []
+          : [`--mpv-test-run=${runId}`]),
+      ...(d3d11 && process.argv.includes("--performance-only")
+        ? ["--mpv-test-window-log"]
+        : []),
       `--remote-debugging-port=${debugPort}`,
       "--remote-debugging-address=127.0.0.1",
     ],
@@ -298,8 +329,11 @@ async function main() {
   });
   let seq = 0;
   const pending = new Map();
-  ws.addEventListener("message", ({ data }) => {
+  let traceComplete;
+  const protocolMessage = ({ data }) => {
     const response = JSON.parse(data);
+    if (response.method === "Tracing.tracingComplete")
+      traceComplete?.(response.params);
     if (response.method === "Fetch.requestPaused") {
       void cdp("Fetch.failRequest", {
         requestId: response.params.requestId,
@@ -320,8 +354,9 @@ async function main() {
         ? p.reject(new Error(JSON.stringify(response.error)))
         : p.resolve(response.result);
     }
-  });
-  function cdp(method, params = {}) {
+  };
+  ws.addEventListener("message", protocolMessage);
+  function cdp(method, params = {}, connection = ws) {
     return new Promise((resolve, reject) => {
       const id = ++seq;
       const timer = setTimeout(() => {
@@ -329,7 +364,7 @@ async function main() {
         reject(new Error(`CDP timeout: ${method}`));
       }, 15_000);
       pending.set(id, { resolve, reject, timer });
-      ws.send(JSON.stringify({ id, method, params }));
+      connection.send(JSON.stringify({ id, method, params }));
     });
   }
   await cdp("Runtime.enable");
@@ -407,6 +442,530 @@ async function main() {
       "window.__native={};window.__lifecycle=[];for(const name of ['create','start','destroy'])Lampa.Player.listener.follow(name,()=>__lifecycle.push({name,stack:new Error().stack})); document.addEventListener('mpv-event', e=>{if(e.detail.name)__native[e.detail.name]=e.detail.data},true); Lampa.Storage.set('player_normalization',false); Lampa.Storage.set('player','inner'); Lampa.Storage.set('player_torrent','inner')",
     );
   await instrument();
+  if (d3d11 && process.argv.includes("--gpu-info-only")) {
+    const adapters = await evaluate(`(async()=>{
+      const result=[];for(const preference of ['default','low-power','high-performance']){
+        const adapter=await navigator.gpu?.requestAdapter(preference==='default'?{}:{powerPreference:preference});
+        result.push({preference,info:adapter?{vendor:adapter.info.vendor,architecture:adapter.info.architecture,device:adapter.info.device,description:adapter.info.description}:null});
+      }return result;
+    })()`);
+    results.push({ adapters, shutdown: await closeApplication() });
+    fs.writeFileSync(
+      path.join(output, "results.json"),
+      JSON.stringify({ exe, runId, ok: true, results }, null, 2),
+    );
+    console.log(JSON.stringify({ adapters, output }, null, 2));
+    return;
+  }
+  if (d3d11 && process.argv.includes("--orientation-only")) {
+    await play("d3d11-orientation.mp4");
+    const picture = await screenshot("d3d11-orientation");
+    const corners = JSON.parse(
+      execFileSync(
+        "C:/Users/stpuh/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe",
+        [
+          "-c",
+          "from PIL import Image,ImageStat;import json,sys;im=Image.open(sys.argv[1]).convert('RGB');w,h=im.size;print(json.dumps([ImageStat.Stat(im.crop((int(w*x)-5,int(h*y)-5,int(w*x)+5,int(h*y)+5))).mean for x,y in [(.25,.25),(.75,.25),(.25,.75),(.75,.75)]]))",
+          picture,
+        ],
+        { encoding: "utf8", windowsHide: true },
+      ),
+    );
+    results.push({
+      orientationCorners: corners,
+      shutdown: await closeApplication(),
+    });
+    const [red, green, blue, yellow] = corners.map((rgb) => {
+      const peak = Math.max(...rgb);
+      assert.ok(peak > 32, "Orientation sample is obscured or blank");
+      return rgb.map((value) => value / peak);
+    });
+    assert.ok(
+      red[0] > 0.75 && red[1] < 0.25 && red[2] < 0.25,
+      "Top-left source corner is inverted",
+    );
+    assert.ok(
+      green[1] > 0.75 && green[0] < 0.25 && green[2] < 0.25,
+      "Top-right source corner is inverted",
+    );
+    assert.ok(
+      blue[2] > 0.75 && blue[0] < 0.25 && blue[1] < 0.25,
+      "Bottom-left source corner is inverted",
+    );
+    assert.ok(
+      yellow[0] > 0.75 && yellow[1] > 0.75 && yellow[2] < 0.25,
+      "Bottom-right source corner is inverted",
+    );
+    assert.deepEqual(profileSnapshot(), productionBefore);
+    fs.writeFileSync(
+      path.join(output, "results.json"),
+      JSON.stringify({ exe, runId, ok: true, results }, null, 2),
+    );
+    console.log("D3D11 four-corner image orientation passed", output);
+    return;
+  }
+  if (d3d11 && process.argv.includes("--performance-only")) {
+    const { summarizeFrameCadence } = require("./mpv/performance-metrics.cjs");
+    const tracePerformance = process.argv.includes("--trace-performance");
+    const gpuRecovery = process.argv.includes("--gpu-recovery-only");
+    assert.ok(
+      !gpuRecovery || !tracePerformance,
+      "GPU recovery and cadence tracing are separate tests",
+    );
+    let traceFinished;
+    const traceMarker = `lampaua-mpv-${runId}`;
+    const sampleIndex = process.argv.indexOf("--sample-seconds");
+    const sampleSeconds =
+      sampleIndex < 0 ? 30 : Number(process.argv[sampleIndex + 1]);
+    const seekIndex = process.argv.indexOf("--seek-seconds");
+    const seekSeconds = seekIndex < 0 ? 0 : Number(process.argv[seekIndex + 1]);
+    assert.ok(
+      Number.isFinite(sampleSeconds) &&
+        sampleSeconds >= 5 &&
+        sampleSeconds <= 180,
+    );
+    assert.ok(
+      Number.isFinite(seekSeconds) && seekSeconds >= 0 && seekSeconds <= 86400,
+    );
+    if (process.argv.includes("--assert-performance"))
+      assert.ok(
+        sampleSeconds >= 30,
+        "Acceptance requires at least a 30-second window",
+      );
+    clearTimeout(deadline);
+    deadline = setTimeout(terminate, (sampleSeconds + 180) * 1000);
+    const mediaIndex = process.argv.indexOf("--media");
+    const media =
+      mediaIndex < 0
+        ? "d3d11-continuous-hevc-hdr.mp4"
+        : process.argv[mediaIndex + 1];
+    let source;
+    if (process.argv.includes("--local-torrent")) {
+      const response = await fetch("http://localhost:8090/torrents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "list" }),
+        signal: AbortSignal.timeout(3000),
+      });
+      assert.equal(response.status, 200);
+      const torrents = await response.json();
+      assert.equal(torrents.length, 1, "Select exactly one local test torrent");
+      const torrent = torrents[0];
+      const file = [...torrent.file_stats].sort(
+        (a, b) => b.length - a.length,
+      )[0];
+      assert.ok(file && /^[a-f0-9]{40}$/i.test(torrent.hash));
+      const url = new URL(
+        `http://localhost:8090/stream/${encodeURIComponent(path.basename(file.path))}`,
+      );
+      url.searchParams.set("link", torrent.hash);
+      url.searchParams.set("index", String(file.id));
+      url.searchParams.set("play", "");
+      source = url.href;
+      results.push({ input: "local TorrServer", bytes: file.length });
+    } else {
+      assert.ok(files.has(media), "Create the continuous fixture first");
+      source = `${base}/${encodeURIComponent(media)}`;
+      results.push({ input: media });
+    }
+    const idleRafFps = await evaluate(`new Promise(resolve=>{
+      const start=performance.now();let count=0;
+      const frame=now=>{count++;if(now-start>=2000)resolve(count*1000/(now-start));else requestAnimationFrame(frame)};
+      requestAnimationFrame(frame);
+    })`);
+    await evaluate(
+      `window.__native={};Lampa.Player.play({url:${JSON.stringify(source)},title:'Перевірка плавності 4К D3D11',launch_player:'inner'})`,
+    );
+    await wait(
+      "Lampa.PlayerVideo.video()?.currentTime>1 || Lampa.PlayerVideo.video()?.error",
+      "D3D11 performance startup",
+      45000,
+    );
+    assert.equal(
+      await evaluate("Lampa.PlayerVideo.video()?.error || null"),
+      null,
+    );
+    assert.equal(
+      await evaluate("document.querySelector('mpv-video')?.mode"),
+      "d3d11",
+    );
+    if (seekSeconds > 0) {
+      await evaluate(
+        `window.__performanceRestarted=false;document.querySelector('mpv-video').addEventListener('mpv-event',e=>{if(e.detail.type==='playback-restart')__performanceRestarted=true});Lampa.PlayerVideo.video().currentTime=${seekSeconds}`,
+      );
+      await wait(
+        `__performanceRestarted && Math.abs(__native['time-pos']-${seekSeconds})<5 && !__native['paused-for-cache']`,
+        "seek to measured scene",
+        45000,
+      );
+    }
+    if (process.argv.includes("--wait-for-cache"))
+      await wait(
+        "__native['demuxer-cache-duration']>=5 && !__native['paused-for-cache']",
+        "five seconds of demuxer cache",
+        60000,
+      );
+    if (tracePerformance || gpuRecovery) {
+      const browser = await (
+        await fetch(`http://127.0.0.1:${debugPort}/json/version`)
+      ).json();
+      traceSocket = new WebSocket(browser.webSocketDebuggerUrl);
+      traceSocket.addEventListener("message", protocolMessage);
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error("Browser trace connection timed out")),
+          15000,
+        );
+        traceSocket.addEventListener(
+          "open",
+          () => {
+            clearTimeout(timer);
+            resolve();
+          },
+          { once: true },
+        );
+        traceSocket.addEventListener(
+          "error",
+          (error) => {
+            clearTimeout(timer);
+            reject(error);
+          },
+          { once: true },
+        );
+      });
+      if (tracePerformance) {
+        traceFinished = new Promise((resolve) => {
+          traceComplete = resolve;
+        });
+        await cdp(
+          "Tracing.start",
+          {
+            transferMode: "ReturnAsStream",
+            streamFormat: "json",
+            streamCompression: "gzip",
+            traceConfig: {
+              recordMode: "recordUntilFull",
+              traceBufferSizeInKb: 131072,
+              excludedCategories: ["*"],
+              includedCategories: [
+                "devtools.timeline",
+                "v8",
+                "disabled-by-default-display.framedisplayed",
+                "disabled-by-default-devtools.timeline.frame",
+              ],
+            },
+          },
+          traceSocket,
+        );
+      }
+    }
+    const firstPicture = await screenshot("d3d11-motion-before");
+    await sleep(800);
+    const secondPicture = await screenshot("d3d11-motion-after");
+    const pixels = JSON.parse(
+      execFileSync(
+        "C:/Users/stpuh/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe",
+        [
+          "-c",
+          "from PIL import Image,ImageChops,ImageStat;import sys,json;a=Image.open(sys.argv[1]).convert('RGB');b=Image.open(sys.argv[2]).convert('RGB');w,h=a.size;box=(int(w*.1),int(h*.2),int(w*.9),int(h*.8));a=a.crop(box);b=b.crop(box);print(json.dumps({'mean':sum(ImageStat.Stat(a).mean)/3,'delta':sum(ImageStat.Stat(ImageChops.difference(a,b)).mean)/3}))",
+          firstPicture,
+          secondPicture,
+        ],
+        { encoding: "utf8", windowsHide: true },
+      ),
+    );
+    assert.ok(
+      pixels.mean > 5 && pixels.delta > 0.5,
+      "D3D11 compositor image is blank or static",
+    );
+    await sleep(tracePerformance ? 6000 : 4000);
+    if (tracePerformance)
+      await evaluate(`console.timeStamp(${JSON.stringify(traceMarker)})`);
+    await evaluate(`(()=>{
+      const surface=document.querySelector('mpv-video');
+      if(typeof surface.drawGpuFrame!=='function')throw new Error('Rebuild the D3D11 test package for per-frame telemetry');
+      window.__d3d11Cadence={active:true,startMs:performance.now(),samples:[],raf:0,overflow:false,visibilityChanges:[],longTasks:[]};
+      const observer=new PerformanceObserver(list=>{for(const task of list.getEntries())if(__d3d11Cadence.longTasks.length<256)__d3d11Cadence.longTasks.push({at:task.startTime,duration:task.duration})});
+      observer.observe({type:'longtask'});
+      __d3d11Cadence.stopLongTasks=()=>observer.disconnect();
+      const visibility=()=>{const stats=__d3d11Cadence;if(stats.active&&stats.visibilityChanges.length<128)stats.visibilityChanges.push({at:performance.now(),visibility:document.visibilityState,focused:document.hasFocus()})};
+      visibility();
+      document.addEventListener('visibilitychange',visibility);
+      window.addEventListener('focus',visibility);
+      window.addEventListener('blur',visibility);
+      __d3d11Cadence.stopVisibility=()=>{document.removeEventListener('visibilitychange',visibility);window.removeEventListener('focus',visibility);window.removeEventListener('blur',visibility)};
+      const draw=surface.drawGpuFrame.bind(surface);
+      surface.drawGpuFrame=async(frame,metadata)=>{
+        const receiveMs=performance.now();
+        await draw(frame,metadata);
+        const submitMs=performance.now();
+        const stats=__d3d11Cadence;
+        if(!stats.active)return;
+        if(stats.samples.length>=24000){stats.overflow=true;return}
+        stats.samples.push({...metadata,receiveMs,submitMs,releaseMs:null,
+          timeSeconds:__native['time-pos'],drops:__native['frame-drop-count'],
+          decoderDrops:__native['decoder-frame-drop-count'],avsync:__native.avsync,
+          rafCount:stats.raf,buffering:__native['paused-for-cache'],error:surface.error||null,
+          visibility:document.visibilityState,focused:document.hasFocus()});
+      };
+      const raf=()=>{if(__d3d11Cadence.active){__d3d11Cadence.raf++;requestAnimationFrame(raf)}};
+      requestAnimationFrame(raf);
+    })()`);
+    await sleep(sampleSeconds * 1000);
+    const measured = await evaluate(`(()=>{
+      const endMs=performance.now();
+      __d3d11Cadence.active=false;
+      __d3d11Cadence.stopVisibility();
+      __d3d11Cadence.stopLongTasks();
+      return {samples:__d3d11Cadence.samples,overflow:__d3d11Cadence.overflow,visibilityChanges:__d3d11Cadence.visibilityChanges,
+        measurement:{startMs:__d3d11Cadence.startMs,endMs},
+        longTasks:__d3d11Cadence.longTasks,
+        guestAccessRequests:performance.getEntriesByType('resource').filter(entry=>{try{return new URL(entry.name).pathname==='/testaccsdb'}catch{return false}}).map(entry=>({at:entry.startTime,duration:entry.duration})),
+        state:{mode:document.querySelector('mpv-video')?.mode,width:__native.width,height:__native.height,
+          fps:__native['container-fps'],hwdec:__native['hwdec-current'],pixelFormat:__native['video-params/pixelformat'],
+          hardwarePixelFormat:__native['video-params/hw-pixelformat'],error:Lampa.PlayerVideo.video()?.error||null}};
+    })()`);
+    fs.writeFileSync(
+      path.join(output, "frames.json"),
+      JSON.stringify(measured.samples),
+    );
+    let compositor;
+    if (tracePerformance) {
+      await sleep(6000);
+      await cdp("Tracing.end", {}, traceSocket);
+      const completed = await Promise.race([
+        traceFinished,
+        sleep(15000).then(() => {
+          throw new Error("Compositor trace completion timed out");
+        }),
+      ]);
+      assert.ok(!completed.dataLossOccurred && completed.stream);
+      const chunks = [];
+      let size = 0;
+      try {
+        while (true) {
+          const part = await cdp(
+            "IO.read",
+            {
+              handle: completed.stream,
+              size: 1048576,
+            },
+            traceSocket,
+          );
+          const bytes = Buffer.from(
+            part.data,
+            part.base64Encoded ? "base64" : "utf8",
+          );
+          size += bytes.length;
+          assert.ok(size <= 128 * 1024 * 1024, "Trace archive exceeds limit");
+          chunks.push(bytes);
+          if (part.eof) break;
+        }
+      } finally {
+        await cdp("IO.close", { handle: completed.stream }, traceSocket);
+      }
+      const archive = Buffer.concat(chunks);
+      fs.writeFileSync(path.join(output, "compositor-trace.json.gz"), archive);
+      const { traceEvents } = JSON.parse(
+        require("node:zlib")
+          .gunzipSync(archive, { maxOutputLength: 512 * 1024 * 1024 })
+          .toString("utf8"),
+      );
+      assert.ok(Array.isArray(traceEvents));
+      const marker = traceEvents.find(
+        (event) =>
+          event.name === "TimeStamp" &&
+          event.args?.data?.message === traceMarker,
+      );
+      assert.ok(marker, "Missing renderer trace clock marker");
+      compositor =
+        require("./mpv/compositor-trace.cjs").summarizeCompositorTrace(
+          traceEvents,
+          {
+            rendererPid: marker.pid,
+            startUs: marker.ts,
+            endUs: marker.ts + sampleSeconds * 1e6,
+            sourceFps: measured.state.fps,
+          },
+        );
+      fs.writeFileSync(
+        path.join(output, "compositor-summary.json"),
+        JSON.stringify({ marker, compositor }, null, 2),
+      );
+    }
+    const cadence = summarizeFrameCadence(
+      measured.samples,
+      measured.state.fps,
+      idleRafFps,
+      measured.measurement,
+    );
+    const windows = [];
+    const firstTime = measured.measurement.startMs;
+    for (
+      let offset = 0;
+      offset + 30000 <= sampleSeconds * 1000;
+      offset += 30000
+    ) {
+      const measurement = {
+        startMs: firstTime + offset,
+        endMs: firstTime + offset + 30000,
+      };
+      const frames = measured.samples.filter(
+        (frame) =>
+          frame.receiveMs >= measurement.startMs &&
+          frame.receiveMs < measurement.endMs,
+      );
+      windows.push(
+        summarizeFrameCadence(
+          frames,
+          measured.state.fps,
+          idleRafFps,
+          measurement,
+        ),
+      );
+    }
+    results.push({
+      requestedMode: "d3d11",
+      ...measured.state,
+      overflow: measured.overflow,
+      visibilityChanges: measured.visibilityChanges,
+      longTasks: measured.longTasks,
+      guestAccessRequests: measured.guestAccessRequests,
+      sampleSeconds,
+      measurement: measured.measurement,
+      idleRafFps,
+      pixels,
+      cadence,
+      ...(tracePerformance ? { compositor } : {}),
+      windows,
+      evidence:
+        "Consumer arrival and GPU submission, not physical-presentation counts. GPU-safe release times are not exposed to the page; see separate transport gate.",
+    });
+    await screenshot("d3d11-measured");
+    if (gpuRecovery) {
+      const protocol = await (
+        await fetch(`http://127.0.0.1:${debugPort}/json/protocol`)
+      ).json();
+      assert.ok(
+        protocol.domains
+          .find((domain) => domain.domain === "Browser")
+          ?.commands.some((command) => command.name === "crashGpuProcess"),
+        "Test runtime has no GPU crash command",
+      );
+      const before = await evaluate("__native['time-pos']");
+      assert.ok(
+        before > 5,
+        "GPU recovery fixture has no established resume position",
+      );
+      const started = Date.now();
+      await cdp("Browser.crashGpuProcess", {}, traceSocket);
+      await wait(
+        "['webgl','canvas2d'].includes(document.querySelector('mpv-video')?.mode) && __native['time-pos']>1",
+        "software recovery after GPU process loss",
+        25000,
+      );
+      await sleep(1000);
+      const resumed = await evaluate("__native['time-pos']");
+      assert.ok(
+        resumed >= before - 1,
+        `GPU recovery lost VOD position: ${before} -> ${resumed}`,
+      );
+      await sleep(1200);
+      assert.ok(
+        await evaluate(`__native['time-pos']>${resumed + 0.5}`),
+        "Playback clock did not recover",
+      );
+      await evaluate("Lampa.PlayerVideo.video().pause()");
+      await wait("__native.pause===true", "pause after GPU recovery");
+      await evaluate(
+        "Lampa.PlayerVideo.video().currentTime=20;Lampa.PlayerVideo.video().play()",
+      );
+      await wait(
+        "__native.pause===false && __native['time-pos']>=20 && __native['time-pos']<25",
+        "seek/play after GPU recovery",
+      );
+      const first = await screenshot("gpu-recovered-before");
+      await sleep(850);
+      const last = await screenshot("gpu-recovered-after");
+      const motion = JSON.parse(
+        execFileSync(
+          "C:/Users/stpuh/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe",
+          [
+            "-c",
+            "from PIL import Image,ImageChops,ImageStat;import sys,json;a=Image.open(sys.argv[1]).convert('RGB');b=Image.open(sys.argv[2]).convert('RGB');w,h=a.size;box=(int(w*.1),int(h*.2),int(w*.9),int(h*.8));a=a.crop(box);b=b.crop(box);print(json.dumps({'mean':sum(ImageStat.Stat(a).mean)/3,'delta':sum(ImageStat.Stat(ImageChops.difference(a,b)).mean)/3}))",
+            first,
+            last,
+          ],
+          { encoding: "utf8", windowsHide: true },
+        ),
+      );
+      assert.ok(
+        motion.mean > 5 && motion.delta > 0.5,
+        "GPU recovery left a blank or static picture",
+      );
+      const error = await evaluate("Lampa.PlayerVideo.video()?.error || null");
+      assert.equal(error, null);
+      results.push({
+        gpuRecovery: {
+          pipeline: "software",
+          renderer: await evaluate("document.querySelector('mpv-video')?.mode"),
+          elapsedMs: Date.now() - started,
+          before,
+          resumed,
+          motion,
+          error,
+          controls: true,
+        },
+      });
+    }
+    results.push({ shutdown: await closeApplication() });
+    assert.deepEqual(
+      profileSnapshot(),
+      productionBefore,
+      "Production profile metadata changed",
+    );
+    fs.writeFileSync(
+      path.join(output, "results.json"),
+      JSON.stringify({ exe, runId, diagnostic: true, results }, null, 2),
+    );
+    console.log(
+      JSON.stringify(
+        { ...results.find((result) => result.requestedMode), output },
+        null,
+        2,
+      ),
+    );
+    if (process.argv.includes("--assert-performance")) {
+      assert.equal(
+        measured.state.mode,
+        "d3d11",
+        "Performance run silently fell back",
+      );
+      assert.ok(
+        measured.state.width >= 3840 && measured.state.height >= 2160,
+        "Expected a 4K source",
+      );
+      assert.equal(
+        measured.state.hwdec,
+        "d3d11va",
+        "Expected zero-copy hardware decoding",
+      );
+      assert.equal(measured.state.pixelFormat, "d3d11");
+      assert.equal(measured.state.error, null);
+      assert.equal(measured.overflow, false);
+      assert.ok(
+        measured.measurement.endMs - measured.measurement.startMs >=
+          sampleSeconds * 1000,
+        "Measurement ended early",
+      );
+      assert.equal(cadence.passed, true, JSON.stringify(cadence));
+      assert.equal(windows.length, Math.floor(sampleSeconds / 30));
+      for (const window of windows)
+        assert.equal(window.passed, true, JSON.stringify(window));
+    }
+    return;
+  }
+
   if (
     !process.argv.includes("--offline-only") &&
     !process.argv.includes("--network-only")
@@ -622,6 +1181,71 @@ async function main() {
         "d3d11va",
         "D3D11 control test lost zero-copy decoding",
       );
+      const layout = [];
+      await evaluate(
+        "Lampa.PlayerVideo.video().currentTime=1;Lampa.PlayerVideo.video().play()",
+      );
+      await wait(
+        "__native['time-pos']>=1 && __native['time-pos']<5",
+        "restart layout fixture",
+      );
+      for (const size of [
+        { width: 1280, height: 720 },
+        { width: 960, height: 640 },
+      ]) {
+        try {
+          await cdp("Emulation.setDeviceMetricsOverride", {
+            ...size,
+            deviceScaleFactor: 1,
+            mobile: false,
+          });
+          await wait(
+            `innerWidth===${size.width} && innerHeight===${size.height}`,
+            "resized video viewport",
+          );
+          await sleep(500);
+          await screenshot(`4k-layout-${size.width}`);
+          const state = await evaluate(
+            "({mode:document.querySelector('mpv-video')?.mode,width:innerWidth,height:innerHeight,error:Lampa.PlayerVideo.video()?.error||null})",
+          );
+          assert.equal(state.mode, "d3d11");
+          assert.equal(state.error, null);
+          layout.push(state);
+        } finally {
+          await cdp("Emulation.clearDeviceMetricsOverride");
+        }
+      }
+      const original = await evaluate(
+        "({width:innerWidth,height:innerHeight})",
+      );
+      try {
+        await evaluate("electronAPI.toggleFullscreen()");
+        await wait(
+          `innerWidth!==${original.width} || innerHeight!==${original.height}`,
+          "fullscreen video viewport",
+        );
+        await sleep(650);
+        await screenshot("4k-layout-fullscreen");
+        assert.equal(
+          await evaluate("document.querySelector('mpv-video')?.mode"),
+          "d3d11",
+        );
+      } finally {
+        const current = await evaluate(
+          "({width:innerWidth,height:innerHeight})",
+        );
+        if (
+          current.width !== original.width ||
+          current.height !== original.height
+        )
+          await evaluate("electronAPI.toggleFullscreen()");
+      }
+      await wait(
+        `innerWidth===${original.width} && innerHeight===${original.height}`,
+        "windowed viewport restored",
+      );
+      controlsResult.layout = layout;
+      controlsResult.fullscreen = true;
     }
     Object.assign(controlsResult, await closeApplication());
     assert.deepEqual(
@@ -1180,6 +1804,7 @@ main()
   .finally(async () => {
     clearTimeout(deadline);
     ws?.close();
+    traceSocket?.close();
     terminate();
     if (child && !appExited)
       await Promise.race([

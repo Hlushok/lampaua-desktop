@@ -75,10 +75,13 @@ module.exports = async function playerTests(native) {
         "Empty player must not invent a presented frame",
       );
       assert.throws(() => player.renderFrame(96, 54), /D3D11/);
+      const retiring =
+        i === 0 ? player.retireD3d11Playback() : Promise.resolve();
       const closing = player.destroy();
       assert.strictEqual(player.destroy(), closing);
       global.gc?.();
       await closing;
+      await retiring;
       assert.deepEqual(native.getD3d11TestResources(), baseline);
     }
     if (process.argv.includes("--player-smoke")) {
@@ -131,6 +134,89 @@ module.exports = async function playerTests(native) {
     const reports = [];
     let colorPixel;
     try {
+      const retiring = await native.createD3d11Player({
+        width: 160,
+        height: 90,
+      });
+      const pump = () => retiring.pollEvents();
+      const timer = setInterval(pump, 5);
+      let retained;
+      try {
+        retiring.open(
+          `http://127.0.0.1:${server.address().port}/h264.mp4`,
+          [],
+          "auto",
+        );
+        retiring.play();
+        const deadline = performance.now() + 5000;
+        while (!retained && performance.now() < deadline) {
+          retained = await retiring.renderD3d11Frame(160, 90, 1);
+          if (!retained) await wait(3);
+        }
+        assert.ok(retained, "Retirement fixture did not produce a GPU lease");
+        clearInterval(timer);
+        retiring.setEventCallback();
+        retiring.setSpeed(1.1);
+        retiring.play();
+        retiring.pause();
+        retiring.play();
+        const stopped = retiring.retireD3d11Playback();
+        assert.strictEqual(retiring.retireD3d11Playback(), stopped);
+        await stopped;
+        await assert.rejects(retiring.renderD3d11Frame(160, 90, 1), /closing/);
+        assert.throws(() => retiring.play(), /core not initialized \(-3\)/);
+        assert.equal(
+          typeof (await retiring.readD3d11Marker(retained.key)),
+          "number",
+        );
+        assert.equal(await retiring.releaseD3d11Frame(retained.key), true);
+        retained = null;
+      } finally {
+        clearInterval(timer);
+        if (retained) await retiring.releaseD3d11Frame(retained.key);
+        await retiring.destroy();
+      }
+      assert.deepEqual(native.getD3d11TestResources(), baseline);
+      for (let cycle = 0; cycle < 8; cycle++) {
+        const failed = await native.createD3d11Player({
+          width: 160,
+          height: 90,
+        });
+        let ended = false;
+        const poll = () => {
+          for (const event of failed.pollEvents())
+            if (event.type === "end-file") ended = true;
+        };
+        const timer = setInterval(poll, 5);
+        try {
+          failed.setEventCallback(poll);
+          failed.open(
+            `http://127.0.0.1:${server.address().port}/missing.mp4`,
+            [],
+            "auto",
+          );
+          failed.setVolume(100);
+          failed.setSpeed(1);
+          failed.play();
+          const deadline = performance.now() + 5000;
+          while (!ended && performance.now() < deadline) await wait(5);
+          assert.equal(ended, true, "Failed source did not report end-file");
+          clearInterval(timer);
+          failed.setEventCallback();
+          failed.pause();
+          const retired = failed.retireD3d11Playback();
+          assert.deepEqual(
+            failed.pollEvents(),
+            [],
+            "Main event pump raced retirement reply consumption",
+          );
+          await retired;
+        } finally {
+          clearInterval(timer);
+          await failed.destroy();
+        }
+        assert.deepEqual(native.getD3d11TestResources(), baseline);
+      }
       for (const media of process.argv.includes("--player-lifecycle-only")
         ? []
         : ["h264", "hevc"]) {

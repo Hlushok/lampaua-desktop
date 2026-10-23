@@ -30,6 +30,17 @@ const gpuFrame = (generation = 1, sequence = 1) => ({
 });
 
 async function main() {
+  assert.doesNotMatch(
+    fs.readFileSync(
+      path.join(
+        root,
+        "third_party/electron-mpv-video/native/mpv-addon/src/mpv_addon.cc",
+      ),
+      "utf8",
+    ),
+    /\bmpv_(?:wait_async_requests|get_property)\s*\(/,
+    "Retirement must have a deadline and consume its own command replies",
+  );
   if (!process.argv.includes("--child")) {
     for (const [args, message] of [
       [["--release", "--d3d11"], /forbidden/],
@@ -130,7 +141,8 @@ async function main() {
     async renderFrame() {
       return { width: 2, height: 2, rgba: Buffer.alloc(16) };
     }
-    async renderD3d11Frame() {
+    async renderD3d11Frame(...args) {
+      this.calls.push(["render", ...args]);
       const frame = this.frames.shift();
       if (frame instanceof Error) throw frame;
       return frame ?? null;
@@ -138,6 +150,9 @@ async function main() {
     async releaseD3d11Frame(key) {
       this.calls.push(["release", key]);
       return true;
+    }
+    async retireD3d11Playback() {
+      this.calls.push(["retire-playback"]);
     }
     async destroy() {
       this.calls.push(["destroy"]);
@@ -361,6 +376,11 @@ async function main() {
     assert.equal(importedToken.syncToken, "fixture");
     await call("destroy", event, result.id);
     assert.equal(
+      player.calls.filter(([name]) => name === "retire-playback").length,
+      1,
+      "Retirement did not stop playback independently of the event pump",
+    );
+    assert.equal(
       player.calls.some(([name]) => name === "destroy"),
       false,
       "UI close destroyed an unconfirmed GPU lease",
@@ -494,10 +514,45 @@ async function main() {
   } finally {
     await service.dispose();
   }
-  for (const [live, paused] of [
-    [false, false],
-    [true, false],
-    [false, true],
+  service = mod.namespace.createMpvMain({
+    addonPath: "fixture",
+    authorize,
+    preferredPipeline: "d3d11",
+  });
+  window = windowFor(service);
+  event = eventFor(window);
+  try {
+    const result = await call("create", event, { pipeline: "d3d11" });
+    const original = instances.at(-1);
+    await call("set-render-size", event, result.id, {
+      width: 700,
+      height: 400,
+    });
+    await tick();
+    const oldGeneration = original.calls
+      .filter(([name]) => name === "render")
+      .at(-1)[3];
+    await call("set-render-pipeline", event, result.id, "software");
+    await call("set-render-pipeline", event, result.id, "d3d11");
+    await tick();
+    const replacement = instances.at(-1);
+    const nextGeneration = replacement.calls
+      .filter(([name]) => name === "render")
+      .at(-1)[3];
+    assert.ok(
+      nextGeneration > oldGeneration,
+      "D3D11 round trip reset the receiver generation floor",
+    );
+    await call("destroy", event, result.id);
+  } finally {
+    await service.dispose();
+  }
+  for (const [live, paused, format] of [
+    [false, false, "mov,mp4,m4a,3gp,3g2,mj2"],
+    [true, false, "hls"],
+    [false, true, "matroska,webm"],
+    [true, false, "hls-masked"],
+    [true, false, null],
   ]) {
     service = mod.namespace.createMpvMain({
       addonPath: "fixture",
@@ -509,7 +564,7 @@ async function main() {
     try {
       const result = await call("create", event, { pipeline: "d3d11" });
       const original = instances.at(-1);
-      const source = `https://fixture.test/${live ? "live.m3u8" : "video.mp4"}?sig=preserve`;
+      const source = `https://fixture.test/${format === "hls" ? "live.m3u8" : "video.mp4"}?sig=preserve`;
       await call("open", event, result.id, source, {
         Authorization: "Bearer fixture",
         Referer: "https://fixture.test/",
@@ -517,8 +572,9 @@ async function main() {
       original.events.push(
         ...[
           ["time-pos", 45],
-          ["duration", live ? 0 : 120],
+          ["duration", 120],
           ["seekable", true],
+          ["file-format", format === "hls-masked" ? "hls" : format],
         ].map(([name, data]) => ({ type: "property-change", name, data })),
       );
       original.eventCallback();
