@@ -90,7 +90,8 @@ void D3d11PlayerState::initialize(int width, int height, void (*wakeup)(void*), 
       {"video-params/hw-pixelformat", MPV_FORMAT_STRING}, {"container-fps", MPV_FORMAT_DOUBLE},
       {"audio-codec", MPV_FORMAT_STRING}, {"current-ao", MPV_FORMAT_STRING}, {"volume", MPV_FORMAT_DOUBLE},
       {"speed", MPV_FORMAT_DOUBLE}, {"track-list", MPV_FORMAT_NODE}, {"aid", MPV_FORMAT_STRING},
-      {"sid", MPV_FORMAT_STRING}, {"demuxer-cache-duration", MPV_FORMAT_DOUBLE}, {"paused-for-cache", MPV_FORMAT_FLAG}}) {
+      {"sid", MPV_FORMAT_STRING}, {"seekable", MPV_FORMAT_FLAG},
+      {"demuxer-cache-duration", MPV_FORMAT_DOUBLE}, {"paused-for-cache", MPV_FORMAT_FLAG}}) {
     status = mpv_observe_property(r.handle, observer++, item.first, item.second);
     if (status < 0) { error_ = std::string("Cannot observe ") + item.first; return; }
   }

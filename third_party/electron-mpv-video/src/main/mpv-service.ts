@@ -1,5 +1,6 @@
 import * as electron from 'electron'
-import type { BrowserWindow, IpcMainInvokeEvent, WebContents } from 'electron'
+import type { BrowserWindow, IpcMainInvokeEvent, IpcMainEvent, WebContents } from 'electron'
+import { D3d11Transport, canCreateD3d11Transport } from './d3d11-transport.js'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { createRequire } from 'node:module'
@@ -9,6 +10,7 @@ import type { GpuFrameKey, NativeGpuFrame } from '../shared/gpu-frame.js'
 const CHANNEL_PREFIX = 'electron-mpv-video:v1'
 const channel = (name: string) => `${CHANNEL_PREFIX}:${name}`
 const IPC_CHANNELS = [
+  'player:capabilities',
   'player:create',
   'player:open',
   'player:play',
@@ -66,6 +68,7 @@ type NativeModule = {
   MpvPlayer: new (options?: { mode?: RenderPipeline }) => NativePlayer
   createD3d11Player?: (options: { width: number; height: number }) => Promise<NativeD3d11Player>
 }
+type SessionNativePlayer = NativePlayer | NativeD3d11Player
 
 type RenderSize = {
   width: number
@@ -77,14 +80,16 @@ type AttachedWindow = {
   onClosed: () => void
   onNavigation: (...args: any[]) => void
   onLoaded: () => void
+  onGone: () => void
   ready: boolean
 }
 
 export type MpvMainOptions = {
+  preferredPipeline?: 'software' | 'd3d11'
   addonPath?: string
   authorize?: (event: IpcMainInvokeEvent) => boolean
   normalizeSource?: (source: unknown) => string
-  diagnostic?: (type: string, data: { playerId?: string; error?: string; format?: string }) => void
+  diagnostic?: (type: string, data: { playerId?: string; error?: string; format?: string; code?: string }) => void
 }
 
 export type MpvMain = {
@@ -130,7 +135,7 @@ function bounded(value: unknown, name: string, min: number, max: number) {
 }
 
 function normalizePipeline(value: unknown): RenderPipeline {
-  if (value !== 'software' && value !== 'shared-texture') {
+  if (value !== 'software' && value !== 'shared-texture' && value !== 'd3d11') {
     throw new TypeError(`Unsupported render pipeline: ${String(value)}`)
   }
   return value
@@ -196,7 +201,7 @@ function manifestFormat(source: string): 'auto' | 'dash' | 'hls' {
 
 class PlayerSession {
   readonly id = randomUUID()
-  private player: NativePlayer
+  private player: SessionNativePlayer
   private renderSize: RenderSize
   private pipeline: RenderPipeline
   private sharedTextureFrameInFlight = false
@@ -211,26 +216,108 @@ class PlayerSession {
   private source: string | null = null
   private headers: string[] = []
   private currentTime = 0
+  private confirmedTime = 0
+  private duration = 0
+  private seekable = false
   private volume = 100
+  private speed = 1
+  private audioTrack: number | 'no' | null = null
+  private subtitleTrack: number | 'no' | null = null
   private paused = true
   private stopped = true
   private tracks: Array<{ id: number; type: string }> = []
+  private gpuTransport: D3d11Transport | null = null
+  private gpuGeneration = 1
+  private gpuFallbackUsed = false
+  private authorizeGpu: (event: Pick<IpcMainEvent, 'sender' | 'senderFrame'>) => boolean = () => false
 
-  constructor(
+  private constructor(
     private readonly window: BrowserWindow,
     private readonly ownerWebContentsId: number,
     private readonly nativeModule: NativeModule,
     private readonly onDestroyed: (id: string) => void,
     options: { pipeline: RenderPipeline; renderSize: RenderSize },
     private readonly diagnostic: NonNullable<MpvMainOptions['diagnostic']> = () => {},
+    player: SessionNativePlayer,
   ) {
     this.pipeline = options.pipeline
     if (this.pipeline === 'shared-texture' && !supportsSharedTexturePipeline()) {
       this.pipeline = 'software'
     }
     this.renderSize = options.renderSize
-    this.player = new this.nativeModule.MpvPlayer({ mode: this.pipeline })
+    this.player = player
+  }
+
+  static async create(window: BrowserWindow, ownerId: number, nativeModule: NativeModule,
+    onDestroyed: (id: string) => void, options: { pipeline: RenderPipeline; renderSize: RenderSize },
+    diagnostic: NonNullable<MpvMainOptions['diagnostic']> = () => {}) {
+    let pipeline = options.pipeline
+    if (pipeline === 'd3d11' && !canCreateD3d11Transport(window.webContents)) {
+      diagnostic('d3d11-retired-fallback', { code: 'GPU_TRANSPORT_RETIRED' })
+      pipeline = 'software'
+    }
+    if (pipeline === 'shared-texture' && !supportsSharedTexturePipeline()) pipeline = 'software'
+    let player: SessionNativePlayer
+    if (pipeline === 'd3d11') {
+      try {
+        if (!nativeModule.createD3d11Player) throw new Error('D3D11 factory is unavailable')
+        player = await nativeModule.createD3d11Player(options.renderSize)
+      } catch {
+        diagnostic('d3d11-init-fallback', {})
+        pipeline = 'software'
+        player = new nativeModule.MpvPlayer({ mode: 'software' })
+      }
+    } else player = new nativeModule.MpvPlayer({ mode: pipeline })
+    return new PlayerSession(window, ownerId, nativeModule, onDestroyed,
+      { ...options, pipeline }, diagnostic, player)
+  }
+
+  get actualPipeline() { return this.pipeline }
+  async start(authorize: typeof this.authorizeGpu) {
+    this.authorizeGpu = authorize
+    if (this.pipeline === 'd3d11') {
+      try { this.gpuTransport = this.makeGpuTransport(this.player as NativeD3d11Player) }
+      catch {
+        const previous = this.player
+        this.player = new this.nativeModule.MpvPlayer({ mode: 'software' })
+        this.pipeline = 'software'
+        this.gpuFallbackUsed = true
+        await previous.destroy()
+      }
+    }
+    this.assertAlive()
     this.startCallbacks()
+  }
+
+  private makeGpuTransport(player: NativeD3d11Player) {
+    return new D3d11Transport({ playerId: this.id, owner: this.window.webContents,
+      authorize: this.authorizeGpu, releaseNative: key => player.releaseD3d11Frame(key),
+      onAvailable: () => { if (this.player === player) this.queueFrame() },
+      onError: error => this.failGpu(error) })
+  }
+
+  private failGpu(error: unknown) {
+    if (this.destroyed || this.gpuFallbackUsed || this.pipeline !== 'd3d11') return
+    this.gpuFallbackUsed = true
+    const code = error && typeof error === 'object' && 'code' in error &&
+      typeof error.code === 'string' && /^GPU_[A-Z_]+$/.test(error.code) ? error.code : 'GPU_NATIVE_RENDER'
+    this.diagnostic('d3d11-fallback', { playerId: this.id, code })
+    void this.run(() => this.setRenderPipeline('software')).catch(failure => this.sendError('render-error', failure ?? error))
+  }
+
+  private invalidateGpu() {
+    if (this.pipeline !== 'd3d11' || !this.gpuTransport) return
+    this.gpuGeneration++
+    this.gpuTransport.invalidate(this.gpuGeneration)
+  }
+
+  private async retirePlayer(player: SessionNativePlayer, transport: D3d11Transport | null) {
+    if (!transport) { await player.destroy(); return }
+    player.pause()
+    await transport.dispose()
+    const cleanup = transport.whenDrained().then(() => player.destroy())
+    void cleanup.catch(() => this.diagnostic('d3d11-retirement-error', { playerId: this.id }))
+    if (transport.stats().leases === 0) await cleanup
   }
 
   belongsTo(sender: WebContents | number) {
@@ -239,6 +326,7 @@ class PlayerSession {
 
   open(source: string, headers: string[]) {
     this.assertAlive()
+    this.invalidateGpu()
     this.tracks = []
     const format = manifestFormat(source)
     this.diagnostic('open', {playerId: this.id, format})
@@ -246,6 +334,11 @@ class PlayerSession {
     this.source = source
     this.headers = headers
     this.currentTime = 0
+    this.confirmedTime = 0
+    this.duration = 0
+    this.seekable = false
+    this.audioTrack = null
+    this.subtitleTrack = null
     this.stopped = false
     this.queueFrame()
     this.queueEvents()
@@ -265,6 +358,7 @@ class PlayerSession {
 
   stop() {
     this.assertAlive()
+    this.invalidateGpu()
     this.player.stop()
     this.currentTime = 0
     this.paused = true
@@ -274,6 +368,7 @@ class PlayerSession {
   seek(seconds: number) {
     this.assertAlive()
     const nextTime = bounded(seconds, 'seconds', 0, Number.MAX_SAFE_INTEGER)
+    this.invalidateGpu()
     this.player.seek(nextTime)
     this.currentTime = nextTime
   }
@@ -287,7 +382,8 @@ class PlayerSession {
 
   setSpeed(value: number) {
     this.assertAlive()
-    this.player.setSpeed(bounded(value, 'speed', 0.25, 4))
+    this.speed = bounded(value, 'speed', 0.25, 4)
+    this.player.setSpeed(this.speed)
   }
 
   setTrack(type: 'audio' | 'sub', id: unknown) {
@@ -295,12 +391,18 @@ class PlayerSession {
     if (id !== 'no' && (!Number.isInteger(id) || !this.tracks.some(track => track.id === id && track.type === type))) {
       throw new TypeError('Unknown track for this media')
     }
-    if (type === 'audio') this.player.setAudioTrack(id as number | 'no')
-    else this.player.setSubtitleTrack(id as number | 'no')
+    if (type === 'audio') {
+      this.player.setAudioTrack(id as number | 'no')
+      this.audioTrack = id as number | 'no'
+    } else {
+      this.player.setSubtitleTrack(id as number | 'no')
+      this.subtitleTrack = id as number | 'no'
+    }
   }
 
   setRenderSize(size: RenderSize) {
     this.assertAlive()
+    if (size.width !== this.renderSize.width || size.height !== this.renderSize.height) this.invalidateGpu()
     this.renderSize = size
     this.queueFrame()
   }
@@ -313,27 +415,46 @@ class PlayerSession {
     if (this.pipeline === nextPipeline) return
 
     const previousPlayer = this.player
+    const previousTransport = this.gpuTransport
     const previousPipeline = this.pipeline
     this.stopCallbacks()
     await this.waitForFramePump()
     this.assertAlive()
 
-    let replacement: NativePlayer | null = null
+    let replacement: SessionNativePlayer | null = null
+    let replacementTransport: D3d11Transport | null = null
     let restoredEvents: NativeEvent[] = []
     try {
-      replacement = new this.nativeModule.MpvPlayer({ mode: nextPipeline })
+      if (nextPipeline === 'd3d11') {
+        if (this.gpuFallbackUsed || !canCreateD3d11Transport(this.window.webContents) || !this.nativeModule.createD3d11Player)
+          throw new Error('D3D11 backend is unavailable or retired')
+        replacement = await this.nativeModule.createD3d11Player(this.renderSize)
+        replacementTransport = this.makeGpuTransport(replacement)
+      } else replacement = new this.nativeModule.MpvPlayer({ mode: nextPipeline })
       replacement.setVolume(this.volume)
+      replacement.setSpeed(this.speed)
       if (this.source && !this.stopped) {
         replacement.open(this.source, this.headers, manifestFormat(this.source))
         restoredEvents = await this.waitForFileLoaded(replacement)
         this.assertAlive()
-        if (this.currentTime > 0) replacement.seek(this.currentTime)
+        const position = previousPipeline === 'd3d11' ? this.confirmedTime : this.currentTime
+        if (position > 0 && (previousPipeline !== 'd3d11' || (this.duration > 0 && this.seekable))) replacement.seek(position)
+        const restoredTracks = restoredEvents.filter(event => event.name === 'track-list' && Array.isArray(event.data)).at(-1)?.data as Array<{id: number; type: string}> | undefined
+        for (const [type, id] of [['audio', this.audioTrack], ['sub', this.subtitleTrack]] as const) {
+          if (id === 'no' || (id !== null && restoredTracks?.some(track => track.type === type && track.id === id))) {
+            if (type === 'audio') replacement.setAudioTrack(id)
+            else replacement.setSubtitleTrack(id)
+          }
+        }
         if (this.paused) replacement.pause()
         else replacement.play()
       }
 
       this.player = replacement
       this.pipeline = nextPipeline
+      this.gpuTransport = replacementTransport
+      this.gpuGeneration = 1
+      this.sendEvent({ id: 0, type: 'pipeline-change', data: nextPipeline })
       for (const event of restoredEvents) {
         const transientProperty = event.type === 'property-change' &&
           (event.name === 'time-pos' || event.name === 'pause' || event.name === 'eof-reached')
@@ -341,13 +462,14 @@ class PlayerSession {
       }
       this.startCallbacks()
     } catch (error) {
-      await replacement?.destroy()
+      if (replacement) await this.retirePlayer(replacement, replacementTransport)
       this.player = previousPlayer
       this.pipeline = previousPipeline
+      this.gpuTransport = previousTransport
       if (!this.destroyed) this.startCallbacks()
       throw error
     }
-    await previousPlayer.destroy()
+    await this.retirePlayer(previousPlayer, previousTransport)
   }
 
   run(operation: () => unknown) {
@@ -366,14 +488,14 @@ class PlayerSession {
     this.stopCallbacks()
     this.destroyPromise = this.operations.then(async () => {
       await this.waitForFramePump()
-      await this.player.destroy()
+      await this.retirePlayer(this.player, this.gpuTransport)
       this.diagnostic('destroy-complete', {playerId: this.id})
     }).finally(() => this.onDestroyed(this.id))
     return this.destroyPromise
   }
 
 
-  private async waitForFileLoaded(player: NativePlayer) {
+  private async waitForFileLoaded(player: SessionNativePlayer) {
     const events: NativeEvent[] = []
     const deadline = Date.now() + 30_000
 
@@ -403,6 +525,11 @@ class PlayerSession {
     if (event.name === 'track-list' && Array.isArray(event.data)) this.tracks = event.data
     if (event.name === 'time-pos' && typeof event.data === 'number') {
       this.currentTime = event.data
+      if (Number.isFinite(event.data) && event.data >= 0) this.confirmedTime = event.data
+    } else if (event.name === 'duration') {
+      this.duration = typeof event.data === 'number' && Number.isFinite(event.data) && event.data > 0 ? event.data : 0
+    } else if (event.name === 'seekable') {
+      this.seekable = event.data === true
     } else if (event.name === 'pause' && typeof event.data === 'boolean') {
       this.paused = event.data
     } else if (event.name === 'eof-reached' && event.data === true) {
@@ -439,6 +566,21 @@ class PlayerSession {
 
   private async renderOneFrame() {
     if (this.destroyed || this.window.isDestroyed()) return
+    if (this.pipeline === 'd3d11') {
+      const player = this.player as NativeD3d11Player
+      const transport = this.gpuTransport
+      if (!transport || transport.stats().leases >= 3 || transport.stats().failed) return
+      const generation = this.gpuGeneration
+      const frame = await player.renderD3d11Frame(this.renderSize.width, this.renderSize.height, generation)
+      if (!frame) return
+      if (this.destroyed || this.window.isDestroyed() || generation !== this.gpuGeneration) {
+        await player.releaseD3d11Frame(frame.key)
+        return
+      }
+      try { await transport.send(frame) }
+      catch (error) { await player.releaseD3d11Frame(frame.key); throw error }
+      return
+    }
     if (this.pipeline === 'shared-texture') {
       if (!electron.sharedTexture) {
         throw new Error('Electron sharedTexture API is not available in this runtime')
@@ -448,7 +590,7 @@ class PlayerSession {
       this.sharedTextureFrameInFlight = true
       let imported: Electron.SharedTextureImported | undefined
       try {
-        const textureInfo = this.player.renderSharedTexture(
+        const textureInfo = (this.player as NativePlayer).renderSharedTexture(
           this.renderSize.width,
           this.renderSize.height,
         )
@@ -473,7 +615,7 @@ class PlayerSession {
         throw error
       }
     } else {
-      const frame = await this.player.renderFrame(this.renderSize.width, this.renderSize.height)
+      const frame = await (this.player as NativePlayer).renderFrame(this.renderSize.width, this.renderSize.height)
       if (this.destroyed || this.window.isDestroyed()) return
       const rgba = frame.rgba.buffer.slice(
         frame.rgba.byteOffset,
@@ -501,7 +643,8 @@ class PlayerSession {
             await this.renderOneFrame()
           } catch (error) {
             this.sharedTextureFrameInFlight = false
-            this.sendError('render-error', error)
+            if (this.pipeline === 'd3d11') this.failGpu(error)
+            else this.sendError('render-error', error)
           }
         }
       } finally {
@@ -562,6 +705,7 @@ class PlayerSession {
 class MpvMainService implements MpvMain {
   private readonly sessions = new Map<string, PlayerSession>()
   private readonly windows = new Map<number, AttachedWindow>()
+  private readonly pendingOwners = new Map<number, { cancelled: boolean }>()
   private nativeModule: NativeModule | null = null
   private disposed = false
 
@@ -588,10 +732,16 @@ class MpvMainService implements MpvMain {
       const attached = this.windows.get(id)
       if (attached) attached.ready = true
     }
-    this.windows.set(id, { window, onClosed, onNavigation, onLoaded, ready: false })
+    const onGone = () => {
+      const attached = this.windows.get(id)
+      if (attached) attached.ready = false
+      void this.destroyOwnerSessions(id)
+    }
+    this.windows.set(id, { window, onClosed, onNavigation, onLoaded, onGone, ready: false })
     window.once('closed', onClosed)
     window.webContents.on('did-start-navigation', onNavigation)
     window.webContents.on('did-finish-load', onLoaded)
+    window.webContents.on('render-process-gone', onGone)
   }
 
   async detachWindow(window: BrowserWindow) {
@@ -600,6 +750,7 @@ class MpvMainService implements MpvMain {
       attached.window.off('closed', attached.onClosed)
       window.webContents.off('did-start-navigation', attached.onNavigation)
       window.webContents.off('did-finish-load', attached.onLoaded)
+      window.webContents.off('render-process-gone', attached.onGone)
       this.windows.delete(window.webContents.id)
     }
     await this.destroyWindowSessions(window)
@@ -608,12 +759,14 @@ class MpvMainService implements MpvMain {
   async dispose() {
     if (this.disposed) return
     this.disposed = true
+    for (const token of this.pendingOwners.values()) token.cancelled = true
 
     for (const attached of this.windows.values()) {
       attached.window.off('closed', attached.onClosed)
       if (!attached.window.webContents.isDestroyed()) {
         attached.window.webContents.off('did-start-navigation', attached.onNavigation)
         attached.window.webContents.off('did-finish-load', attached.onLoaded)
+        attached.window.webContents.off('render-process-gone', attached.onGone)
       }
     }
     this.windows.clear()
@@ -660,6 +813,8 @@ class MpvMainService implements MpvMain {
   }
 
   private async destroyOwnerSessions(ownerWebContentsId: number) {
+    const pending = this.pendingOwners.get(ownerWebContentsId)
+    if (pending) pending.cancelled = true
     const owned = Array.from(this.sessions.values()).filter((session) =>
       session.belongsTo(ownerWebContentsId),
     )
@@ -667,25 +822,52 @@ class MpvMainService implements MpvMain {
   }
 
   private registerIpc() {
+    electron.ipcMain.handle(channel('player:capabilities'), async event => {
+      this.resolveOwner(event)
+      return this.capabilities()
+    })
     electron.ipcMain.handle(channel('player:create'), async (event, value?: unknown) => {
       const owner = this.resolveOwner(event)
-      if (Array.from(this.sessions.values()).some(session => session.belongsTo(event.sender))) throw new Error('An active MPV session already exists')
+      if (this.pendingOwners.has(event.sender.id) || Array.from(this.sessions.values()).some(session => session.belongsTo(event.sender))) throw new Error('An active or pending MPV session already exists')
       const options = value && typeof value === 'object'
         ? value as { pipeline?: unknown; renderSize?: unknown }
         : {}
-      const session = new PlayerSession(
+      const pipeline = normalizePipeline(options.pipeline ?? (this.capabilities().supportsD3d11 ? 'd3d11' : 'software'))
+      if (pipeline === 'd3d11' && (this.options.preferredPipeline !== 'd3d11' || process.platform !== 'win32' || process.arch !== 'x64'))
+        throw new Error('D3D11 is unavailable in this package')
+      const renderSize = normalizeRenderSize(options.renderSize ?? { width: 960, height: 540 })
+      const token = { cancelled: false }
+      this.pendingOwners.set(event.sender.id, token)
+      try {
+      const session = await PlayerSession.create(
         owner,
         owner.webContents.id,
         this.getNativeModule(),
         (id) => this.sessions.delete(id),
         {
-          pipeline: normalizePipeline(options.pipeline ?? 'software'),
-          renderSize: normalizeRenderSize(options.renderSize ?? { width: 960, height: 540 }),
+          pipeline,
+          renderSize,
         },
         this.options.diagnostic,
       )
+      if (token.cancelled || this.disposed || this.windows.get(event.sender.id)?.ready !== true || owner.isDestroyed()) {
+        await session.destroy()
+        throw new Error('MPV initialization cancelled by navigation or disposal')
+      }
       this.sessions.set(session.id, session)
-      return session.id
+      try { await session.start(gpuEvent => {
+        try { return this.resolveOwner(gpuEvent as IpcMainInvokeEvent) === owner }
+        catch { return false }
+      }) }
+      catch (error) { await session.destroy(); throw error }
+      if (token.cancelled || this.disposed || this.windows.get(event.sender.id)?.ready !== true) {
+        await session.destroy()
+        throw new Error('MPV initialization cancelled by navigation or disposal')
+      }
+      return { id: session.id, actualPipeline: session.actualPipeline }
+      } finally {
+        if (this.pendingOwners.get(event.sender.id) === token) this.pendingOwners.delete(event.sender.id)
+      }
     })
 
     const command = (event: IpcMainInvokeEvent, id: unknown, operation: (session: PlayerSession) => unknown) => {
@@ -713,9 +895,22 @@ class MpvMainService implements MpvMain {
     electron.ipcMain.handle(channel('player:set-render-size'), async (event, id, size) =>
       command(event, id, session => session.setRenderSize(normalizeRenderSize(size))))
     electron.ipcMain.handle(channel('player:set-render-pipeline'), async (event, id, pipeline) =>
-      command(event, id, session => session.setRenderPipeline(normalizePipeline(pipeline))))
+      command(event, id, session => {
+        const next = normalizePipeline(pipeline)
+        if (next === 'd3d11' && (this.options.preferredPipeline !== 'd3d11' || process.platform !== 'win32' || process.arch !== 'x64'))
+          throw new Error('D3D11 is unavailable in this package')
+        return session.setRenderPipeline(next)
+      }))
     electron.ipcMain.handle(channel('player:destroy'), async (event, id) =>
       this.getOwnedSession(event, id).destroy())
+  }
+
+  private capabilities() {
+    const supportsD3d11 = this.options.preferredPipeline === 'd3d11' &&
+      process.platform === 'win32' && process.arch === 'x64' &&
+      Boolean(electron.sharedTexture?.subtle?.importSharedTexture) &&
+      typeof this.getNativeModule().createD3d11Player === 'function'
+    return { supportsD3d11, defaultRenderMode: supportsD3d11 ? 'd3d11' : 'webgl' }
   }
 }
 

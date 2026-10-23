@@ -44,6 +44,33 @@ async function main() {
   );
   assert.equal(mode.isMpvTest(), true);
   assert.equal(mode.isMpvEnabled(), true);
+  for (const [pkg, platform, arch, expected] of [
+    [{ lampauaMpvTest: true, lampauaMpvD3d11Test: true }, "win32", "x64", true],
+    [
+      { lampauaMpvTest: true, lampauaMpvD3d11Test: true },
+      "win32",
+      "arm64",
+      false,
+    ],
+    [{ lampauaMpv: true, lampauaMpvD3d11Test: true }, "win32", "x64", false],
+    [{ lampauaMpvTest: true }, "win32", "x64", false],
+  ]) {
+    const candidateMode = load(
+      "src/modules/mpv/testMode.js",
+      { "../../../package.json": pkg },
+      { process: { platform, arch, argv: [] } },
+    );
+    assert.equal(candidateMode.isMpvD3d11Test(), expected);
+    if (expected) {
+      candidateMode.bootstrapMpvTest(app);
+      assert.ok(
+        calls.some(
+          ([key, value]) =>
+            key === "userData" && value.endsWith("LampaUaDesktopMpvD3d11Test"),
+        ),
+      );
+    }
+  }
   assert.equal(load("src/modules/mpv/testMode.js", {}).isMpvTest(), false);
   for (const [platform, arch, expected] of [
     ["win32", "x64", true],

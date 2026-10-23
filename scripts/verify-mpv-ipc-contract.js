@@ -143,6 +143,11 @@ async function main() {
   await mod.link(async (name) => {
     let values;
     if (name === "electron") values = { ipcMain, sharedTexture: {} };
+    else if (name === "./d3d11-transport.js")
+      values = {
+        D3d11Transport: class {},
+        canCreateD3d11Transport: () => true,
+      };
     else if (name === "node:module")
       values = { createRequire: () => () => ({ MpvPlayer: Native }) };
     else values = await import(name);
@@ -188,7 +193,8 @@ async function main() {
     call("create", { ...e, senderFrame: { url: "https://kinohub.uk/" } }),
     /authoriz|frame/i,
   );
-  const id = await call("create", e);
+  const { id, actualPipeline } = await call("create", e);
+  assert.equal(actualPipeline, "software");
   await new Promise((resolve) => setImmediate(resolve));
   await assert.rejects(call("create", e), /active|session/i);
   await assert.rejects(call("play", event(windows[1]), id), /belong/i);
@@ -283,7 +289,7 @@ async function main() {
   await assert.rejects(queuedSeek, /destroy/i);
   await destroying;
   restoring = false;
-  const nextId = await call("create", e);
+  const { id: nextId } = await call("create", e);
   windows[0].webContents.emit(
     "did-start-navigation",
     {},
@@ -302,14 +308,14 @@ async function main() {
   await assert.rejects(call("play", e, nextId), /Unknown|destroy|navigat/i);
   await assert.rejects(call("create", e), /navigat|document/i);
   windows[0].webContents.emit("did-finish-load");
-  const newDocument = await call("create", e);
+  const { id: newDocument } = await call("create", e);
   await call("destroy", e, newDocument);
 
   let finishFrame;
   frameGate = new Promise((resolve) => {
     finishFrame = resolve;
   });
-  const slowFrameId = await call("create", e);
+  const { id: slowFrameId } = await call("create", e);
   await new Promise((resolve) => setImmediate(resolve));
   const beforeControls = Date.now();
   await call("pause", e, slowFrameId);
@@ -339,7 +345,7 @@ async function main() {
   destroyGate = new Promise((resolve) => {
     finishDestroy = resolve;
   });
-  const slowDestroyId = await call("create", e);
+  const { id: slowDestroyId } = await call("create", e);
   let nativeCleanupFinished = false;
   const slowDestroy = call("destroy", e, slowDestroyId).then(() => {
     nativeCleanupFinished = true;

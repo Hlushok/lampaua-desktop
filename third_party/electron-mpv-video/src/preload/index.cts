@@ -1,4 +1,6 @@
 import * as electron from 'electron'
+import { registerD3d11Receiver } from './d3d11-receiver.cjs'
+import type { GpuFrameMetadata } from '../shared/gpu-frame.js'
 import type {
   ElectronMpvVideoApi,
   MpvPlayerSession,
@@ -7,6 +9,7 @@ import type {
   PlayerFrame,
   RenderMode,
   RenderPipeline,
+  PlayerCapabilities,
 } from '../shared/types.js'
 
 const CHANNEL_PREFIX = 'electron-mpv-video:v1'
@@ -22,7 +25,7 @@ let apiExposed = false
 
 function pipelineForRenderMode(mode?: RenderMode): RenderPipeline {
   if (!mode) return supportsSharedTexture ? 'shared-texture' : 'software'
-  return mode === 'shared-texture' ? 'shared-texture' : 'software'
+  return mode === 'd3d11' ? 'd3d11' : mode === 'shared-texture' ? 'shared-texture' : 'software'
 }
 
 function registerSharedTextureReceiver() {
@@ -45,9 +48,21 @@ function registerSharedTextureReceiver() {
   sharedTextureReceiverRegistered = true
 }
 
-function createPlayerSession(id: string): MpvPlayerSession {
+function createPlayerSession(id: string, initialPipeline: RenderPipeline): MpvPlayerSession {
   const disposers = new Set<() => void>()
   let destroyed = false
+  let pipeline = initialPipeline
+  let destroying: Promise<void> | null = null
+  const gpuCallbacks = new Set<(frame: VideoFrame, metadata: GpuFrameMetadata) => void | Promise<void>>()
+  const disposeGpuReceiver = typeof electron.sharedTexture?.subtle?.finishTransferSharedTexture === 'function'
+    ? registerD3d11Receiver({ ipcRenderer: electron.ipcRenderer, sharedTexture: electron.sharedTexture, playerId: id,
+      onFrame: async (frame, metadata) => { for (const callback of gpuCallbacks) await callback(frame, metadata) } })
+    : async () => {}
+  const pipelineListener = (_event: Electron.IpcRendererEvent, event: PlayerEvent) => {
+    if (event.playerId === id && event.type === 'pipeline-change' &&
+        ['software', 'shared-texture', 'd3d11'].includes(event.data as string)) pipeline = event.data as RenderPipeline
+  }
+  electron.ipcRenderer.on(channel('player:event'), pipelineListener)
 
   const disposeAll = () => {
     for (const dispose of disposers) dispose()
@@ -56,6 +71,7 @@ function createPlayerSession(id: string): MpvPlayerSession {
 
   const session: MpvPlayerSession = {
     id,
+    get pipeline() { return pipeline },
     open: (source: string, headers?: Record<string, string>) => electron.ipcRenderer.invoke(channel('player:open'), id, source, headers),
     play: () => electron.ipcRenderer.invoke(channel('player:play'), id),
     pause: () => electron.ipcRenderer.invoke(channel('player:pause'), id),
@@ -69,11 +85,23 @@ function createPlayerSession(id: string): MpvPlayerSession {
       electron.ipcRenderer.invoke(channel('player:set-render-size'), id, { width, height }),
     setRenderMode: (mode: RenderMode) =>
       electron.ipcRenderer.invoke(channel('player:set-render-pipeline'), id, pipelineForRenderMode(mode)),
-    destroy: async () => {
-      if (destroyed) return
+    destroy: () => {
+      if (destroying) return destroying
       destroyed = true
       disposeAll()
-      await electron.ipcRenderer.invoke(channel('player:destroy'), id)
+      gpuCallbacks.clear()
+      destroying = electron.ipcRenderer.invoke(channel('player:destroy'), id).finally(async () => {
+        electron.ipcRenderer.off(channel('player:event'), pipelineListener)
+        await disposeGpuReceiver()
+      })
+      return destroying
+    },
+    onGpuFrame: callback => {
+      if (destroyed) throw new Error('Player session is destroyed')
+      gpuCallbacks.add(callback)
+      const dispose = () => { gpuCallbacks.delete(callback) }
+      disposers.add(dispose)
+      return () => { disposers.delete(dispose); dispose() }
     },
     onFrame: (callback: (frame: PlayerFrame) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, frame: PlayerFrame) => {
@@ -127,15 +155,17 @@ function createPlayerSession(id: string): MpvPlayerSession {
 const mpvApi: ElectronMpvVideoApi = {
   platform: process.platform,
   supportsSharedTexture,
+  getCapabilities: () => electron.ipcRenderer.invoke(channel('player:capabilities')) as Promise<PlayerCapabilities>,
   create: async (options?: PlayerCreateOptions) => {
-    const id = await electron.ipcRenderer.invoke(channel('player:create'), {
-      pipeline: pipelineForRenderMode(options?.renderMode),
+    const mode = options?.renderMode ?? (await mpvApi.getCapabilities()).defaultRenderMode
+    const result = await electron.ipcRenderer.invoke(channel('player:create'), {
+      pipeline: pipelineForRenderMode(mode),
       renderSize: {
         width: options?.width ?? 960,
         height: options?.height ?? 540,
       },
     })
-    return createPlayerSession(id)
+    return createPlayerSession(result.id, result.actualPipeline)
   },
 }
 

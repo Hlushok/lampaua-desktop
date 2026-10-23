@@ -350,8 +350,16 @@ async function unit() {
   );
   await anotherOwner.transport.dispose();
   six.transport.invalidate(3);
-  assert.equal(six.errors[0].code, "GPU_GENERATION_LIMIT");
-  assert.equal(six.transport.stats().generation, 2);
+  assert.equal(
+    six.errors.length,
+    0,
+    "A newer requested generation must coalesce without allocating textures",
+  );
+  assert.equal(six.transport.stats().generation, 3);
+  await assert.rejects(
+    six.transport.send(six.frame(120, 3)),
+    (error) => error.code === "GPU_BUSY",
+  );
   for (let slot = 0; slot < 3; slot++)
     await six.finish({ sequence: 100 + slot, generation: 1, slot }, slot);
   for (let slot = 0; slot < 3; slot++)

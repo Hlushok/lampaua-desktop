@@ -12,7 +12,7 @@ interface SharedFrameRenderer {
   readonly name: string;
   readonly canvas: HTMLCanvasElement;
   resize(width: number, height: number): void;
-  drawVideoFrame(frame: VideoFrame): Promise<void>;
+  drawVideoFrame(frame: VideoFrame, waitForGpu?: boolean): Promise<void>;
 }
 
 class Canvas2DRenderer implements FrameRenderer {
@@ -192,6 +192,7 @@ class SharedTextureWebGpuRenderer implements SharedFrameRenderer {
   private pipeline: any = null;
   private sampler: any = null;
   private format = 'bgra8unorm';
+  private failure: Error | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -209,9 +210,10 @@ class SharedTextureWebGpuRenderer implements SharedFrameRenderer {
     await this.ready;
   }
 
-  async drawVideoFrame(frame: VideoFrame) {
+  async drawVideoFrame(frame: VideoFrame, waitForGpu = true) {
     await this.ready;
-    if (!this.device || !this.context || !this.pipeline || !this.sampler) return;
+    if (this.failure) throw this.failure;
+    if (!this.device || !this.context || !this.pipeline || !this.sampler) throw new Error('WebGPU renderer is unavailable');
     this.resize(frame.displayWidth || frame.codedWidth, frame.displayHeight || frame.codedHeight);
     const externalTexture = this.device.importExternalTexture({ source: frame });
     const bindGroup = this.device.createBindGroup({
@@ -235,8 +237,8 @@ class SharedTextureWebGpuRenderer implements SharedFrameRenderer {
     pass.draw(6);
     pass.end();
     this.device.queue.submit([encoder.finish()]);
-    // The preload releases the shared frame when this callback resolves.
-    await this.device.queue.onSubmittedWorkDone();
+    // D3D11 uses Electron's GPU-safe release callbacks rather than a queue-wide wait.
+    if (waitForGpu) await this.device.queue.onSubmittedWorkDone();
   }
 
   private async init() {
@@ -245,6 +247,7 @@ class SharedTextureWebGpuRenderer implements SharedFrameRenderer {
     const adapter = await gpu.requestAdapter();
     if (!adapter) throw new Error('No WebGPU adapter available');
     this.device = await adapter.requestDevice();
+    void this.device.lost?.then(() => { this.failure = new Error('WebGPU device was lost'); });
     this.context = this.canvas.getContext('webgpu');
     if (!this.context) throw new Error('WebGPU canvas context is not available');
     this.format = gpu.getPreferredCanvasFormat();
@@ -482,7 +485,7 @@ export class MpvVideoElement extends HTMLElement {
     await this.player?.setRenderMode(nextMode);
     this.renderMode = nextMode;
     if (this.getAttribute('render-mode') !== nextMode) this.setAttribute('render-mode', nextMode);
-    this.activeSharedRenderer = nextMode === 'shared-texture' ? this.sharedRenderer : null;
+    this.activeSharedRenderer = nextMode === 'shared-texture' || nextMode === 'd3d11' ? this.sharedRenderer : null;
     this.activeRenderer = nextMode === 'webgl' ? this.webglRenderer : this.canvasRenderer;
     this.updateVisibleSurface();
     this.updateRenderSize();
@@ -526,7 +529,8 @@ export class MpvVideoElement extends HTMLElement {
   }
 
   private async initialize() {
-    const requestedMode = this.getAttribute('render-mode') as RenderMode | null;
+    const capabilities = await window._electronMpvVideo.getCapabilities?.();
+    const requestedMode = (this.getAttribute('render-mode') ?? capabilities?.defaultRenderMode) as RenderMode | null;
     this.canvasRenderer = new Canvas2DRenderer(this.canvas2d);
     this.activeRenderer = this.canvasRenderer;
 
@@ -540,13 +544,13 @@ export class MpvVideoElement extends HTMLElement {
     }
     }
 
-    if ((!requestedMode || requestedMode === 'shared-texture') && window._electronMpvVideo.supportsSharedTexture) {
+    if ((!requestedMode || requestedMode === 'shared-texture' || requestedMode === 'd3d11') && window._electronMpvVideo.supportsSharedTexture) {
       try {
         const sharedRenderer = new SharedTextureWebGpuRenderer(this.sharedCanvas);
         await sharedRenderer.prepare();
         this.sharedRenderer = sharedRenderer;
         this.activeSharedRenderer = sharedRenderer;
-        this.renderMode = 'shared-texture';
+        this.renderMode = requestedMode === 'd3d11' ? 'd3d11' : 'shared-texture';
       } catch {
         // Keep WebGL/Canvas2D when shared textures are unavailable.
       }
@@ -563,14 +567,20 @@ export class MpvVideoElement extends HTMLElement {
       this.player = null;
       return;
     }
-    this.activeSharedRenderer = this.renderMode === 'shared-texture' ? this.sharedRenderer : null;
+    if (this.player.pipeline === 'software' && (this.renderMode === 'd3d11' || this.renderMode === 'shared-texture'))
+      this.renderMode = this.resolveRenderMode('webgl');
+    this.activeSharedRenderer = this.renderMode === 'shared-texture' || this.renderMode === 'd3d11' ? this.sharedRenderer : null;
     this.activeRenderer = this.renderMode === 'webgl' ? this.webglRenderer : this.canvasRenderer;
 
     this.disposers.push(this.player.onFrame((frame) => {
-      if (this.renderMode === 'shared-texture') return;
+      if (this.renderMode === 'shared-texture' || this.renderMode === 'd3d11') return;
       this.activeRenderer?.draw(frame);
     }));
     if (this.sharedRenderer) {
+      this.disposers.push(this.player.onGpuFrame(async (frame) => {
+        if (this.renderMode !== 'd3d11') return;
+        await this.sharedRenderer?.drawVideoFrame(frame, false);
+      }));
       this.disposers.push(this.player.onSharedTextureFrame(async (frame) => {
         if (this.renderMode !== 'shared-texture') return;
         await this.activeSharedRenderer?.drawVideoFrame(frame);
@@ -633,6 +643,7 @@ export class MpvVideoElement extends HTMLElement {
   async setSubtitleTrack(id: number | 'no') { await this.ensureReady(); await this.player?.setSubtitleTrack(id); }
 
   private resolveRenderMode(mode: RenderMode): RenderMode {
+    if (mode === 'd3d11' && this.sharedRenderer) return 'd3d11';
     if (mode === 'shared-texture' && this.sharedRenderer) return 'shared-texture';
     if (mode === 'webgl' && this.webglRenderer) return 'webgl';
     if (mode === 'canvas2d') return 'canvas2d';
@@ -641,7 +652,7 @@ export class MpvVideoElement extends HTMLElement {
   }
 
   private updateVisibleSurface() {
-    this.sharedCanvas.hidden = this.renderMode !== 'shared-texture';
+    this.sharedCanvas.hidden = this.renderMode !== 'shared-texture' && this.renderMode !== 'd3d11';
     this.webglCanvas.hidden = this.renderMode !== 'webgl';
     this.canvas2d.hidden = this.renderMode !== 'canvas2d';
   }
@@ -649,8 +660,11 @@ export class MpvVideoElement extends HTMLElement {
   private updateRenderSize() {
     const rect = this.getBoundingClientRect();
     const ratio = window.devicePixelRatio || 1;
-    const width = Math.max(160, Math.floor(rect.width * ratio));
-    const height = Math.max(90, Math.floor(rect.height * ratio));
+    const rawWidth = Math.max(160, Math.floor(rect.width * ratio));
+    const rawHeight = Math.max(90, Math.floor(rect.height * ratio));
+    const scale = Math.min(1, 3840 / rawWidth, 2160 / rawHeight);
+    const width = Math.max(2, Math.floor(rawWidth * scale));
+    const height = Math.max(2, Math.floor(rawHeight * scale));
     this.canvasRenderer?.resize(width, height);
     this.webglRenderer?.resize(width, height);
     this.sharedRenderer?.resize(width, height);
@@ -658,6 +672,13 @@ export class MpvVideoElement extends HTMLElement {
   }
 
   private handlePlayerEvent(event: PlayerEvent) {
+    if (event.type === 'pipeline-change' && event.data === 'software') {
+      this.renderMode = this.resolveRenderMode('webgl');
+      this.activeSharedRenderer = null;
+      this.activeRenderer = this.renderMode === 'webgl' ? this.webglRenderer : this.canvasRenderer;
+      this.updateVisibleSurface();
+      this.updateRenderSize();
+    }
     if (event.type === 'render-error' || event.type === 'event-error' || event.type === 'command-error') {
       this.status = event.type;
       this.emitError(event.error ?? event.data);

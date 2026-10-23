@@ -51,7 +51,6 @@
     video.className = "player-video__video";
     const surface = document.createElement("mpv-video");
     surface.setAttribute("defer-init", "");
-    surface.setAttribute("render-mode", "webgl");
     Object.assign(surface.style, { width: "100%", height: "100%" });
     video.append(surface);
     let source = "";

@@ -3,7 +3,13 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const root = path.resolve(__dirname, "..");
-const descriptor = path.join(root, ".cache/mpv-desktop-test/stage-latest.json");
+const d3d11 = process.argv.includes("--d3d11");
+const descriptor = path.join(
+  root,
+  d3d11
+    ? ".cache/mpv-desktop-d3d11-test/stage-latest.json"
+    : ".cache/mpv-desktop-test/stage-latest.json",
+);
 assert.ok(
   fs.existsSync(descriptor),
   "Full desktop MPV staging has not been created",
@@ -11,6 +17,8 @@ assert.ok(
 const { stage } = JSON.parse(fs.readFileSync(descriptor));
 const pkg = JSON.parse(fs.readFileSync(path.join(stage, "package.json")));
 const release = process.argv.includes("--release");
+assert.equal(d3d11 && release, false, "D3D11 candidate cannot be a release");
+assert.equal(pkg.lampauaMpvD3d11Test === true, d3d11);
 assert.equal(pkg.main, release ? "src/main.js" : "src/mpv-test-main.js");
 assert.equal(
   pkg.version,
@@ -44,6 +52,41 @@ const manifest = JSON.parse(
   fs.readFileSync(path.join(stage, "build-manifest.json")),
 );
 const productionRuntime = require("../build/electron-runtime-windows-x64.json");
+if (d3d11) {
+  const accepted = require("../build/libmpv-d3d11-test.json");
+  assert.equal(manifest.candidateD3d11, true);
+  for (const key of [
+    "repositoryCommit",
+    "clientApiVersion",
+    "dllSha256",
+    "sdkSha256",
+    "sourceSha256",
+    "effectiveTreeSha256",
+  ])
+    assert.equal(manifest.mpvSource[key], accepted[key], key);
+  assert.equal(
+    crypto
+      .createHash("sha256")
+      .update(
+        fs.readFileSync(
+          path.join(stage, "src/mpv-runtime/native/libmpv-2.dll"),
+        ),
+      )
+      .digest("hex"),
+    accepted.dllSha256,
+  );
+  assert.equal(
+    crypto
+      .createHash("sha256")
+      .update(
+        fs.readFileSync(
+          path.join(stage, "src/mpv-runtime/libmpv-notices/inventory.json"),
+        ),
+      )
+      .digest("hex"),
+    accepted.noticesInventorySha256,
+  );
+}
 assert.equal(manifest.electron, productionRuntime.version);
 assert.equal(manifest.electronArchiveSha256, productionRuntime.sha256);
 assert.equal(

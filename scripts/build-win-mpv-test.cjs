@@ -6,7 +6,28 @@ const { pathToFileURL } = require("node:url");
 const { createRequire } = require("node:module");
 const root = path.resolve(__dirname, "..");
 const release = process.argv.includes("--release");
-const cache = path.join(root, ".cache/mpv-desktop-test");
+const d3d11 = process.argv.includes("--d3d11");
+const candidateIndex = process.argv.indexOf("--candidate-sdk");
+if (d3d11 && release)
+  throw new Error("D3D11 is candidate-only; --release --d3d11 is forbidden");
+if (
+  d3d11 &&
+  (candidateIndex < 0 ||
+    !process.argv[candidateIndex + 1] ||
+    process.argv[candidateIndex + 1].startsWith("--"))
+)
+  throw new Error("D3D11 test requires --candidate-sdk PATH");
+if (!d3d11 && candidateIndex >= 0)
+  throw new Error("--candidate-sdk requires --d3d11");
+const cache = path.join(
+  root,
+  d3d11 ? ".cache/mpv-desktop-d3d11-test" : ".cache/mpv-desktop-test",
+);
+const sdk = d3d11
+  ? path.resolve(process.argv[candidateIndex + 1])
+  : path.join(root, ".cache/mpv-prototype/sdk");
+const candidateArtifacts = path.resolve(sdk, "../artifacts");
+const candidateNotices = path.resolve(sdk, "../notices");
 const prototype = path.join(root, ".cache/mpv-prototype");
 const vendor = path.join(root, "third_party/electron-mpv-video");
 const hash = (file) =>
@@ -62,6 +83,43 @@ function stageDependencies(stage, dependencies) {
   for (const name of Object.keys(dependencies)) add(name, root, stage);
 }
 async function main() {
+  let candidate;
+  if (d3d11) {
+    const expected = require("../build/libmpv-d3d11-test.json");
+    const { verifyPackage, digest } = require("./verify-mpv-d3d11-native.cjs");
+    candidate = verifyPackage(
+      sdk,
+      candidateArtifacts,
+      expected.repositoryCommit,
+    );
+    for (const key of [
+      "repositoryCommit",
+      "clientApiVersion",
+      "dllSha256",
+      "sdkSha256",
+      "sourceSha256",
+      "effectiveTreeSha256",
+    ])
+      if (candidate[key] !== expected[key])
+        throw new Error(`Unaccepted candidate ${key}`);
+    if (
+      digest(path.join(candidateNotices, "inventory.json")) !==
+      expected.noticesInventorySha256
+    )
+      throw new Error("Candidate notices inventory hash mismatch");
+    const inventory = JSON.parse(
+      fs.readFileSync(path.join(candidateNotices, "inventory.json")),
+    );
+    for (const component of inventory.components)
+      for (const notice of component.notices) {
+        const file = path.resolve(candidateNotices, notice.file);
+        if (
+          !file.startsWith(candidateNotices + path.sep) ||
+          digest(file) !== notice.sha256
+        )
+          throw new Error("Candidate notice path/hash mismatch");
+      }
+  }
   if (release) {
     for (const script of ["prepare-electron-runtime.ps1", "prepare-libmpv.ps1"])
       run("powershell.exe", [
@@ -94,19 +152,19 @@ async function main() {
     "--electron",
     path.join(electronDirectory, "electron.exe"),
   ]);
-  const mpvRuntime = require("../build/libmpv-runtime.json");
-  const expectedSdk = mpvRuntime.sha256;
-  if (hash(path.join(prototype, "libmpv-sdk.7z")) !== expectedSdk)
+  const mpvRuntime = candidate ?? require("../build/libmpv-runtime.json");
+  const expectedSdk = candidate?.sdkSha256 ?? mpvRuntime.sha256;
+  if (!d3d11 && hash(path.join(prototype, "libmpv-sdk.7z")) !== expectedSdk)
     throw new Error("SDK archive hash mismatch");
-  const dll = path.join(prototype, "sdk/libmpv-2.dll");
+  const dll = path.join(sdk, "libmpv-2.dll");
   if (hash(dll) !== mpvRuntime.dllSha256)
     throw new Error("libmpv DLL hash mismatch");
   const dependencies = path.join(root, "node_modules");
   const env = {
     ...process.env,
     NODE_PATH: dependencies,
-    MPV_INCLUDE_DIR: path.join(prototype, "sdk/include"),
-    MPV_LIB: path.join(prototype, "sdk/lib/mpv.lib"),
+    MPV_INCLUDE_DIR: path.join(sdk, "include"),
+    MPV_LIB: path.join(sdk, "lib/mpv.lib"),
   };
   const localPython =
     "C:/Users/stpuh/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe";
@@ -122,6 +180,7 @@ async function main() {
       `--target=${electronRuntime.version}`,
       "--dist-url=https://electronjs.org/headers",
       `--devdir=${path.join(prototype, "headers")}`,
+      "--lampaua_gpu_test=0",
     ],
     { env },
   );
@@ -174,6 +233,22 @@ async function main() {
     ],
   ])
     copy(from, path.join(runtime, to));
+  if (d3d11) {
+    copy(candidateNotices, path.join(runtime, "libmpv-notices"));
+    for (const file of [
+      "candidate-sdk.json",
+      "manifest.json",
+      "checksums.json",
+    ])
+      copy(
+        path.join(candidateArtifacts, file),
+        path.join(runtime, "candidate", file),
+      );
+    copy(
+      path.join(root, "build/patches/mpv/4255130-d3d11-render.patch"),
+      path.join(runtime, "candidate/4255130-d3d11-render.patch"),
+    );
+  }
   const original = require("../package.json");
   const pkg = {
     ...original,
@@ -182,6 +257,7 @@ async function main() {
     version: release ? original.version : `${original.version}-mpv-test.1`,
     main: release ? original.main : "src/mpv-test-main.js",
     lampauaMpvTest: !release,
+    ...(d3d11 ? { lampauaMpvD3d11Test: true } : {}),
     lampauaMpv: true,
     private: true,
   };
@@ -223,6 +299,7 @@ async function main() {
         vendorCommit: "4944079b4133715848ea3c3bdaf99742b8c68406",
         sdkSha256: expectedSdk,
         mpvSource: mpvRuntime,
+        ...(d3d11 ? { candidateD3d11: true } : {}),
         hashes,
       },
       null,
@@ -236,6 +313,7 @@ async function main() {
   run(process.execPath, [
     path.join(root, "scripts/verify-mpv-staging.js"),
     ...(release ? ["--release"] : []),
+    ...(d3d11 ? ["--d3d11"] : []),
   ]);
   run(process.execPath, [
     path.join(root, "scripts/verify-mpv-native-lifecycle.cjs"),
@@ -246,7 +324,11 @@ async function main() {
   const { build, Platform, Arch } = require("electron-builder");
   const output = path.join(
     root,
-    release ? "dist/release-x64" : "dist/mpv-desktop-test",
+    d3d11
+      ? "dist/mpv-desktop-d3d11-test"
+      : release
+        ? "dist/release-x64"
+        : "dist/mpv-desktop-test",
   );
   const targets = Platform.WINDOWS.createTarget(
     process.argv.includes("--unpacked")

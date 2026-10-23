@@ -1,5 +1,6 @@
-export type RenderMode = 'shared-texture' | 'webgl' | 'canvas2d'
-export type RenderPipeline = 'shared-texture' | 'software'
+export type RenderMode = 'shared-texture' | 'webgl' | 'canvas2d' | 'd3d11'
+export type RenderPipeline = 'shared-texture' | 'software' | 'd3d11'
+export type PlayerCapabilities = { defaultRenderMode: RenderMode; supportsD3d11: boolean }
 
 export type PlayerFrame = {
   playerId: string
@@ -27,6 +28,7 @@ export type Dispose = () => void
 
 export type MpvPlayerSession = {
   readonly id: string
+  readonly pipeline: RenderPipeline
   open(source: string, headers?: Record<string, string>): Promise<void>
   play(): Promise<void>
   pause(): Promise<void>
@@ -41,12 +43,14 @@ export type MpvPlayerSession = {
   destroy(): Promise<void>
   onFrame(callback: (frame: PlayerFrame) => void): Dispose
   onSharedTextureFrame(callback: (frame: VideoFrame) => Promise<void> | void): Dispose
+  onGpuFrame(callback: (frame: VideoFrame, metadata: import('./gpu-frame.js').GpuFrameMetadata) => Promise<void> | void): Dispose
   onEvent(callback: (event: PlayerEvent) => void): Dispose
 }
 
 export type ElectronMpvVideoApi = {
   readonly platform: string
   readonly supportsSharedTexture: boolean
+  getCapabilities(): Promise<PlayerCapabilities>
   create(options?: PlayerCreateOptions): Promise<MpvPlayerSession>
 }
 

@@ -291,7 +291,9 @@ async function main() {
   if (result.error) throw result.error;
   assert.equal(result.status, 0, "D3D11 native context verification failed");
 }
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+module.exports = { verifyPackage, digest };
+if (require.main === module)
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });

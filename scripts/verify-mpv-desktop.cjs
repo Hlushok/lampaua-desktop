@@ -8,13 +8,20 @@ const { spawn, execFileSync } = require("node:child_process");
 const { parse } = require("acorn");
 const root = path.resolve(__dirname, "..");
 const qualityOnly = process.argv.includes("--quality-only");
+const d3d11 = process.argv.includes("--d3d11");
 const exe = process.argv[process.argv.indexOf("--exe") + 1];
 assert.ok(
   exe && fs.existsSync(exe),
   "Pass --exe pointing to the full desktop build",
 );
 const runId = `run-${Date.now()}`;
-const output = path.join(root, ".cache/mpv-desktop-test/evidence", runId);
+const output = path.join(
+  root,
+  d3d11
+    ? ".cache/mpv-desktop-d3d11-test/evidence"
+    : ".cache/mpv-desktop-test/evidence",
+  runId,
+);
 fs.mkdirSync(output, { recursive: true });
 const log = fs.createWriteStream(path.join(output, "app.log"));
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -420,7 +427,7 @@ async function main() {
       savedInnerUnchanged: true,
     });
   }
-  async function play(name, params, data = {}) {
+  async function play(name, params, data = {}, expectedEngine = "native") {
     await evaluate(
       `if(Lampa.PlayerVideo.video())Lampa.Player.close();window.__native={}; ${params ? `Lampa.PlayerVideo.setParams(${JSON.stringify(params)});` : ""} Lampa.Player.play(${JSON.stringify({ url: `${base}/${name}`, title: `Перевірка: ${name}`, launch_player: "inner", timeline: { hash: name, time: 0, percent: 0, duration: 0 }, ...data })})`,
     );
@@ -436,9 +443,47 @@ async function main() {
       throw error;
     }
     const info = await evaluate(
-      "({time:Lampa.PlayerVideo.video().currentTime,duration:Lampa.PlayerVideo.video().duration,tracks:Lampa.PlayerVideo.video().audioTracks.length,codec:__native['video-codec'],audio:__native['audio-codec'],ao:__native['current-ao']})",
+      "({time:Lampa.PlayerVideo.video().currentTime,duration:Lampa.PlayerVideo.video().duration,tracks:Lampa.PlayerVideo.video().audioTracks.length,codec:__native['video-codec'],audio:__native['audio-codec'],ao:__native['current-ao'],mode:document.querySelector('mpv-video')?.mode})",
     );
     assert.ok(info.duration > 10, JSON.stringify(info));
+    if (d3d11 && expectedEngine === "native")
+      assert.equal(
+        info.mode,
+        "d3d11",
+        "Desktop silently fell back instead of presenting D3D11 frames",
+      );
+    if (
+      d3d11 &&
+      expectedEngine === "navigation-recovery" &&
+      info.mode !== "d3d11"
+    ) {
+      assert.equal(
+        info.mode,
+        "webgl",
+        "Navigation recovery did not select a supported native pipeline",
+      );
+      const diagnostics = fs.readFileSync(
+        path.join(
+          process.env.APPDATA,
+          `LampaUaDesktopMpvD3d11Test-${runId}`,
+          "logs/mpv-test.jsonl",
+        ),
+        "utf8",
+      );
+      const originCapabilities = await evaluate(
+        "({secureContext:window.isSecureContext,webGpu:Boolean(navigator.gpu),origin:location.origin})",
+      );
+      const retiredOwner = /"type":"d3d11-retired-fallback"/.test(diagnostics);
+      assert.ok(
+        retiredOwner || !originCapabilities.webGpu,
+        "Software recovery has no confirmed cause",
+      );
+      results.push({
+        navigationRecovery: "software",
+        quarantinedGpuOwner: retiredOwner,
+        originCapabilities,
+      });
+    }
     results.push({ media: name, ...info });
   }
   if (process.argv.includes("--visual-only")) {
@@ -563,6 +608,21 @@ async function main() {
     await screenshot("4k-controls");
     controlsResult.maxControlMs = Math.max(...latencies);
     controlsResult.hwdec = await evaluate("__native['hwdec-current']");
+    controlsResult.mode = await evaluate(
+      "document.querySelector('mpv-video')?.mode",
+    );
+    if (d3d11) {
+      assert.equal(
+        controlsResult.mode,
+        "d3d11",
+        "D3D11 controls caused a software fallback",
+      );
+      assert.equal(
+        controlsResult.hwdec,
+        "d3d11va",
+        "D3D11 control test lost zero-copy decoding",
+      );
+    }
     Object.assign(controlsResult, await closeApplication());
     assert.deepEqual(
       profileSnapshot(),
@@ -679,9 +739,14 @@ async function main() {
         .digest("hex"),
     });
     await evaluate("Lampa.Storage.set('video_quality_default','720')");
-    await play("ytdl/manifest?quality=720&token=synthetic%2Btoken", null, {
-      quality: { "720p": dash720, "1080p": dash1080 },
-    });
+    await play(
+      "ytdl/manifest?quality=720&token=synthetic%2Btoken",
+      null,
+      {
+        quality: { "720p": dash720, "1080p": dash1080 },
+      },
+      "browser",
+    );
     await wait(
       "Lampa.PlayerVideo.video().videoWidth===1280",
       "browser DASH 720p video",
@@ -970,7 +1035,7 @@ async function main() {
       "saved",
     );
     await instrument();
-    await play("h264-aac.mp4");
+    await play("h264-aac.mp4", null, {}, "navigation-recovery");
     results.push({ reload: true, savedSettings: true });
     await evaluate(
       "Lampa.__mpvInstalled=false;void electronAPI.store.set('lampaUrl','http://lampaua.mooo.com/')",
@@ -981,7 +1046,7 @@ async function main() {
       45_000,
     );
     await instrument();
-    await play("xvid-mp3.avi");
+    await play("xvid-mp3.avi", null, {}, "navigation-recovery");
     results.push({ legacyOrigin: await evaluate("location.origin") });
     await screenshot("legacy-http-playback");
     await evaluate(
@@ -1002,7 +1067,7 @@ async function main() {
     await screenshot("settings-800x600");
     await cdp("Emulation.clearDeviceMetricsOverride");
     await evaluate("Lampa.Controller.toggle('content')");
-    await play("xvid-mp3.avi");
+    await play("xvid-mp3.avi", null, {}, "navigation-recovery");
     await evaluate("Lampa.Player.close();Lampa.PlayerVideo.video()?.destroy()");
     const stressLatencies = [];
     for (let cycle = 0; cycle < 20; cycle++) {

@@ -2,7 +2,7 @@ const path = require("node:path");
 const fs = require("node:fs");
 const { app } = require("electron");
 const { pathToFileURL } = require("node:url");
-const { isMpvEnabled } = require("./testMode");
+const { isMpvEnabled, isMpvD3d11Test } = require("./testMode");
 const policy = require("./policy");
 let pending;
 function diagnostic(type, data) {
@@ -16,6 +16,7 @@ function diagnostic(type, data) {
     type,
     playerId: data.playerId,
     format: data.format,
+    ...(/^GPU_[A-Z_]+$/.test(data.code || "") ? { code: data.code } : {}),
   };
   if (data.error)
     entry.error =
@@ -44,6 +45,7 @@ function getService() {
       pathToFileURL(path.join(runtime, "lib/main/index.js")).href
     ).then(({ createMpvMain }) =>
       createMpvMain({
+        preferredPipeline: isMpvD3d11Test() ? "d3d11" : "software",
         addonPath: path.join(runtime, "native/mpv_addon.node"),
         authorize: policy.authorize,
         normalizeSource: policy.normalizeSource,

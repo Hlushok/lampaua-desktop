@@ -14,6 +14,7 @@ interface Options {
   authorize: (event: GpuIpcEvent) => boolean
   releaseNative: (key: GpuFrameKey) => Promise<boolean | void>
   onError: (error: D3d11TransportError) => void
+  onAvailable?: () => void
   sharedTexture?: SharedTexture
   ipcMain?: Pick<IpcMain, 'on' | 'removeListener'>
   watchdogMs?: number
@@ -30,6 +31,9 @@ interface Lease {
 
 const owners = new WeakMap<WebContents, D3d11Transport>()
 let outstandingLeases = 0
+export function canCreateD3d11Transport(owner: WebContents) {
+  return !owners.has(owner) && outstandingLeases < 6
+}
 
 export class D3d11Transport {
   private readonly leases = new Map<string, Lease>()
@@ -40,6 +44,8 @@ export class D3d11Transport {
   private failed = false
   private disposed = false
   private detached = false
+  private resolveDrained: () => void = () => {}
+  private readonly drained = new Promise<void>(resolve => { this.resolveDrained = resolve })
 
   constructor(private readonly options: Options) {
     if (owners.has(options.owner)) throw new D3d11TransportError('GPU_OWNER_RETIRED', 'GPU owner has an active or retired transport')
@@ -59,8 +65,10 @@ export class D3d11Transport {
     if (!validGpuMetadata(metadata) || metadata.generation !== this.generation || metadata.sequence <= this.lastSequence)
       throw new D3d11TransportError('GPU_STALE_FRAME', 'Invalid or stale GPU frame sequence')
     const id = gpuLeaseKey(metadata)
+    const generations = new Set([...this.leases.values()].map(lease => lease.metadata.generation))
     const current = [...this.leases.values()].filter(lease => lease.metadata.generation === this.generation).length
-    if (current >= 3 || this.leases.size >= 6 || outstandingLeases >= 6 || this.leases.has(id))
+    if ((!generations.has(metadata.generation) && generations.size >= 2) ||
+        current >= 3 || this.leases.size >= 6 || outstandingLeases >= 6 || this.leases.has(id))
       throw new D3d11TransportError('GPU_BUSY', 'GPU lease limit is busy')
     const lease: Lease = { metadata, phase: 'sent', completing: false, callbackFailed: false,
       timer: setTimeout(() => this.fail('GPU_RELEASE_TIMEOUT', 'GPU release was not confirmed; leases remain retired'), this.options.watchdogMs ?? 5000) }
@@ -81,15 +89,13 @@ export class D3d11Transport {
 
   invalidate(generation: number): void {
     if (!Number.isSafeInteger(generation) || generation <= this.generation) throw new D3d11TransportError('GPU_GENERATION', 'Invalid GPU generation')
-    const generations = new Set([...this.leases.values()].map(lease => lease.metadata.generation))
-    if (generations.size > 1) {
-      this.fail('GPU_GENERATION_LIMIT', 'GPU retired generation has not drained')
-      return
-    }
+    // Requests do not allocate: the native pool coalesces them until an old
+    // generation drains. send() still refuses a third live generation.
     this.generation = generation
   }
 
   stats() { return { leases: this.leases.size, generation: this.generation, failed: this.failed, disposed: this.disposed } }
+  whenDrained() { return this.drained }
 
   async dispose(): Promise<void> {
     this.disposed = true
@@ -139,6 +145,7 @@ export class D3d11Transport {
       clearTimeout(lease.timer)
       if (lease.callbackFailed) this.fail('GPU_FRAME_CALLBACK', 'GPU frame consumer failed')
       this.detachIfDrained()
+      if (!this.disposed && !this.failed) this.options.onAvailable?.()
     } catch { this.fail('GPU_NATIVE_RELEASE', 'Native GPU lease release failed') }
   }
 
@@ -157,5 +164,6 @@ export class D3d11Transport {
     this.options.owner.removeListener('render-process-gone', this.onOwnerGone)
     this.options.owner.removeListener('destroyed', this.onOwnerGone)
     owners.delete(this.options.owner)
+    this.resolveDrained()
   }
 }
