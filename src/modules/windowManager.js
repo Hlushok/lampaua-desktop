@@ -1,7 +1,11 @@
-const { BrowserWindow, screen } = require("electron");
+const { BrowserWindow, screen, shell } = require("electron");
 const path = require("node:path");
 const store = require("./storeManager");
 const { setupPluginHandler } = require("./pluginHandler");
+const {
+  buildIinaAutoplayUrl,
+  resolveIinaAutoplayUrl,
+} = require("./iinaAutoplay");
 
 let mainWindow = null;
 
@@ -203,6 +207,44 @@ function createWindow() {
   return mainWindow;
 }
 
+// Use Lampa's built-in "Next episode" setting (playlist_next). It defaults
+// to true in Lampa; there is no separate IINA-specific preference.
+async function getIinaAutoplayUrl(mainWindow, externalUrl) {
+  if (process.platform !== "darwin") return null;
+
+  return resolveIinaAutoplayUrl(externalUrl, () =>
+    mainWindow.webContents.executeJavaScript(
+      "window.Lampa?.Storage?.field?.('playlist_next') ?? (localStorage.getItem('playlist_next') !== 'false')",
+    ),
+  );
+}
+
+async function openExternalPlayer(mainWindow, externalUrl) {
+  let autoplayUrl = null;
+
+  try {
+    autoplayUrl = await getIinaAutoplayUrl(mainWindow, externalUrl);
+  } catch (error) {
+    console.warn("Could not read Lampa next-episode setting:", error);
+  }
+
+  try {
+    await shell.openExternal(autoplayUrl || externalUrl);
+  } catch (error) {
+    console.error("Failed to open external player:", error);
+    if (autoplayUrl) {
+      try {
+        await shell.openExternal(externalUrl);
+      } catch (fallbackError) {
+        console.error(
+          "Failed to restore single-episode playback:",
+          fallbackError,
+        );
+      }
+    }
+  }
+}
+
 function setupNavigationHandlers(mainWindow) {
   let isReloadingFromHandler = false;
 
@@ -232,6 +274,14 @@ function setupNavigationHandlers(mainWindow) {
 
   mainWindow.webContents.on("will-navigate", (event, navigationUrl) => {
     const parsedUrl = new URL(navigationUrl);
+
+    // Keep single-episode playback unless this is a convertible IINA torrent.
+    // The currently selected Lampa setting is read before opening the player.
+    if (process.platform === "darwin" && buildIinaAutoplayUrl(navigationUrl)) {
+      event.preventDefault();
+      void openExternalPlayer(mainWindow, navigationUrl);
+      return;
+    }
 
     // исправление запуска плееров на MacOS
     const allowedProtocols = ["mpv:", "iina:", "infuse:", "senplayer:"];
@@ -351,10 +401,8 @@ function setupErrorHandler(mainWindow) {
 }
 
 function setupWindowOpenHandler(mainWindow) {
-  const { shell } = require("electron");
-
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    void openExternalPlayer(mainWindow, url);
     return { action: "deny" };
   });
 }

@@ -1,0 +1,48 @@
+name: IINA autoplay checks
+
+on:
+  push:
+    branches:
+      - feature/iina-next-episode-autoplay
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: |
+          corepack enable
+          corepack prepare yarn@4 --activate
+      - run: yarn install --immutable
+      - run: yarn test
+      - run: yarn lint
+
+  macos-build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: |
+          corepack enable
+          corepack prepare yarn@4 --activate
+      - run: yarn install --immutable
+      - run: yarn test
+      - run: yarn build-mac
+      - name: Upload test build (unsigned)
+        uses: actions/upload-artifact@v4
+        with:
+          name: iina-autoplay-macos-dmg
+          path: dist/*.dmg
+          if-no-files-found: error
