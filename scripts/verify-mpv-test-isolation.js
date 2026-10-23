@@ -87,6 +87,27 @@ async function main() {
   );
   assert.equal(mode.isMpvTest(), true);
   assert.equal(mode.isMpvEnabled(), true);
+  for (const [pkg, platform, arch, expected] of [
+    [{ lampauaMpv: true, lampauaMpvD3d11: true }, "win32", "x64", true],
+    [{ lampauaMpv: true, lampauaMpvD3d11: true }, "win32", "arm64", false],
+    [{ lampauaMpv: true, lampauaMpvD3d11: true }, "darwin", "x64", false],
+    [{ lampauaMpv: true, lampauaMpvD3d11: true }, "linux", "x64", false],
+    [{ lampauaMpvD3d11: true }, "win32", "x64", false],
+    [{ lampauaMpvTest: true, lampauaMpvD3d11: true }, "win32", "x64", false],
+    [{ lampauaMpvTest: true, lampauaMpvD3d11Test: true }, "win32", "x64", true],
+  ]) {
+    const enabled = load(
+      "src/modules/mpv/testMode.js",
+      {
+        "../../../package.json": pkg,
+      },
+      { process: { platform, arch, argv: [] } },
+    );
+    assert.equal(enabled.isMpvD3d11Enabled(), expected);
+    assert.equal(enabled.isMpvTest(), pkg.lampauaMpvTest === true);
+    if (!enabled.isMpvTest())
+      assert.throws(() => enabled.bootstrapMpvTest(app), /test package/);
+  }
   for (const args of [[], ["--mpv-test-visible"], ["--mpv-test-window-log"]]) {
     const testApp = new EventEmitter();
     let bootstrapped = false;

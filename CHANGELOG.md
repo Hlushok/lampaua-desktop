@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.0.3](https://github.com/Hlushok/lampaua-desktop/compare/v2.0.2...v2.0.3) (2026-10-23)
+
+### Плавність І Стабільність 4К
+
+- У Windows x64 увімкнено перевірений прямий D3D11 render API MPV і передачу GPU-текстур без CPU-копій кадрів. Збережено асинхронні команди, контроль життєвого циклу й software fallback після втрати GPU.
+- Виправлено орієнтацію зображення, відновлення графічного контексту та завершення попереднього відтворення. Перевірено керування, 4К H264/HEVC/Main10 HDR→SDR, IPTV, native DASH, yt-dlp browser DASH і повторні відкриття.
+- Користувач підтвердив плавність проблемного 80+ ГБ 4К BDRemux і перемотування. Деталі вимірювань і відомі межі збережено окремо в документації.
+- Реліз використовує ту саму перевірену власну DLL, точні SDK/джерела, patch provenance та оригінальні ліцензії. Профіль, updater, офіційний Electron 45 і решта платформ збережені.
+
 ## [2.0.2](https://github.com/Hlushok/lampaua-desktop/compare/v2.0.1...v2.0.2) (2026-10-21)
 
 ### Оновлення Компонентів І Сумісність

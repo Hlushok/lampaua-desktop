@@ -164,6 +164,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Desktop upgrade contract failed' }
           node scripts/verify-electron-net-fetch.cjs
           if ($LASTEXITCODE -ne 0) { throw 'Electron networking contract failed' }
+          foreach ($test in @('verify-mpv-d3d11-contract.cjs', 'verify-mpv-webgl-recovery.cjs', 'verify-mpv-performance-metrics.cjs')) {
+            node "scripts/$test"
+            if ($LASTEXITCODE -ne 0) { throw "D3D11 regression failed: $test" }
+          }
           foreach ($test in @('verify-external-player-contract.js', 'verify-ua-player-dispatch-contract.js', 'verify-ua-player-progress-contract.js', 'verify-ua-player-session-contract.js', 'verify-mpv-ytdl-contract.js', 'verify-mpv-test-isolation.js', 'verify-mpv-renderer-contract.js', 'verify-mpv-lampa-contract.js', 'verify-mpv-ipc-contract.js', 'verify-mpv-diagnostics.js')) {
             node "scripts/$test"
             if ($LASTEXITCODE -ne 0) { throw "Contract failed: $test" }

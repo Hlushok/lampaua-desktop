@@ -258,6 +258,9 @@ async function main() {
     main: release ? original.main : "src/mpv-test-main.js",
     lampauaMpvTest: !release,
     ...(d3d11 ? { lampauaMpvD3d11Test: true } : {}),
+    ...(release && mpvRuntime.sourceVariant === "d3d11"
+      ? { lampauaMpvD3d11: true }
+      : {}),
     lampauaMpv: true,
     private: true,
   };

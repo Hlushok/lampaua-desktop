@@ -21,6 +21,16 @@ function isMpvD3d11Test() {
     process.arch === "x64"
   );
 }
+function isMpvD3d11Enabled() {
+  return (
+    isMpvD3d11Test() ||
+    (!isMpvTest() &&
+      pkg.lampauaMpv === true &&
+      pkg.lampauaMpvD3d11 === true &&
+      process.platform === "win32" &&
+      process.arch === "x64")
+  );
+}
 
 function bootstrapMpvTest(app) {
   if (!isMpvTest() || process.platform !== "win32") {
@@ -38,4 +48,10 @@ function bootstrapMpvTest(app) {
   app.setPath("sessionData", path.join(app.getPath("appData"), profile));
 }
 
-module.exports = { isMpvTest, isMpvEnabled, isMpvD3d11Test, bootstrapMpvTest };
+module.exports = {
+  isMpvTest,
+  isMpvEnabled,
+  isMpvD3d11Test,
+  isMpvD3d11Enabled,
+  bootstrapMpvTest,
+};

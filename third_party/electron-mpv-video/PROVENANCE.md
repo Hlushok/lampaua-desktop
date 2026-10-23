@@ -1,5 +1,16 @@
 # Vendored electron-mpv-video
 
+Production promotion in 2.0.3 retains the accepted D3D11 native/transport/player
+implementation and DLL, selects it only in the Windows x64 release package,
+and keeps the normal profile and updater separate from test packages.
+Direct D3D11 rendering uses shared textures, an asynchronous bounded command
+queue and worker-side retirement. Failed GPU delivery falls back to software
+without reusing a lost WebGL context. See docs/2.0.3-maintenance.md and the
+D3D11 acceptance reports for pinned provenance and measured limitations.
+The notes below describe earlier integration stages; production now uses the
+official Electron runtime pinned in build/electron-runtime-windows-x64.json,
+not the historical AC3/EAC3 custom Electron runtime.
+
 Source: https://github.com/yscoder/electron-mpv-video
 Commit: `4944079b4133715848ea3c3bdaf99742b8c68406`. License: MIT.
 

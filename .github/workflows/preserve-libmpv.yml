@@ -3,31 +3,32 @@ name: Preserve Verified libmpv Inputs
 on:
   workflow_dispatch:
     inputs:
+      variant:
+        description: Exact variant of the completed build
+        type: choice
+        options: [baseline, d3d11]
+        required: true
+        default: d3d11
       source_run:
         description: Completed own-build workflow run
         type: string
         required: true
-        default: "37883427620"
       source_commit:
         description: Exact app commit used by the own-build workflow
         type: string
         required: true
-        default: "e90c4ded7de86eb7a23453a016ed37b17508e0a2"
       sdk_sha256:
         description: Accepted SDK archive SHA-256
         type: string
         required: true
-        default: "e5a2c78aafd8f66a3d2d0b8308e533c335f369b06d376c683b24a0124e93cbc6"
       source_sha256:
         description: Complete corresponding-source archive SHA-256
         type: string
         required: true
-        default: "efea4e5737781cacc219202215dde11c3a56280d2706d8df6fa2055427e9309e"
       dll_sha256:
         description: Accepted libmpv-2.dll SHA-256
         type: string
         required: true
-        default: "5abe5c6a7714025a9af8fba34313b4fab762333f45b8d34ad13c9f220421671d"
 
 permissions:
   actions: read
@@ -44,6 +45,7 @@ jobs:
       SDK_SHA256: ${{ inputs.sdk_sha256 }}
       SOURCE_SHA256: ${{ inputs.source_sha256 }}
       DLL_SHA256: ${{ inputs.dll_sha256 }}
+      VARIANT: ${{ inputs.variant }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -81,7 +83,7 @@ jobs:
       - name: Download the finished SDK and sources without compiling
         uses: actions/download-artifact@v7
         with:
-          name: lampaua-libmpv-own-x64
+          name: ${{ inputs.variant == 'd3d11' && 'lampaua-libmpv-own-x64-d3d11' || 'lampaua-libmpv-own-x64' }}
           path: .cache/libmpv-preservation/artifact
           run-id: ${{ inputs.source_run }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -127,9 +129,14 @@ jobs:
           python scripts/mpv/test_runtime_notices.py
           python scripts/mpv/test_split_source_bundle.py
           python scripts/mpv/audit_runtime_sources.py \
+            --variant "$VARIANT" \
             --sources .cache/libmpv-preservation/extracted/lampaua-libmpv-sources \
             --manifest .cache/libmpv-preservation/artifact/manifest.json \
             --root . --output dist/libmpv-notices
+          python scripts/mpv/complete_runtime_notices.py \
+            --sources .cache/libmpv-preservation/extracted/lampaua-libmpv-sources \
+            --previous-inventory licenses/libmpv/inventory.json \
+            --notices dist/libmpv-notices
           python scripts/mpv/split_source_bundle.py \
             .cache/libmpv-preservation/artifact/lampaua-libmpv-x64-sources.tar.gz \
             --output dist/libmpv-source-parts

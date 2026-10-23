@@ -8,6 +8,16 @@ const root = path.resolve(__dirname, "..");
 const pkg = require("../package.json");
 const runtime = require("../build/libmpv-runtime.json");
 const inventory = require("../licenses/libmpv/inventory.json");
+const accepted = require("../build/libmpv-d3d11-test.json");
+assert.equal(runtime.sourceVariant, "d3d11");
+assert.equal(runtime.sha256, accepted.sdkSha256);
+assert.equal(runtime.dllSha256, accepted.dllSha256);
+assert.equal(runtime.sourceBuildCommit, accepted.repositoryCommit);
+assert.equal(runtime.sourceSha256, accepted.sourceSha256);
+assert.equal(runtime.effectiveTreeSha256, accepted.effectiveTreeSha256);
+assert.equal(inventory.sourceVariant, runtime.sourceVariant);
+assert.equal(inventory.effectiveTreeSha256, runtime.effectiveTreeSha256);
+assert.deepEqual(inventory.patches, runtime.patches);
 assert.equal(inventory.dllSha256, runtime.dllSha256);
 assert.equal(inventory.repositoryCommit, runtime.sourceBuildCommit);
 assert.equal(
@@ -106,12 +116,8 @@ async function main() {
     require("../build/electron-runtime-windows-x64.json").version,
     pkg.devDependencies.electron,
   );
-  assert.equal(
-    runtime.dllSha256,
-    "5abe5c6a7714025a9af8fba34313b4fab762333f45b8d34ad13c9f220421671d",
-  );
   console.log(
-    "2.0.0 identity, tested runtime pins and production updater contract verified",
+    "Release identity, accepted D3D11 runtime/source pins and production updater verified",
   );
 }
 main().catch((error) => {

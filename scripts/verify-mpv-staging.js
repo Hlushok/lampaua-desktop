@@ -19,6 +19,11 @@ const pkg = JSON.parse(fs.readFileSync(path.join(stage, "package.json")));
 const release = process.argv.includes("--release");
 assert.equal(d3d11 && release, false, "D3D11 candidate cannot be a release");
 assert.equal(pkg.lampauaMpvD3d11Test === true, d3d11);
+const productionMpv = require("../build/libmpv-runtime.json");
+assert.equal(
+  pkg.lampauaMpvD3d11 === true,
+  release && productionMpv.sourceVariant === "d3d11",
+);
 assert.equal(pkg.main, release ? "src/main.js" : "src/mpv-test-main.js");
 assert.equal(
   pkg.version,
@@ -52,6 +57,22 @@ const manifest = JSON.parse(
   fs.readFileSync(path.join(stage, "build-manifest.json")),
 );
 const productionRuntime = require("../build/electron-runtime-windows-x64.json");
+if (release) {
+  assert.deepEqual(manifest.mpvSource, productionMpv);
+  assert.equal(manifest.sdkSha256, productionMpv.sha256);
+  assert.equal(manifest.candidateD3d11, undefined);
+  assert.equal(
+    crypto
+      .createHash("sha256")
+      .update(
+        fs.readFileSync(
+          path.join(stage, "src/mpv-runtime/native/libmpv-2.dll"),
+        ),
+      )
+      .digest("hex"),
+    productionMpv.dllSha256,
+  );
+}
 if (d3d11) {
   const accepted = require("../build/libmpv-d3d11-test.json");
   assert.equal(manifest.candidateD3d11, true);

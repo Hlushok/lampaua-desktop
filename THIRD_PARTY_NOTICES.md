@@ -18,11 +18,14 @@ release of Lampa, Electron or mpv.
 - Official Electron 45.0.0: https://github.com/electron/electron,
   tag v45.0.0. Electron/Chromium license files remain in the package.
   AC3/EAC3 playback uses the bundled libmpv rather than a custom Electron build.
-- libmpv: own baseline-x64 build, SDK lampaua-libmpv-x64-sdk.7z.
+- libmpv: own baseline-CPU x64 D3D11 build, SDK lampaua-libmpv-x64-sdk.7z.
 - Build recipes: https://github.com/shinchiro/mpv-winbuild-cmake,
   commit b2856ee6deed6957380b32465f359e67f67fafd8.
 - mpv source: https://github.com/mpv-player/mpv,
   commit 36bf3d529059a947d6700adefeab3b421e537c19.
+  Includes the pinned D3D11 render API patch from upstream commit
+  4255130de410e0cbdab694b951085409d466b704. The patch and effective-source
+  receipt are preserved in the corresponding-source archive.
 - FFmpeg source: https://github.com/FFmpeg/FFmpeg,
   commit 5d4755f7dd03d84f006d5a0ef7e3c114f52b3d77.
 

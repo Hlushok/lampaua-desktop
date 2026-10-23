@@ -1023,8 +1023,12 @@ async function main() {
       );
       const diagnostics = fs.readFileSync(
         path.join(
-          process.env.APPDATA,
-          `LampaUaDesktopMpvD3d11Test-${runId}`,
+          process.argv.includes("--release")
+            ? path.join(output, "profile")
+            : path.join(
+                process.env.APPDATA,
+                `LampaUaDesktopMpvD3d11Test${reuseTestProfile ? "" : `-${runId}`}`,
+              ),
           "logs/mpv-test.jsonl",
         ),
         "utf8",

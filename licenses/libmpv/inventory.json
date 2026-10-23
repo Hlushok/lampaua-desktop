@@ -1,6 +1,6 @@
 {
-  "repositoryCommit": "e90c4ded7de86eb7a23453a016ed37b17508e0a2",
-  "dllSha256": "5abe5c6a7714025a9af8fba34313b4fab762333f45b8d34ad13c9f220421671d",
+  "repositoryCommit": "530ed50499e4afeed19b8070f149dc5bb1818931",
+  "dllSha256": "5371076ac7b2cc7ba92eda3dd16e2569e82ddf122204b18ad0c203eea467d0f1",
   "pinnedInputs": 91,
   "components": [
     {
@@ -11,8 +11,8 @@
       "repository": "https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git",
       "submodules": [],
       "archive": "amf-headers.tar.gz",
-      "sha256": "2c5e811de87dc21407b1831c725332cf01259012aa2af3b3daccb564008b7778",
-      "size": 1170367296,
+      "sha256": "c2a3642973e66aa8f2709388bc2f01872a71072e382de55138a81b541ba43235",
+      "size": 1171111722,
       "notices": [
         {
           "source": "amf-headers/LICENSE.txt",
@@ -36,8 +36,8 @@
       "repository": "https://github.com/google/angle.git",
       "submodules": [],
       "archive": "angle-headers.tar.gz",
-      "sha256": "4c9dee0c04980d163906445b6946980f17b6314272c18d0c39897496af270d46",
-      "size": 37665935,
+      "sha256": "8494eca33fe488208cf98fe7a9f866fa32d87441ad6cd567f876f70755c7374b",
+      "size": 37664536,
       "notices": [
         {
           "source": "angle-headers/LICENSE",
@@ -205,8 +205,8 @@
       "repository": "https://aomedia.googlesource.com/aom",
       "submodules": [],
       "archive": "aom.tar.gz",
-      "sha256": "fa93a73085127fd33a8bb3d71ef40019417eb8ae7c3f865caa1a344ef03d3b51",
-      "size": 15244259,
+      "sha256": "d14184be6d6c922bcd625087409613e5f32b806037c68b5afcc0f34030e64a69",
+      "size": 15242741,
       "notices": [
         {
           "source": "aom/LICENSE",
@@ -266,8 +266,8 @@
       "repository": "https://github.com/AviSynth/AviSynthPlus.git",
       "submodules": [],
       "archive": "avisynth-headers.tar.gz",
-      "sha256": "94e89ced5dc8597fe5e1a11fa1b4b9a0857c6b007fbb9d30bcbfa8832b8646d7",
-      "size": 21525793,
+      "sha256": "77daa91e008a8568996022351d4d3d02be6c3258f20c2ea085b94a68d7d0f29e",
+      "size": 21526149,
       "notices": [
         {
           "source": "avisynth-headers/distrib/docs/english/source/avisynthdoc/license.rst",
@@ -285,8 +285,8 @@
       "repository": "https://github.com/google/brotli.git",
       "submodules": [],
       "archive": "brotli.tar.gz",
-      "sha256": "9d9fcbe1a537847b81c28ccb31924b8a3808cf0518467dbccc18d73364dc4830",
-      "size": 65660744,
+      "sha256": "f3b9d5f06b9a910da787aeb3d6dee40c2f1e5602d4741c4df9f970cf477091dd",
+      "size": 65660544,
       "notices": [
         {
           "source": "brotli/LICENSE",
@@ -304,8 +304,8 @@
       "repository": "https://github.com/shinchiro/mpv-winbuild-cmake.git",
       "submodules": [],
       "archive": "build-recipes.tar.gz",
-      "sha256": "3c28567a2029f4aff982071ce381a1d53d4b08980287516b7880b1ee99141a4d",
-      "size": 243816,
+      "sha256": "21b03e7135eea1d6e52800340d11d35182690504ed7d64a97148633be15f586a",
+      "size": 241601,
       "notices": []
     },
     {
@@ -323,8 +323,8 @@
         }
       ],
       "archive": "bzip2.tar.gz",
-      "sha256": "82208c4963016b21129abef08ec207ae4ce77655b5ced14c64c96c77a0d9343b",
-      "size": 8317656,
+      "sha256": "8f0099f90359c935b6025fdbd1cfe27e981be334fe89ea540b7bb67a2c262263",
+      "size": 8317522,
       "notices": [
         {
           "source": "bzip2/COPYING",
@@ -378,8 +378,8 @@
       "repository": "https://github.com/c-ares/c-ares.git",
       "submodules": [],
       "archive": "c-ares.tar.gz",
-      "sha256": "dbf2941e8669f7809d354dae964db52a769541b8fb68aa6ad58282a2c19777a9",
-      "size": 1809196,
+      "sha256": "6844dce2425a9bfeb5f27929ce738191b85e9bf4c8771ff3f2aa938a00adef66",
+      "size": 1806438,
       "notices": [
         {
           "source": "c-ares/LICENSE.md",
@@ -397,8 +397,8 @@
       "repository": "https://github.com/microsoft/cppwinrt.git",
       "submodules": [],
       "archive": "cppwinrt.tar.gz",
-      "sha256": "bcb846e73d51fb0ac665b2615052ee1fea9ec3c9a067398f28487bf79102461d",
-      "size": 1843030,
+      "sha256": "aa6bc43384bd0cf895b2aea71d3d17649607f596264761f8a07d479f93c7467c",
+      "size": 1842957,
       "notices": [
         {
           "source": "cppwinrt/LICENSE",
@@ -416,8 +416,8 @@
       "repository": "https://github.com/curl/curl.git",
       "submodules": [],
       "archive": "curl.tar.gz",
-      "sha256": "58b879ebfef39bc3742ba32c161a59296ff6df6da905242db2ad0f95d67f31a3",
-      "size": 9969027,
+      "sha256": "34a272d7adb633015d70285aad97e3c66c4be4ba6a1813f53618cd1de12ed0c5",
+      "size": 9966886,
       "notices": [
         {
           "source": "curl/COPYING",
@@ -435,8 +435,8 @@
       "repository": "https://code.videolan.org/videolan/dav1d.git",
       "submodules": [],
       "archive": "dav1d.tar.gz",
-      "sha256": "232b926a72d28457fe238a724ed9d8656213cdf184efcb1575e6650a871ca544",
-      "size": 4103183,
+      "sha256": "62072afa42513c0eff0efbc51031d2146ea7c009bcef5b360c3a09808948177b",
+      "size": 4099541,
       "notices": [
         {
           "source": "dav1d/COPYING",
@@ -454,8 +454,8 @@
       "repository": "https://github.com/saindriches/davs2.git",
       "submodules": [],
       "archive": "davs2.tar.gz",
-      "sha256": "dc4aed704587f673a11caf4cd598d6fcc650b5f26a660d7e5cc017daed4da513",
-      "size": 1404881,
+      "sha256": "f77de0ad507488276127e7b8896513f61fe02f725c663a2ff591994c42fe1dcc",
+      "size": 1404860,
       "notices": [
         {
           "source": "davs2/COPYING",
@@ -473,8 +473,8 @@
       "repository": "https://github.com/fastfloat/fast_float.git",
       "submodules": [],
       "archive": "fast_float.tar.gz",
-      "sha256": "bbe760bfc59ad9c6e0328b7f63cc37024cf3110953b46710c61b395ecaeb69ea",
-      "size": 377830,
+      "sha256": "e75cf95a9d8f713bde4ced99212a8a28d7495562897e435bc46f46e7574dccc9",
+      "size": 377784,
       "notices": [
         {
           "source": "fast_float/LICENSE-APACHE",
@@ -505,8 +505,8 @@
       "submodules": [],
       "sourceVersion": "N-127242-g5d4755f7d",
       "archive": "ffmpeg.tar.gz",
-      "sha256": "fc870bc18996fcba5d624b0d52a49fb0b2335daaffec1d7a27563b621e139943",
-      "size": 42880366,
+      "sha256": "bf4a3ba2e1d3a1ebca5d868eb366e874df988dcfff673e41baedcc8e8fd5acfc",
+      "size": 42873556,
       "notices": [
         {
           "source": "ffmpeg/COPYING.GPLv2",
@@ -560,8 +560,8 @@
       "repository": "https://gitlab.freedesktop.org/fontconfig/fontconfig.git",
       "submodules": [],
       "archive": "fontconfig.tar.gz",
-      "sha256": "7158c87ff5deb689804361a24dc23a1b019080c387a28b3efb913da466b7811a",
-      "size": 1713541,
+      "sha256": "9a0e1eb909e64854223fe73439af0302c0a57cf3f9ba21d4fde04aeca66e0d8c",
+      "size": 1711909,
       "notices": [
         {
           "source": "fontconfig/COPYING",
@@ -579,8 +579,8 @@
       "repository": "https://github.com/freetype/freetype.git",
       "submodules": [],
       "archive": "freetype2.tar.gz",
-      "sha256": "b83fd78e73bfc3ea9d642e986f30064848de14433862df7233200c9b115cf01b",
-      "size": 5869427,
+      "sha256": "343dea16a4ea79784182f1f0bb189458d9d97c47d1eace153678dc20f36235ea",
+      "size": 5867002,
       "notices": [
         {
           "source": "freetype2/LICENSE.TXT",
@@ -598,8 +598,8 @@
       "repository": "https://github.com/fribidi/fribidi.git",
       "submodules": [],
       "archive": "fribidi.tar.gz",
-      "sha256": "3b6d31cc7ce920fa15de4e2b20c93bb557990c1a77552a18b9c1362e87c71ccd",
-      "size": 4510221,
+      "sha256": "40861e080fc0de9b288322299254b0bcbeb8f3fe3fff2806dd3c539d40360a7d",
+      "size": 4508403,
       "notices": [
         {
           "source": "fribidi/COPYING",
@@ -614,8 +614,8 @@
       "url": "https://ftp.gnu.org/gnu/binutils/binutils-2.45.1.tar.xz",
       "urlHash": "SHA512=ea030419eba387579ab717be7e3223fc99e93b586860b06003c12489f93441640d4082736f76aa5e98233db4f46e232f536a45e471486de1f5b64e1b827c167e",
       "archive": "gcc-binutils.tar.gz",
-      "sha256": "99946baad7b1c213c02f1e11626ea6a085412ec2ef16c64ef516fb7fa822f6dd",
-      "size": 62048952,
+      "sha256": "18756e0ecdabbae1775b1634389fd9c1d6d07055332f73594cae8139fcae36e4",
+      "size": 62046874,
       "notices": [
         {
           "source": "gcc-binutils/COPYING",
@@ -672,8 +672,8 @@
       "url": "https://ftp.gnu.org/gnu/gcc/gcc-14.4.0/gcc-14.4.0.tar.xz",
       "urlHash": "SHA512=725ed8bdd43ef1726ffe8b5e8615a13e247fac9575b7626ae013a2975d000ea213212dc414b2f2631ac4785c1c8beca85555222faf9904d3b2fa6a3807a83a15",
       "archive": "gcc.tar.gz",
-      "sha256": "de38f58a365b881b37c03aee4530936be8966c912a676ce9b583b402e0eccaac",
-      "size": 182856617,
+      "sha256": "60684606d5b22f608eb1d6c4d5599406f7802c4ee878379c3e94ac5e09f7988f",
+      "size": 182857176,
       "notices": [
         {
           "source": "gcc/COPYING",
@@ -865,8 +865,8 @@
       "repository": "https://github.com/Dav1dde/glad.git",
       "submodules": [],
       "archive": "glad.tar.gz",
-      "sha256": "795aa677c8506c4138b6e921be7d079601678c6b01090bc0d022242a96ae925c",
-      "size": 1513516,
+      "sha256": "bcce3fcbd3fa8b3abaea9cd747dab4524f27b33dd90ede31b83afc198205c041",
+      "size": 1513267,
       "notices": [
         {
           "source": "glad/LICENSE",
@@ -884,8 +884,8 @@
       "repository": "https://github.com/KhronosGroup/glslang.git",
       "submodules": [],
       "archive": "glslang.tar.gz",
-      "sha256": "1c9c159c60b65ddd39b1ac3169820cb59be43acde5200d610b1f28dc8fdbd514",
-      "size": 11152703,
+      "sha256": "11c6dcf57edf8765c49cb6bd09fe92830e4450a7bb655db42872898494b02949",
+      "size": 11106482,
       "notices": [
         {
           "source": "glslang/LICENSE.txt",
@@ -909,8 +909,8 @@
       "repository": "https://github.com/sekrit-twc/graphengine.git",
       "submodules": [],
       "archive": "graphengine.tar.gz",
-      "sha256": "832415d404db56708cd8ca7e25aecc33e6cde395eae333521f17ac14dbc874df",
-      "size": 163688,
+      "sha256": "25767aa8befc97703b3f14f3f438df9874426c28b83646ffa954947942d8978d",
+      "size": 163672,
       "notices": [
         {
           "source": "graphengine/COPYING",
@@ -928,8 +928,8 @@
       "repository": "https://github.com/harfbuzz/harfbuzz.git",
       "submodules": [],
       "archive": "harfbuzz.tar.gz",
-      "sha256": "2b16a841bf72848711f901fac6b5b48293f18379b719d30785317771b633f86d",
-      "size": 71264998,
+      "sha256": "eab6118869636b068a6c32924a574a9a27ae2c3dfc2e6a6db53f01a650133c4f",
+      "size": 71270687,
       "notices": [
         {
           "source": "harfbuzz/COPYING",
@@ -977,8 +977,8 @@
       "repository": "https://github.com/google/highway.git",
       "submodules": [],
       "archive": "highway.tar.gz",
-      "sha256": "69322d06190090d91be4b2aa9f391deac6ea2bca19ba0a792a08c958dca4a091",
-      "size": 26868524,
+      "sha256": "a5f10c2312692c73f1679e12ed781b9552221e246006a254a35efbd294e9551f",
+      "size": 26907106,
       "notices": [
         {
           "source": "highway/LICENSE",
@@ -1002,8 +1002,8 @@
       "repository": "https://gitlab.com/shinchiro/lame.git",
       "submodules": [],
       "archive": "lame.tar.gz",
-      "sha256": "ebd5a3dd1d254df533cca1a445e906e2261a343b69fac45591b595fae7f95273",
-      "size": 3253454,
+      "sha256": "56fa7a27352c25f382dfd22ad4141c5bf73b475808b5c0a446b5720e3736d2c2",
+      "size": 3253831,
       "notices": [
         {
           "source": "lame/COPYING",
@@ -1033,8 +1033,8 @@
       "repository": "https://github.com/mm2/Little-CMS.git",
       "submodules": [],
       "archive": "lcms2.tar.gz",
-      "sha256": "aeb430f0fda2cb93600ba861edfa4ae86009f743879bdcb014bc898ca06fdb4a",
-      "size": 11873899,
+      "sha256": "68ffd52ee353eb3028bd397485bfa9373c0881b4f2e84b9a2fa30aa5ed5efd23",
+      "size": 11819631,
       "notices": [
         {
           "source": "lcms2/LICENSE",
@@ -1070,8 +1070,8 @@
       "repository": "https://github.com/libarchive/libarchive.git",
       "submodules": [],
       "archive": "libarchive.tar.gz",
-      "sha256": "a69f4f087a7f16155b456f52b784c8d4028a33d41393c28abe489e9a80853dc3",
-      "size": 14250111,
+      "sha256": "398cf916cb1527abb15a1f0b7a5b32b6376f3bc9597128fc2f637d5cbd9ace55",
+      "size": 14251734,
       "notices": [
         {
           "source": "libarchive/COPYING",
@@ -1089,8 +1089,8 @@
       "repository": "https://github.com/xqq/libaribcaption.git",
       "submodules": [],
       "archive": "libaribcaption.tar.gz",
-      "sha256": "bc166515d89b177da26e64a505a1f59b69564c06aad1381b2f40d94690d2ffb2",
-      "size": 596913,
+      "sha256": "39f451aa36c3078b81cf77172b6634fd32c338fd644410d712eef2a533bda0ba",
+      "size": 594848,
       "notices": [
         {
           "source": "libaribcaption/LICENSE",
@@ -1108,8 +1108,8 @@
       "repository": "https://github.com/libass/libass.git",
       "submodules": [],
       "archive": "libass.tar.gz",
-      "sha256": "dc80a7a881143be4314735b44ee682095de5536552c27822554d0d7b96f7b026",
-      "size": 827087,
+      "sha256": "14025e48be040c3ea22a17fe7ece47e72546f21210ea73a95e62fcbb39baf8ec",
+      "size": 827041,
       "notices": [
         {
           "source": "libass/COPYING",
@@ -1127,8 +1127,8 @@
       "repository": "https://code.videolan.org/videolan/libbluray.git",
       "submodules": [],
       "archive": "libbluray.tar.gz",
-      "sha256": "856751bc748c650b6d4798d1b9e2ccf49706267c2c08c55c7118ad493f426593",
-      "size": 1734025,
+      "sha256": "d11b19524248279db40a5f615e685b55bddec2685922f0dc80147f0b87988a6e",
+      "size": 1732532,
       "notices": [
         {
           "source": "libbluray/COPYING",
@@ -1152,8 +1152,8 @@
       "repository": "https://github.com/alexmarsev/libbs2b.git",
       "submodules": [],
       "archive": "libbs2b.tar.gz",
-      "sha256": "31f7a4cb04f1ac6b1575f4531d29b8ad5dbc0886d18aa8800493884ce5615240",
-      "size": 933248,
+      "sha256": "baa846d6bb32e5bd2d50792ece5985514c8f78dbbedece4657ac61781ee83a23",
+      "size": 933344,
       "notices": [
         {
           "source": "libbs2b/COPYING",
@@ -1171,8 +1171,8 @@
       "repository": "https://code.videolan.org/videolan/libdvdcss.git",
       "submodules": [],
       "archive": "libdvdcss.tar.gz",
-      "sha256": "9e9e8674dcff886e171058f1917789aedabfdd0571e25291a379681941526b51",
-      "size": 250285,
+      "sha256": "ba0c21dc4287294d98634c2e4f66e2bcb94ecabe35c021c4f71aa0a2cff05ee2",
+      "size": 250264,
       "notices": [
         {
           "source": "libdvdcss/COPYING",
@@ -1190,8 +1190,8 @@
       "repository": "https://code.videolan.org/videolan/libdvdnav.git",
       "submodules": [],
       "archive": "libdvdnav.tar.gz",
-      "sha256": "f99989f86427d64f22a95076681d8130a67ef8914cb31cdfe6ef0fab4ad5af71",
-      "size": 268790,
+      "sha256": "9784027ea5e504938e73966f8e37607c16496896431e9953afbdcc69334271f1",
+      "size": 268735,
       "notices": [
         {
           "source": "libdvdnav/COPYING",
@@ -1209,8 +1209,8 @@
       "repository": "https://code.videolan.org/videolan/libdvdread.git",
       "submodules": [],
       "archive": "libdvdread.tar.gz",
-      "sha256": "c695f14865b2b3d1b6c16234b954bb1a70396f9564a322a251a851f9b5db8c2c",
-      "size": 312952,
+      "sha256": "c431b344adebac0cfd2491c216d7055149c9acbd97a5dbf65b343bf6a93c4694",
+      "size": 312907,
       "notices": [
         {
           "source": "libdvdread/COPYING",
@@ -1225,8 +1225,8 @@
       "url": "https://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.18.tar.gz",
       "urlHash": "SHA256=3B08F5F4F9B4EB82F151A7040BFD6FE6C6FB922EFE4B1659C66EA933276965E8",
       "archive": "libiconv.tar.gz",
-      "sha256": "fc4ca91201dd7f4a886a52497867ea629e8df1ea0bab45a1b1d2b323e59ba099",
-      "size": 6264113,
+      "sha256": "e0d29622895116ec0c618ee5bce30b451b3d658b0f74f8a2e98322c64f86cbf9",
+      "size": 6264007,
       "notices": [
         {
           "source": "libiconv/COPYING",
@@ -1256,8 +1256,8 @@
       "repository": "https://github.com/libjpeg-turbo/libjpeg-turbo.git",
       "submodules": [],
       "archive": "libjpeg.tar.gz",
-      "sha256": "c5b347e5de03658a3292a1c5e0df15997cab87174c10609a25963268f586b2d8",
-      "size": 5591119,
+      "sha256": "371b723c540fc4811f956c0115ea68df72a9f9e7bd59e5263a57807fa94bee76",
+      "size": 5586094,
       "notices": [
         {
           "source": "libjpeg/LICENSE.md",
@@ -1299,8 +1299,8 @@
       "repository": "https://github.com/libjxl/libjxl.git",
       "submodules": [],
       "archive": "libjxl.tar.gz",
-      "sha256": "27202606c327ec9de61d6253d79b3db3362eb18c76d10bd0072368b2d3b59c80",
-      "size": 4059436,
+      "sha256": "4609b1b3e64757e120b821d88dc5c23da90ab1b2efe45f47a3487090101bef4c",
+      "size": 4057585,
       "notices": [
         {
           "source": "libjxl/LICENSE",
@@ -1336,8 +1336,8 @@
       "repository": "https://github.com/Konstanty/libmodplug.git",
       "submodules": [],
       "archive": "libmodplug.tar.gz",
-      "sha256": "d6dc1d0e4bb872f5188dc52205dce3c3575830a5f112099d9ade46077f21f225",
-      "size": 518379,
+      "sha256": "e15e3e43b8f3be3899511fc49358caf72602effcf99a6ce0372a6fda8c607fcf",
+      "size": 518204,
       "notices": [
         {
           "source": "libmodplug/COPYING",
@@ -1355,8 +1355,8 @@
       "repository": "https://github.com/hoene/libmysofa.git",
       "submodules": [],
       "archive": "libmysofa.tar.gz",
-      "sha256": "356159387bf83cb27dd8ba2ab1e6feeae99998dfd4697fcc832ca60cd0145baf",
-      "size": 403129414,
+      "sha256": "b65b4faf9ed1090af05262a2c5c34a2be9d6540d0298fe9470e699183abeea20",
+      "size": 403129488,
       "notices": [
         {
           "source": "libmysofa/LICENSE",
@@ -1431,8 +1431,8 @@
       "url": "https://lib.openmpt.org/files/libopenmpt/src/libopenmpt-0.7.12+release.autotools.tar.gz",
       "urlHash": "SHA256=79AB3CE3672601E525B5CC944F026C80C03032F37D39CAA84C8CA3FDD75E0C98",
       "archive": "libopenmpt.tar.gz",
-      "sha256": "ac7433edad71b3595a33156d84ba5f9eb9ba6ea53f0f3394001dececc4031d67",
-      "size": 1899035,
+      "sha256": "4ed9c3c5c2887e1b582b89259663d6bb5a1ef1225a42792b7ca713730cac0e77",
+      "size": 1899288,
       "notices": [
         {
           "source": "libopenmpt/LICENSE",
@@ -1462,8 +1462,8 @@
       "repository": "https://github.com/haasn/libplacebo.git",
       "submodules": [],
       "archive": "libplacebo.tar.gz",
-      "sha256": "08018f75626451db2a842a0472c7736594d88e9a5da61fac7a62d6d0d374d0c8",
-      "size": 2029617,
+      "sha256": "4312edc732e015870def6e4acd0ea424916af21ca4d8fad646342752449dec12",
+      "size": 2028161,
       "notices": [
         {
           "source": "libplacebo/LICENSE",
@@ -1487,8 +1487,8 @@
       "repository": "https://github.com/glennrp/libpng.git",
       "submodules": [],
       "archive": "libpng.tar.gz",
-      "sha256": "f2dc04fa06e1c1b04ceece1f63fc0b914745f825a36fb9c9a17032800eff9e14",
-      "size": 3519977,
+      "sha256": "ab526a325332636d2138a0a041ff9cb87ba8fb307f31c86de6d408ec2fa70eb1",
+      "size": 3519592,
       "notices": [
         {
           "source": "libpng/LICENSE",
@@ -1537,8 +1537,8 @@
         }
       ],
       "archive": "libpsl.tar.gz",
-      "sha256": "14d5d25b84a2e3c114772ab7c20bcf143960ee4d8b9f880d834968ac97ba6ad7",
-      "size": 12527127,
+      "sha256": "eb3e9975e209be2ae6f2ea1e71a23cea2de3ab113e635257354211faed0cd95e",
+      "size": 12527634,
       "notices": [
         {
           "source": "libpsl/LICENSE",
@@ -1568,8 +1568,8 @@
       "repository": "https://github.com/libsndfile/libsamplerate.git",
       "submodules": [],
       "archive": "libsamplerate.tar.gz",
-      "sha256": "73b33687c66d1be39eab4b9ef864d914cc3c300c4dc522943d1c49f63b3176c4",
-      "size": 8174155,
+      "sha256": "970cab10855b683a160fd460b32e024ebdc083e4f0536f71286c8c2a048d911a",
+      "size": 8174185,
       "notices": [
         {
           "source": "libsamplerate/COPYING",
@@ -1593,8 +1593,8 @@
       "repository": "https://github.com/libsdl-org/SDL.git",
       "submodules": [],
       "archive": "libsdl2.tar.gz",
-      "sha256": "8c7d7377725add1a1b083f7073977aac82a68098de8e82b6029d1efa9a653322",
-      "size": 17338479,
+      "sha256": "f05b7eda0dc2b318c3b954ded9c398590a5e7284d1b74ac5255d4952a14e9449",
+      "size": 17332019,
       "notices": [
         {
           "source": "libsdl2/LICENSE.txt",
@@ -1666,8 +1666,8 @@
       "repository": "https://github.com/saitoha/libsixel.git",
       "submodules": [],
       "archive": "libsixel.tar.gz",
-      "sha256": "09d31df82bddec3b59088f51f0cdc480b0b89d7e8cd3cd58be2718bacae17a48",
-      "size": 10050322,
+      "sha256": "43ccaa29411c504953b3832192638cb3998bf21951ac0b40eb28b813936c9314",
+      "size": 10049243,
       "notices": [
         {
           "source": "libsixel/LICENSE",
@@ -1745,8 +1745,8 @@
       "repository": "https://gitlab.com/shinchiro/soxr.git",
       "submodules": [],
       "archive": "libsoxr.tar.gz",
-      "sha256": "683e3b7c7ad3b47befc8337362b5871c70c3d899a37e105159ff085a4c7c1ee4",
-      "size": 371491,
+      "sha256": "bcbf30497a0d484431f44f6b981166342567fc4818a026d7fa32f865e46fdf32",
+      "size": 371630,
       "notices": [
         {
           "source": "libsoxr/COPYING.LGPL",
@@ -1783,8 +1783,8 @@
         }
       ],
       "archive": "libsrt.tar.gz",
-      "sha256": "8bb7d3783ac1223a6fe818de2915c78e4106e26abd592ce67ad232a55544d8cd",
-      "size": 4484311,
+      "sha256": "ed9dc55e7239fac492526095af4660ee6c26c9d750980ff05e2e4a2b8b8165b3",
+      "size": 4482633,
       "notices": [
         {
           "source": "libsrt/LICENSE",
@@ -1808,8 +1808,8 @@
       "repository": "https://gitlab.com/libssh/libssh-mirror.git",
       "submodules": [],
       "archive": "libssh.tar.gz",
-      "sha256": "b3b4ff0be45a1758d94c93f0084c55fe41eed776a3e3d24fcc5a50a158162453",
-      "size": 2948291,
+      "sha256": "c36b834c6578dea4a6111f1d11214c6e656e15faa1e57991e3ae69020c2be55d",
+      "size": 2949041,
       "notices": [
         {
           "source": "libssh/COPYING",
@@ -1833,8 +1833,8 @@
       "repository": "https://code.videolan.org/videolan/libudfread.git",
       "submodules": [],
       "archive": "libudfread.tar.gz",
-      "sha256": "4d2a7ddfa06a8d98868f70da045d1762e03b38b15d21d25792d6b321e6a40e72",
-      "size": 283957,
+      "sha256": "3f73f3c903254688272a7cb72ae0c6751e94aceaccc0c1e097d1b3079c6e81d7",
+      "size": 283904,
       "notices": [
         {
           "source": "libudfread/COPYING",
@@ -1852,8 +1852,8 @@
       "repository": "https://github.com/adah1972/libunibreak.git",
       "submodules": [],
       "archive": "libunibreak.tar.gz",
-      "sha256": "9eb070b693f02f789cb5f14e54a737601c8db1232206905f3faf4147df63a725",
-      "size": 769647,
+      "sha256": "e4546d4512693db9ed0f8d7ef7af03064d9536e8243115fdaa41967e06dc1c94",
+      "size": 769732,
       "notices": [
         {
           "source": "libunibreak/LICENCE",
@@ -1871,8 +1871,8 @@
       "repository": "https://github.com/intel/libva.git",
       "submodules": [],
       "archive": "libva.tar.gz",
-      "sha256": "35c195aec7125ee22721fc691f7a6eebd4728bf5dd828587ab2ae87b4517f582",
-      "size": 751007,
+      "sha256": "5a761e11658e600072837a58b5e58e69ee7f0aec1095d700bb4c3c73bb3d79fd",
+      "size": 749721,
       "notices": [
         {
           "source": "libva/COPYING",
@@ -1890,8 +1890,8 @@
       "repository": "https://github.com/intel/libvpl.git",
       "submodules": [],
       "archive": "libvpl.tar.gz",
-      "sha256": "31730b35015ec282a4ebbdafacf2b9a366bdf6c8e9fba8e6d9df0c12a2bd8480",
-      "size": 25027951,
+      "sha256": "426fca0fcd64f48520b8d2c5add436c2dd591e7a111ab3a06ec01a4b9182aeca",
+      "size": 25028107,
       "notices": [
         {
           "source": "libvpl/LICENSE",
@@ -1999,8 +1999,8 @@
       "repository": "https://chromium.googlesource.com/webm/libvpx.git",
       "submodules": [],
       "archive": "libvpx.tar.gz",
-      "sha256": "20e92f28589418fd6d9d4adcc62cad63e86f7c7804a8f46296cb92acc7d660fe",
-      "size": 12692111,
+      "sha256": "c0a129e38507f65352ec364acc5834213c8aa682f1bd875d994866ee68234983",
+      "size": 12688835,
       "notices": [
         {
           "source": "libvpx/LICENSE",
@@ -2048,8 +2048,8 @@
       "repository": "https://chromium.googlesource.com/webm/libwebp.git",
       "submodules": [],
       "archive": "libwebp.tar.gz",
-      "sha256": "7e25a33290ab613aee28beb172c8afaabc0fe61f20b4cb3c25550e1eecb2c1e0",
-      "size": 6858123,
+      "sha256": "f984d4279f60946d5c997d069408ec810c5b08f964a5671933b7fa20a66c69eb",
+      "size": 6857693,
       "notices": [
         {
           "source": "libwebp/COPYING",
@@ -2067,8 +2067,8 @@
       "repository": "https://github.com/GNOME/libxml2.git",
       "submodules": [],
       "archive": "libxml2.tar.gz",
-      "sha256": "51af1a9d43f6ec9dbb15af3e853041b20d26b72dfa447a25feda151f2f923b0c",
-      "size": 6482467,
+      "sha256": "e2adf16a4b5a87ad1f8ee317de42c4ced1ee27004db009de2f3639b7944c7455",
+      "size": 6475544,
       "notices": [
         {
           "source": "libxml2/Copyright",
@@ -2098,8 +2098,8 @@
       "repository": "https://github.com/sekrit-twc/zimg.git",
       "submodules": [],
       "archive": "libzimg.tar.gz",
-      "sha256": "78b219d065466832d8dec9fef3190b542ee9ace5cc441bccab9dea9578b887d0",
-      "size": 731379,
+      "sha256": "ba3b06f42b72bc06a619bbbce1ecfd929665cef75862df33e46fc45dd2dafbd4",
+      "size": 731640,
       "notices": [
         {
           "source": "libzimg/COPYING",
@@ -2123,8 +2123,8 @@
       "repository": "https://github.com/zapping-vbi/zvbi.git",
       "submodules": [],
       "archive": "libzvbi.tar.gz",
-      "sha256": "cd9bd34480b373e873dc6ebb569a07678b3f137179f0a5bb9167f0324eb4d139",
-      "size": 2173125,
+      "sha256": "d337898948560c0c540221134cb297f35b7e2e103e0df0ef455da9267988925c",
+      "size": 2173086,
       "notices": [
         {
           "source": "libzvbi/COPYING.md",
@@ -2142,8 +2142,8 @@
       "repository": "https://github.com/openresty/luajit2.git",
       "submodules": [],
       "archive": "luajit.tar.gz",
-      "sha256": "90f68fa00bb26d8f46b7daef93066d352b00e8e3cb72b6222762ab040f10646f",
-      "size": 2660082,
+      "sha256": "25ac543cd0f20832af84fc2a27bfb8a891fbe89e3535d21b63acff6369e9b49c",
+      "size": 2656814,
       "notices": [
         {
           "source": "luajit/COPYRIGHT",
@@ -2158,8 +2158,8 @@
       "url": "https://www.oberhumer.com/opensource/lzo/download/lzo-2.10.tar.gz",
       "urlHash": "SHA1=4924676a9bae5db58ef129dc1cebce3baa3c4b5d",
       "archive": "lzo.tar.gz",
-      "sha256": "aa03c361379f42e119cdab7a2b0198928feafc199a04fdeece786c515e6c8b7a",
-      "size": 713089,
+      "sha256": "7cdbc18c9852f59d4fe5b672f1d4b78873087d4f014b0ffdef6ef4d9b002919a",
+      "size": 713269,
       "notices": [
         {
           "source": "lzo/COPYING",
@@ -2177,8 +2177,8 @@
       "repository": "https://github.com/mingw-w64/mingw-w64.git",
       "submodules": [],
       "archive": "mingw-w64.tar.gz",
-      "sha256": "74934ca4e3c3ca53ec1598733955abce2a978ed9653a40a4f9c601672866870e",
-      "size": 34799527,
+      "sha256": "8a54e71601f1413ca2bc60171c4d27310fd573dceea37f5e2d9226df922b3a16",
+      "size": 34738803,
       "notices": [
         {
           "source": "mingw-w64/COPYING",
@@ -2249,6 +2249,45 @@
       ]
     },
     {
+      "name": "mpv-effective",
+      "baseRevision": "36bf3d529059a947d6700adefeab3b421e537c19",
+      "baseArchiveSha256": "d025bbe3e6afd1a6cfdcd735e34c183b98016b22489f71789e66d230cd16e67d",
+      "patches": [
+        {
+          "file": "patches/mpv/4255130-d3d11-render.patch",
+          "sha256": "24c70218104aeae57ecf733b3ac6787314aaa8e7e1bf332f7bb4bec185ac4217",
+          "upstreamCommit": "4255130de410e0cbdab694b951085409d466b704",
+          "baseRevision": "36bf3d529059a947d6700adefeab3b421e537c19"
+        }
+      ],
+      "sourceVersionSuffix": "-lampaua-d3d11",
+      "sourceVersion": "v0.41.0-1107-g36bf3d529-lampaua-d3d11",
+      "effectiveTreeSha256": "b6347890843a7ec5753d631ff1283be2770d2d980d91febe5f8c3cfa856f9e09",
+      "archive": "mpv-effective.tar.gz",
+      "sha256": "f2ad6bad8f8bb70ab6bf3ea82e13cc25a2f337efe5ea4ab2f1e49f80ae881ea3",
+      "size": 7872289,
+      "notices": [
+        {
+          "source": "mpv/Copyright",
+          "file": "mpv-effective/0001_Copyright",
+          "sha256": "bfe9ee4cceabcb8ecbfadf208d04156f73d801e6a57369a5606bb8341e204a23",
+          "size": 4096
+        },
+        {
+          "source": "mpv/LICENSE.GPL",
+          "file": "mpv-effective/0002_LICENSE.GPL",
+          "sha256": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6",
+          "size": 17984
+        },
+        {
+          "source": "mpv/LICENSE.LGPL",
+          "file": "mpv-effective/0003_LICENSE.LGPL",
+          "sha256": "72b672113d642cbb8ef5dcc76938db801983c56e50b1400ab930f1a64d6dc8d9",
+          "size": 26410
+        }
+      ]
+    },
+    {
       "name": "mpv",
       "url": "",
       "urlHash": "",
@@ -2257,8 +2296,8 @@
       "submodules": [],
       "sourceVersion": "v0.41.0-1107-g36bf3d529",
       "archive": "mpv.tar.gz",
-      "sha256": "9d1258a667578b191980676ee36185c2f86bec9946e064f899d88849b0e8365c",
-      "size": 15802723,
+      "sha256": "d025bbe3e6afd1a6cfdcd735e34c183b98016b22489f71789e66d230cd16e67d",
+      "size": 15801693,
       "notices": [
         {
           "source": "mpv/Copyright",
@@ -2288,7 +2327,7 @@
       "repository": "https://codeberg.org/ccxvii/mujs.git",
       "submodules": [],
       "archive": "mujs.tar.gz",
-      "sha256": "b8fd829085e3845cd6e8ca496c3c8cc95a459e67eb5d453182f0ae9a8c7ead79",
+      "sha256": "b960ad08ca28bcf313e1f01ca2c76cd99dc222c5c26b3c25c0c165dce4d9fdd4",
       "size": 965032,
       "notices": [
         {
@@ -2313,8 +2352,8 @@
       "repository": "https://github.com/nghttp2/nghttp2.git",
       "submodules": [],
       "archive": "nghttp2.tar.gz",
-      "sha256": "adb05120849e32cae3ee14e759cc9b78cf423136c0ce8ed94184e271c70fd7d0",
-      "size": 2563216,
+      "sha256": "34560ca5d85fad904a893d5e87cfb7a8915c7fa44e8dd94c2b3d36f045367214",
+      "size": 2561505,
       "notices": [
         {
           "source": "nghttp2/COPYING",
@@ -2364,8 +2403,8 @@
         }
       ],
       "archive": "nghttp3.tar.gz",
-      "sha256": "7e6eb3d38233025bb075c8c02c721cabf7fbaf0947826806e3745efc14fae6d1",
-      "size": 747212,
+      "sha256": "30a6b8f0763f456bdbb993b534f91a2f5c6f81d4fc53abc8a83d086c0a9b8d23",
+      "size": 743874,
       "notices": [
         {
           "source": "nghttp3/COPYING",
@@ -2395,8 +2434,8 @@
       "repository": "https://github.com/ngtcp2/ngtcp2.git",
       "submodules": [],
       "archive": "ngtcp2.tar.gz",
-      "sha256": "ca07951b609b8cbed1676a9d4af1422acf5a2804630c37f60f8cf9418cab7b59",
-      "size": 1788052,
+      "sha256": "c178aa35f6331ceec84d4d66fdb991f94783d1eab6ba26aa3787c8c70b38002e",
+      "size": 1770754,
       "notices": [
         {
           "source": "ngtcp2/COPYING",
@@ -2420,8 +2459,8 @@
       "repository": "https://github.com/FFmpeg/nv-codec-headers.git",
       "submodules": [],
       "archive": "nvcodec-headers.tar.gz",
-      "sha256": "43af114af97549c5094ad0de2404b647cd923edae12f6759d05639fffeda9324",
-      "size": 205207,
+      "sha256": "c7564f27e65f5a946b5a42467e3d3f0b06a80f814943ec5c96ae2ded2c1ec903",
+      "size": 204653,
       "notices": []
     },
     {
@@ -2432,8 +2471,8 @@
       "repository": "https://github.com/xiph/ogg.git",
       "submodules": [],
       "archive": "ogg.tar.gz",
-      "sha256": "6b403d936d8f387b16b207328f0ba2f8c11f275ccb6d5e50f59fcc6caaa120f0",
-      "size": 573473,
+      "sha256": "ec9a90f0bf63c30568f4a182da0eef7a89edcc88c31c3a2dd74e75b3303bb325",
+      "size": 573379,
       "notices": [
         {
           "source": "ogg/COPYING",
@@ -2451,8 +2490,8 @@
       "repository": "https://github.com/kcat/openal-soft.git",
       "submodules": [],
       "archive": "openal-soft.tar.gz",
-      "sha256": "9f2791193d60277f2316eed7df21f7c0015905798897535e9769e0f10ff13e9c",
-      "size": 3625362,
+      "sha256": "0989e625f655226f142d7cd865f6ac87962ba8fbb7f1013288459041d6094ab4",
+      "size": 3619919,
       "notices": [
         {
           "source": "openal-soft/COPYING",
@@ -2500,8 +2539,8 @@
       "repository": "https://github.com/openssl/openssl.git",
       "submodules": [],
       "archive": "openssl.tar.gz",
-      "sha256": "559fc01f37dcb99f77398d33cf5fd2bb15d0c36abe2f61fa8a30ba913fb3c6ac",
-      "size": 114939795,
+      "sha256": "77cd7392adc5e1f4ba9ca6c8869accc9314cb2037932041f8d577be3f484c197",
+      "size": 114943103,
       "notices": [
         {
           "source": "openssl/LICENSE.txt",
@@ -2528,8 +2567,8 @@
       "url": "https://media.xiph.org/opus/models/opus_data-8a07d57c4fce6fb30f23b3e0d264004e04f1d7b421f5392ef61543d021a439af.tar.gz",
       "urlHash": "SHA256=8a07d57c4fce6fb30f23b3e0d264004e04f1d7b421f5392ef61543d021a439af",
       "archive": "opus-dnn.tar.gz",
-      "sha256": "30d2528822b9c6f66655696d96a8fb9698d03ce4651156179731d1488690b1ec",
-      "size": 167965709,
+      "sha256": "d56184b57e56d412f0ff9a5fb3e4d7710192bc62234fdf8e1e0783a739a65c46",
+      "size": 167965775,
       "notices": []
     },
     {
@@ -2540,8 +2579,8 @@
       "repository": "https://github.com/xiph/opus.git",
       "submodules": [],
       "archive": "opus.tar.gz",
-      "sha256": "8f619e233ead8ac51c318e7278d7ebb00562eb512f5f613bf7677ed9dd32b22d",
-      "size": 10882758,
+      "sha256": "11a1425375cc1eeb2bc8bdc18ce478019404996ea4e1846c5173addcc91d9bfd",
+      "size": 10886857,
       "notices": [
         {
           "source": "opus/COPYING",
@@ -2565,8 +2604,8 @@
       "repository": "https://github.com/breakfastquay/rubberband.git",
       "submodules": [],
       "archive": "rubberband.tar.gz",
-      "sha256": "7833d4435fadd80802d39b4b45f41341fd5b42b86b6b128b5f8c5077d7c10384",
-      "size": 716139,
+      "sha256": "978f6b1b76cfff1c679691aef91d8befed7250d235116a5328187a53ef015323",
+      "size": 716771,
       "notices": [
         {
           "source": "rubberband/COPYING",
@@ -2593,8 +2632,8 @@
       "url": "rustup:nightly-2026-10-08:rust-src",
       "urlHash": "",
       "archive": "rust-standard-library.tar.gz",
-      "sha256": "8062f4dd53c666cc5d18852a8718a3699ac1b40648a1c0e205519551b7ca23ee",
-      "size": 11405139,
+      "sha256": "48f296d6b4c0c46798664ea41ce1bd592c4f73e777ae34fa33e91d37998751ec",
+      "size": 11403291,
       "notices": [
         {
           "source": "rust-standard-library/library/backtrace/LICENSE-APACHE",
@@ -3056,8 +3095,8 @@
       "repository": "https://github.com/google/shaderc.git",
       "submodules": [],
       "archive": "shaderc.tar.gz",
-      "sha256": "ce0d0e8375f739ca96b4926e2b08c2061d3d58f9d090c5150ff3a1f4d00772fa",
-      "size": 632493,
+      "sha256": "a581161d036ab7a30b1be936d68f5bc43192cf8be9d78383d4d5ecafc38dec6a",
+      "size": 630021,
       "notices": [
         {
           "source": "shaderc/LICENSE",
@@ -3093,8 +3132,8 @@
       "repository": "https://github.com/xiph/speex.git",
       "submodules": [],
       "archive": "speex.tar.gz",
-      "sha256": "32335a54dff288570ebebb3023d517a48bda9b9210a6779350741d3f20daac6f",
-      "size": 2323858,
+      "sha256": "f47e1f580b76af64fd6a664f23c3024de41a4954de606661c4383e5da03ee0bb",
+      "size": 2323636,
       "notices": [
         {
           "source": "speex/COPYING",
@@ -3112,8 +3151,8 @@
       "repository": "https://github.com/KhronosGroup/SPIRV-Cross.git",
       "submodules": [],
       "archive": "spirv-cross.tar.gz",
-      "sha256": "bf0aceec0cbf17f75eb49aa4e90aac8b32723c21adc23d0b34a19beb856eb137",
-      "size": 5166865,
+      "sha256": "73967e87c4207bb59e3e4b1c59f46fa84d003b103245bac69ffe0f70c1a72a67",
+      "size": 5163669,
       "notices": [
         {
           "source": "spirv-cross/LICENSE",
@@ -3131,8 +3170,8 @@
       "repository": "https://github.com/KhronosGroup/SPIRV-Headers.git",
       "submodules": [],
       "archive": "spirv-headers.tar.gz",
-      "sha256": "1807f8ed0d36d526855ea9b2a8d7ac103372fac89342431632cf67ca67363840",
-      "size": 1149078,
+      "sha256": "6342064d7a0044d0e40658c42a3fea6da649764fbacac11065e36d0f6ace4a81",
+      "size": 1147565,
       "notices": [
         {
           "source": "spirv-headers/LICENSE",
@@ -3150,8 +3189,8 @@
       "repository": "https://github.com/KhronosGroup/SPIRV-Tools.git",
       "submodules": [],
       "archive": "spirv-tools.tar.gz",
-      "sha256": "a25ab2145d2868a51acb744696bcf135a13cba1580b512266d887120b521cb4e",
-      "size": 8913057,
+      "sha256": "9a0e20329308ca9acb3c256e201b8f0ea5a3b607472637a1bda5adc294a0e549",
+      "size": 8912981,
       "notices": [
         {
           "source": "spirv-tools/LICENSE",
@@ -3170,8 +3209,8 @@
     {
       "name": "subrandr-crates",
       "archive": "subrandr-crates.tar.gz",
-      "sha256": "de2f9a4d8d7c84d45ee4c4c117dbc1578123a705e0c661ff21d78434271664d0",
-      "size": 58934005,
+      "sha256": "211d1c72b4c0314da75edc6d69a6742f18d0316c80036fab28944389dc6d65c4",
+      "size": 58930938,
       "cargoLockSha256": "03cef7de9f939c8e24ebada9bdc6d4efbe1a77055f98a96618f3d73b4d2840a4",
       "notices": [
         {
@@ -5818,8 +5857,8 @@
       "repository": "https://github.com/afishhh/subrandr.git",
       "submodules": [],
       "archive": "subrandr.tar.gz",
-      "sha256": "2b568bef132ccec6c1b819f211e29670fa6b89ea2d5a14bcc7d25a945030f5e6",
-      "size": 969387,
+      "sha256": "7fd84c603ad6efcd6bf3eddcaedbc0f3c1442d4124179b9cbee2a414f47c6463",
+      "size": 967228,
       "notices": [
         {
           "source": "subrandr/LICENSE",
@@ -5837,8 +5876,8 @@
       "repository": "https://gitlab.com/AOMediaCodec/SVT-AV1.git",
       "submodules": [],
       "archive": "svtav1.tar.gz",
-      "sha256": "5b12ff199e6bdd3c4d15f9904f871d43a358cb3909bc1ff4bd1c9d9afec19a56",
-      "size": 23627766,
+      "sha256": "ba7036c3214f9d0e271fd87cd23ff6648831aadabcc2f52a8a5f811d01516830",
+      "size": 23623232,
       "notices": [
         {
           "source": "svtav1/LICENSE-BSD2.md",
@@ -5874,8 +5913,8 @@
       "repository": "https://github.com/uavs3/uavs3d.git",
       "submodules": [],
       "archive": "uavs3d.tar.gz",
-      "sha256": "08928b66c2a76fe9fa3e3cbafbe33642f06c373e5e916c0aff7c69b8b150290d",
-      "size": 1407423,
+      "sha256": "807c35b48da1e3f81aa7231353da738d5decf5fe74d802cd97a83aec4a869072",
+      "size": 1407334,
       "notices": [
         {
           "source": "uavs3d/COPYING",
@@ -5893,8 +5932,8 @@
       "repository": "https://gitlab.freedesktop.org/uchardet/uchardet.git",
       "submodules": [],
       "archive": "uchardet.tar.gz",
-      "sha256": "41a9ddfe88e23d7dc366ba33c9a2d6f56066fcd348404766924752f515cd08cb",
-      "size": 1119673,
+      "sha256": "51bf45c3c5fb0c26c6f4905ece240647308c1813746bc7f6534a6d9cb86eb111",
+      "size": 1119512,
       "notices": [
         {
           "source": "uchardet/COPYING",
@@ -5912,8 +5951,8 @@
       "repository": "https://github.com/vapoursynth/vapoursynth.git",
       "submodules": [],
       "archive": "vapoursynth.tar.gz",
-      "sha256": "2748946cdebd66d1059b7075cc976f22d0cb7a32b69319354fe21960567610dd",
-      "size": 3970850,
+      "sha256": "0145643566014196263f92339c4de55f5c88f68b36adc6e4dd8397c6d5652577",
+      "size": 3971072,
       "notices": [
         {
           "source": "vapoursynth/COPYING.LESSER",
@@ -5931,8 +5970,8 @@
       "repository": "https://github.com/xiph/vorbis.git",
       "submodules": [],
       "archive": "vorbis.tar.gz",
-      "sha256": "41b80ac706a57ba5f86cf1a0de52acd6b12b9ee73f6698afd97a7d83e1602692",
-      "size": 2724911,
+      "sha256": "67d8d6b58128888238ce7df9228f082bafffd6dbe34686b5e4a0f6334868215e",
+      "size": 2724901,
       "notices": [
         {
           "source": "vorbis/COPYING",
@@ -5956,8 +5995,8 @@
       "repository": "https://github.com/KhronosGroup/Vulkan-Headers.git",
       "submodules": [],
       "archive": "vulkan-header.tar.gz",
-      "sha256": "60ee89afaefb1ea44441c981cc8cf7f462a4f295b0338f7ec1cac424d279a32c",
-      "size": 7804349,
+      "sha256": "2578dca3e4bb7ecb5442c45c79f6d03b8f3d54bd50b988810dd5e715df2ab8d8",
+      "size": 7803081,
       "notices": [
         {
           "source": "vulkan-header/LICENSE.md",
@@ -5975,8 +6014,8 @@
       "repository": "https://github.com/KhronosGroup/Vulkan-Loader.git",
       "submodules": [],
       "archive": "vulkan.tar.gz",
-      "sha256": "7a86ee57935657e68c7513135361b87bda548c4e8c965e89c3761bbd024e9736",
-      "size": 4033490,
+      "sha256": "c56a14fd71799caf4e61cb1359aa8d6a075a0941ef54b7cdfbb057cc374ca566",
+      "size": 4004583,
       "notices": [
         {
           "source": "vulkan/LICENSE.txt",
@@ -5991,8 +6030,8 @@
       "url": "https://github.com/microsoft/windows-rs/tree/642aca37075f2091a0950b4ea79f35a7ead43460",
       "urlHash": "",
       "archive": "windows-metadata.tar.gz",
-      "sha256": "065c718f1cfd0c638cd41be4c267af861b20d50a8ae0d84dc26e5a797d019549",
-      "size": 1408588,
+      "sha256": "72b1641861979bbb2a4dc76c260bbf665267a3ebefc3f0dec19f9c6405fe8cf4",
+      "size": 1408597,
       "notices": [
         {
           "source": "windows-metadata/license-apache-2.0",
@@ -6016,8 +6055,8 @@
       "repository": "https://code.videolan.org/videolan/x264.git",
       "submodules": [],
       "archive": "x264.tar.gz",
-      "sha256": "2ab44aa4c25de1d97aee64b0441ae4f9851ab87e489d96017d85ec95f87b6024",
-      "size": 2429653,
+      "sha256": "e370f58c6ff811a1326b8508d601d2f4e3c11c88ecb44090feb651cab46b4ce4",
+      "size": 2429459,
       "notices": [
         {
           "source": "x264/COPYING",
@@ -6035,8 +6074,8 @@
       "repository": "https://github.com/Multicorewareinc/x265.git",
       "submodules": [],
       "archive": "x265.tar.gz",
-      "sha256": "c1639f97bbca183b46a23f53b6cb65c92c8f52f417253cbc3b5f5aa0efff6130",
-      "size": 4835971,
+      "sha256": "1e9bdf0b00c1437a4c2e2695796e932d6dc81072db5822a53d744ef7e1306372",
+      "size": 4831919,
       "notices": [
         {
           "source": "x265/COPYING",
@@ -6066,8 +6105,8 @@
       "repository": "https://github.com/Cyan4973/xxHash.git",
       "submodules": [],
       "archive": "xxhash.tar.gz",
-      "sha256": "9c6608561006e86758db977c2187c885446e9cd95143e42cec5a906bd145386f",
-      "size": 2412317,
+      "sha256": "439e891c1edfc1515f747e0b039601bd20c70e281541591042a54502433f0b16",
+      "size": 2428055,
       "notices": [
         {
           "source": "xxhash/LICENSE",
@@ -6103,8 +6142,8 @@
       "repository": "https://github.com/tukaani-project/xz.git",
       "submodules": [],
       "archive": "xz.tar.gz",
-      "sha256": "10c61261cb242a033a3371c10c63bb1d99347267485935578b0116240b325d9a",
-      "size": 3432767,
+      "sha256": "903126b0b7e079098db21ef8a293819961553330990421ced834ca26183bb7e5",
+      "size": 3405992,
       "notices": [
         {
           "source": "xz/COPYING",
@@ -6152,8 +6191,8 @@
       "repository": "https://github.com/zlib-ng/zlib-ng.git",
       "submodules": [],
       "archive": "zlib.tar.gz",
-      "sha256": "2f9feff1bc00bbcf2da4a1a39778e27f1ded813a4ff79084d1cdda05712b7f6c",
-      "size": 5424045,
+      "sha256": "d2ec9a8b388aa4211ad05a19c7d6de3de53e948f949606a4f699c22b3c1b0bab",
+      "size": 5421534,
       "notices": [
         {
           "source": "zlib/LICENSE.md",
@@ -6171,8 +6210,8 @@
       "repository": "https://github.com/facebook/zstd.git",
       "submodules": [],
       "archive": "zstd.tar.gz",
-      "sha256": "42704df862b1144be52a816647c8efbae78a621daf32f53d0793516a8d11d474",
-      "size": 5367412,
+      "sha256": "9f4b33b04b7e87124d26a4bbba29a71b30094e58440b0e64df7c5e8804d7ad6d",
+      "size": 5367512,
       "notices": [
         {
           "source": "zstd/COPYING",
@@ -6194,6 +6233,19 @@
     "nvcodec-headers",
     "opus-dnn"
   ],
+  "sourceVariant": "d3d11",
+  "clientApiVersion": 131078,
+  "container": "ghcr.io/shinchiro/archlinux@sha256:4a65616f389fa2a76955876a3e380284d3057cc04bfcac986008f20a710a0b76",
+  "baseRevision": "36bf3d529059a947d6700adefeab3b421e537c19",
+  "patches": [
+    {
+      "file": "patches/mpv/4255130-d3d11-render.patch",
+      "sha256": "24c70218104aeae57ecf733b3ac6787314aaa8e7e1bf332f7bb4bec185ac4217",
+      "upstreamCommit": "4255130de410e0cbdab694b951085409d466b704",
+      "baseRevision": "36bf3d529059a947d6700adefeab3b421e537c19"
+    }
+  ],
+  "effectiveTreeSha256": "b6347890843a7ec5753d631ff1283be2770d2d980d91febe5f8c3cfa856f9e09",
   "manualReview": [
     {
       "component": "build-recipes",

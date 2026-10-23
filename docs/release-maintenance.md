@@ -1,5 +1,8 @@
 # LampaUa Desktop 2.x: Release Maintenance
 
+Просування перевіреного D3D11 у Windows x64, точні runtime pins і порядок
+наступних оновлень від 2.0.3: [2.0.3-maintenance.md](2.0.3-maintenance.md).
+
 Актуальні зміни збірки та межі сумісності від 2.0.2:
 [2.0.2-maintenance.md](2.0.2-maintenance.md). Windows 32-bit і macOS 12 більше
 не підтримуються; для них останнім залишається 2.0.1.
