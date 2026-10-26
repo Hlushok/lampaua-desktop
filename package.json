@@ -20,6 +20,7 @@
     "build-linux": "electron-builder --linux --publish=never",
     "build-mac": "electron-builder --mac --publish=never",
     "build-win": "electron-builder --win --publish=never",
+    "test": "node --test tests/*.test.js",
     "lint": "yarn lint:eslint && yarn lint:prettier",
     "lint:eslint": "eslint .",
     "lint:prettier": "prettier . --check",
