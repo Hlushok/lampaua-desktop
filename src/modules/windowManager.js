@@ -77,7 +77,12 @@ function createWindow() {
     show: false,
     titleBarStyle: "default",
     icon: path.join(__dirname, "../build/icon.png"),
-    fullscreen: fullscreenConfig.fullscreen,
+    // Explicit fullscreen:false hides/disables the macOS fullscreen button
+    // (and clears fullscreenable). Omit the key unless starting fullscreen.
+    // https://www.electronjs.org/docs/latest/api/structures/base-window-options
+    // https://github.com/electron/electron/issues/18325
+    fullscreenable: true,
+    ...(fullscreenConfig.fullscreen ? { fullscreen: true } : {}),
   };
 
   let targetDisplay;
@@ -199,6 +204,7 @@ function createWindow() {
   setupNavigationHandlers(mainWindow);
   setupErrorHandler(mainWindow);
   setupWindowOpenHandler(mainWindow);
+  setupNativeFullscreenShortcut(mainWindow);
 
   if (process.argv.includes("--dev")) {
     mainWindow.webContents.openDevTools();
@@ -404,6 +410,27 @@ function setupWindowOpenHandler(mainWindow) {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     void openExternalPlayer(mainWindow, url);
     return { action: "deny" };
+  });
+}
+
+// Lampa's page key handlers can swallow ⌃⌘F before the menu accelerator runs.
+// Handle it in before-input-event so native fullscreen still toggles.
+// https://www.electronjs.org/docs/latest/api/web-contents#event-before-input-event
+function setupNativeFullscreenShortcut(mainWindow) {
+  if (process.platform !== "darwin") return;
+
+  mainWindow.webContents.on("before-input-event", (event, input) => {
+    if (
+      input.type === "keyDown" &&
+      input.key.toLowerCase() === "f" &&
+      input.control &&
+      input.meta &&
+      !input.alt &&
+      !input.shift
+    ) {
+      event.preventDefault();
+      mainWindow.setFullScreen(!mainWindow.isFullScreen());
+    }
   });
 }
 
