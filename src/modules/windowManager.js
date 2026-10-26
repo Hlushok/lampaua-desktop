@@ -73,7 +73,12 @@ function createWindow() {
     show: false,
     titleBarStyle: "default",
     icon: path.join(__dirname, "../build/icon.png"),
-    fullscreen: fullscreenConfig.fullscreen,
+    // Explicit fullscreen:false hides/disables the macOS fullscreen button
+    // (and clears fullscreenable). Omit the key unless starting fullscreen.
+    // https://www.electronjs.org/docs/latest/api/structures/base-window-options
+    // https://github.com/electron/electron/issues/18325
+    fullscreenable: true,
+    ...(fullscreenConfig.fullscreen ? { fullscreen: true } : {}),
   };
 
   let targetDisplay;
