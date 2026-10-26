@@ -200,6 +200,7 @@ function createWindow() {
   setupNavigationHandlers(mainWindow);
   setupErrorHandler(mainWindow);
   setupWindowOpenHandler(mainWindow);
+  setupNativeFullscreenShortcut(mainWindow);
 
   if (process.argv.includes("--dev")) {
     mainWindow.webContents.openDevTools();
@@ -361,6 +362,27 @@ function setupWindowOpenHandler(mainWindow) {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: "deny" };
+  });
+}
+
+// Lampa's page key handlers can swallow ⌃⌘F before the menu accelerator runs.
+// Handle it in before-input-event so native fullscreen still toggles.
+// https://www.electronjs.org/docs/latest/api/web-contents#event-before-input-event
+function setupNativeFullscreenShortcut(mainWindow) {
+  if (process.platform !== "darwin") return;
+
+  mainWindow.webContents.on("before-input-event", (event, input) => {
+    if (
+      input.type === "keyDown" &&
+      input.key.toLowerCase() === "f" &&
+      input.control &&
+      input.meta &&
+      !input.alt &&
+      !input.shift
+    ) {
+      event.preventDefault();
+      mainWindow.setFullScreen(!mainWindow.isFullScreen());
+    }
   });
 }
 
