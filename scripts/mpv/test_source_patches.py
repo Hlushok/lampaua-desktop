@@ -252,7 +252,9 @@ class CandidateBuildContracts(unittest.TestCase):
         self.assertEqual(native["mpvCommit"], "82667e3cb116969ec930897a6bf22395e8cd2c36")
         self.assertEqual(native["ffmpegCommit"], "86444dd36834875f274f57705762c5448379d644")
         self.assertEqual(patch_series("mpv", native), [])
-        for key in ("container", "rustToolchain", "target", "cpu", "windowsMetadataCommit"):
+        self.assertEqual(native["container"],
+            "ghcr.io/shinchiro/archlinux@sha256:ce439d0f03419bd2c022dd3746a3a9a15b2f1f4a73b47f975a02734992ba1383")
+        for key in ("rustToolchain", "target", "cpu", "windowsMetadataCommit"):
             self.assertEqual(native[key], accepted[key], key)
 
     def test_candidate_retains_source_pins_and_only_refreshes_approved_container(self):

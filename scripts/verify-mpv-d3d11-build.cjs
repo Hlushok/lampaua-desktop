@@ -10,12 +10,20 @@ function verify(workflow) {
   assert.equal(inputs.variant.default, "baseline");
   assert.deepEqual(workflow.permissions, { contents: "read" });
   const job = workflow.jobs.build;
+  assert.equal(job.needs, "environment");
+  const environment = workflow.jobs.environment;
+  assert.equal(environment["runs-on"], "ubuntu-24.04");
+  assert.equal(environment["timeout-minutes"], 5);
+  assert.equal(environment.outputs.image, "${{ steps.image.outputs.image }}");
+  const image = environment.steps.find((step) => step.id === "image");
+  assert.equal(image.env.MPV_VARIANT, "${{ inputs.variant }}");
+  assert.equal(
+    image.run,
+    'python3 scripts/mpv/verify_container_image.py --variant "$MPV_VARIANT"',
+  );
   assert.equal(job["runs-on"], "ubuntu-24.04");
   assert.equal(job["timeout-minutes"], 360);
-  assert.equal(
-    job.container.image,
-    `\${{ (inputs.variant == 'd3d11' || inputs.variant == 'd3d11-next') && '${candidateConfig.container}' || '${baselineConfig.container}' }}`,
-  );
+  assert.equal(job.container.image, "${{ needs.environment.outputs.image }}");
   assert.equal(job.env.LAMPAUA_MPV_VARIANT, "${{ inputs.variant }}");
   assert.equal(
     job.env.MPV_WORK,
@@ -151,7 +159,10 @@ const nextConfig = JSON.parse(
     "utf8",
   ),
 );
-assert.equal(nextConfig.container, candidateConfig.container);
+assert.match(
+  nextConfig.container,
+  /^ghcr\.io\/shinchiro\/archlinux@sha256:[a-f0-9]{64}$/,
+);
 assert.equal(nextConfig.nativeD3d11, true);
 assert.deepEqual(nextConfig.sourcePatches, { mpv: [] });
 assert.match(

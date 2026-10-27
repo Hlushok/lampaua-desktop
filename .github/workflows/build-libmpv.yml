@@ -18,11 +18,28 @@ permissions:
   contents: read
 
 jobs:
+  environment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify pinned container exists before creating the build job
+        id: image
+        shell: bash
+        env:
+          MPV_VARIANT: ${{ inputs.variant }}
+        run: python3 scripts/mpv/verify_container_image.py --variant "$MPV_VARIANT"
+
   build:
+    needs: environment
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     container:
-      image: ${{ (inputs.variant == 'd3d11' || inputs.variant == 'd3d11-next') && 'ghcr.io/shinchiro/archlinux@sha256:4a65616f389fa2a76955876a3e380284d3057cc04bfcac986008f20a710a0b76' || 'ghcr.io/shinchiro/archlinux@sha256:2b81f07c567b051455b9539770a71b53dd3add5f9ef52eca95ac01a2272e9fdf' }}
+      image: ${{ needs.environment.outputs.image }}
     env:
       LAMPAUA_MPV_VARIANT: ${{ inputs.variant }}
       MPV_WORK: ${{ inputs.variant == 'd3d11-next' && '.cache/libmpv-own-d3d11-next' || inputs.variant == 'd3d11' && '.cache/libmpv-own-d3d11' || '.cache/libmpv-own' }}

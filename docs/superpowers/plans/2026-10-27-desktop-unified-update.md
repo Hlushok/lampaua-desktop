@@ -81,3 +81,4 @@
 - Existing player/updater/network/semantic-sync contracts and lint PASS. Candidate DLL work has not promoted or changed production runtime pins.
 - Merge dfb201f: GitHub validation 40554085686 and IINA/macOS build 40554086063 both PASS.
 - New-core tooling: 90 Python tests PASS, native metadata and workflow regression checks PASS, lint PASS. The pinned new recipe prepares successfully locally; actual Linux source/environment preflight remains a CI gate.
+- First DLL run 40555733449 stopped before compilation because the upstream registry removed the old container digest. Candidate-only container refresh and a tested pre-container registry gate added; no floating-image fallback or historical pin rewrites.
