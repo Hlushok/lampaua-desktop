@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       variant:
-        description: "Separate experimental D3D11 SDK or the unchanged baseline"
+        description: "Preserved baseline, accepted D3D11, or new upstream-native candidate"
         type: choice
-        options: [baseline, d3d11]
+        options: [baseline, d3d11, d3d11-next]
         default: baseline
       target:
         description: "mpv builds the SDK; ngtcp2 only diagnoses the QUIC backend"
@@ -22,21 +22,22 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     container:
-      image: ${{ inputs.variant == 'd3d11' && 'ghcr.io/shinchiro/archlinux@sha256:4a65616f389fa2a76955876a3e380284d3057cc04bfcac986008f20a710a0b76' || 'ghcr.io/shinchiro/archlinux@sha256:2b81f07c567b051455b9539770a71b53dd3add5f9ef52eca95ac01a2272e9fdf' }}
+      image: ${{ (inputs.variant == 'd3d11' || inputs.variant == 'd3d11-next') && 'ghcr.io/shinchiro/archlinux@sha256:4a65616f389fa2a76955876a3e380284d3057cc04bfcac986008f20a710a0b76' || 'ghcr.io/shinchiro/archlinux@sha256:2b81f07c567b051455b9539770a71b53dd3add5f9ef52eca95ac01a2272e9fdf' }}
     env:
       LAMPAUA_MPV_VARIANT: ${{ inputs.variant }}
-      MPV_WORK: ${{ inputs.variant == 'd3d11' && '.cache/libmpv-own-d3d11' || '.cache/libmpv-own' }}
-      MPV_OUTPUT: ${{ inputs.variant == 'd3d11' && 'dist/libmpv-own-d3d11' || 'dist/libmpv-own' }}
+      MPV_WORK: ${{ inputs.variant == 'd3d11-next' && '.cache/libmpv-own-d3d11-next' || inputs.variant == 'd3d11' && '.cache/libmpv-own-d3d11' || '.cache/libmpv-own' }}
+      MPV_OUTPUT: ${{ inputs.variant == 'd3d11-next' && 'dist/libmpv-own-d3d11-next' || inputs.variant == 'd3d11' && 'dist/libmpv-own-d3d11' || 'dist/libmpv-own' }}
+      MPV_CONFIG: ${{ inputs.variant == 'd3d11-next' && 'build/libmpv-source-build.d3d11-next.json' || inputs.variant == 'd3d11' && 'build/libmpv-source-build.d3d11.json' || 'build/libmpv-source-build.json' }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       - name: Check refreshed candidate environment before compilation
-        if: inputs.variant == 'd3d11'
+        if: inputs.variant == 'd3d11' || inputs.variant == 'd3d11-next'
         shell: bash
         run: |
-          python3 scripts/mpv/preflight_environment.py --config build/libmpv-source-build.d3d11.json --output "$MPV_WORK/environment.json"
+          python3 scripts/mpv/preflight_environment.py --config "$MPV_CONFIG" --output "$MPV_WORK/environment.json"
 
       - name: Test source and compatibility contracts
         shell: bash
@@ -62,7 +63,7 @@ jobs:
         if: inputs.target == 'mpv'
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: ${{ inputs.variant == 'd3d11' && 'lampaua-libmpv-own-x64-d3d11' || 'lampaua-libmpv-own-x64' }}
+          name: ${{ inputs.variant == 'd3d11-next' && 'lampaua-libmpv-own-x64-d3d11-next' || inputs.variant == 'd3d11' && 'lampaua-libmpv-own-x64-d3d11' || 'lampaua-libmpv-own-x64' }}
           compression-level: 0
           retention-days: 30
           path: ${{ env.MPV_OUTPUT }}/
@@ -71,7 +72,7 @@ jobs:
         if: failure() && inputs.target == 'mpv' && hashFiles(format('{0}/build/mpv-dev-x86_64-*/libmpv-2.dll', env.MPV_WORK)) != ''
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: ${{ inputs.variant == 'd3d11' && 'lampaua-libmpv-unpackaged-x64-d3d11' || 'lampaua-libmpv-unpackaged-x64' }}
+          name: ${{ inputs.variant == 'd3d11-next' && 'lampaua-libmpv-unpackaged-x64-d3d11-next' || inputs.variant == 'd3d11' && 'lampaua-libmpv-unpackaged-x64-d3d11' || 'lampaua-libmpv-unpackaged-x64' }}
           compression-level: 0
           retention-days: 14
           include-hidden-files: true
@@ -88,7 +89,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: ${{ inputs.variant == 'd3d11' && 'lampaua-libmpv-d3d11-build-logs' || 'lampaua-libmpv-build-logs' }}
+          name: ${{ inputs.variant == 'd3d11-next' && 'lampaua-libmpv-d3d11-next-build-logs' || inputs.variant == 'd3d11' && 'lampaua-libmpv-d3d11-build-logs' || 'lampaua-libmpv-build-logs' }}
           retention-days: 14
           path: |
             ${{ env.MPV_WORK }}/build/**/*.log

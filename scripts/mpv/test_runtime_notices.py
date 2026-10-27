@@ -169,6 +169,21 @@ class CandidateNoticeTests(unittest.TestCase):
                 self.assertRaisesRegex(ValueError, "Missing effective"):
             source_audit.verify_candidate_inputs(self.sources, self.manifest, self.config_path)
 
+    def test_native_candidate_requires_matching_native_provenance(self):
+        self.config.update(nativeD3d11=True, sourcePatches={"mpv": []})
+        self.config_path.write_text(json.dumps(self.config))
+        self.effective.update(nativeD3d11=True, patches=[])
+        self.manifest.update(nativeD3d11=True, patches=[])
+        self.bundled.unlink()
+        with patch.object(source_audit, "verify_patches", return_value=self.effective):
+            report = source_audit.verify_candidate_inputs(
+                self.sources, self.manifest, self.config_path, "d3d11-next")
+            self.assertEqual(report["sourceVariant"], "d3d11-next")
+            self.assertTrue(report["nativeD3d11"])
+            del self.manifest["nativeD3d11"]
+            with self.assertRaisesRegex(ValueError, "nativeD3d11"):
+                source_audit.verify_candidate_inputs(self.sources, self.manifest, self.config_path, "d3d11-next")
+
     def test_candidate_selects_its_configuration_before_source_graph_verification(self):
         (self.config_path.parent / "libmpv-source-build.json").write_text('{"baseline":true}')
         manifest = self.root / "manifest.json"

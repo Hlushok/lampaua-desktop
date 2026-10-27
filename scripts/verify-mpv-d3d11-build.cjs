@@ -6,7 +6,7 @@ const YAML = require("yaml");
 function verify(workflow) {
   assert.deepEqual(Object.keys(workflow.on), ["workflow_dispatch"]);
   const inputs = workflow.on.workflow_dispatch.inputs;
-  assert.deepEqual(inputs.variant.options, ["baseline", "d3d11"]);
+  assert.deepEqual(inputs.variant.options, ["baseline", "d3d11", "d3d11-next"]);
   assert.equal(inputs.variant.default, "baseline");
   assert.deepEqual(workflow.permissions, { contents: "read" });
   const job = workflow.jobs.build;
@@ -14,16 +14,32 @@ function verify(workflow) {
   assert.equal(job["timeout-minutes"], 360);
   assert.equal(
     job.container.image,
-    `\${{ inputs.variant == 'd3d11' && '${candidateConfig.container}' || '${baselineConfig.container}' }}`,
+    `\${{ (inputs.variant == 'd3d11' || inputs.variant == 'd3d11-next') && '${candidateConfig.container}' || '${baselineConfig.container}' }}`,
   );
   assert.equal(job.env.LAMPAUA_MPV_VARIANT, "${{ inputs.variant }}");
   assert.equal(
     job.env.MPV_WORK,
-    "${{ inputs.variant == 'd3d11' && '.cache/libmpv-own-d3d11' || '.cache/libmpv-own' }}",
+    variantExpression(
+      ".cache/libmpv-own",
+      ".cache/libmpv-own-d3d11",
+      ".cache/libmpv-own-d3d11-next",
+    ),
   );
   assert.equal(
     job.env.MPV_OUTPUT,
-    "${{ inputs.variant == 'd3d11' && 'dist/libmpv-own-d3d11' || 'dist/libmpv-own' }}",
+    variantExpression(
+      "dist/libmpv-own",
+      "dist/libmpv-own-d3d11",
+      "dist/libmpv-own-d3d11-next",
+    ),
+  );
+  assert.equal(
+    job.env.MPV_CONFIG,
+    variantExpression(
+      "build/libmpv-source-build.json",
+      "build/libmpv-source-build.d3d11.json",
+      "build/libmpv-source-build.d3d11-next.json",
+    ),
   );
   const checkout = job.steps.find((step) =>
     step.uses?.startsWith("actions/checkout@"),
@@ -32,11 +48,11 @@ function verify(workflow) {
   const preflight = job.steps.find((step) =>
     step.run?.includes("preflight_environment.py"),
   );
-  assert.equal(preflight.if, "inputs.variant == 'd3d11'");
-  assert.match(
-    preflight.run,
-    /--config build\/libmpv-source-build\.d3d11\.json/,
+  assert.equal(
+    preflight.if,
+    "inputs.variant == 'd3d11' || inputs.variant == 'd3d11-next'",
   );
+  assert.match(preflight.run, /--config "\$MPV_CONFIG"/);
   const checks = job.steps.findIndex((step) =>
     step.run?.includes("unittest discover"),
   );
@@ -73,7 +89,11 @@ function verify(workflow) {
   const sdk = uploads.find((step) => step.with["retention-days"] === 30);
   assert.equal(
     sdk.with.name,
-    "${{ inputs.variant == 'd3d11' && 'lampaua-libmpv-own-x64-d3d11' || 'lampaua-libmpv-own-x64' }}",
+    variantExpression(
+      "lampaua-libmpv-own-x64",
+      "lampaua-libmpv-own-x64-d3d11",
+      "lampaua-libmpv-own-x64-d3d11-next",
+    ),
   );
   assert.equal(sdk.with.path, "${{ env.MPV_OUTPUT }}/");
   assert.equal(sdk.if, "inputs.target == 'mpv'");
@@ -82,6 +102,23 @@ function verify(workflow) {
     assert.doesNotMatch(upload.with.path, /\.cache\/libmpv-own\//);
   }
   const recovery = uploads.find((step) => step.if.startsWith("failure()"));
+  assert.equal(
+    recovery.with.name,
+    variantExpression(
+      "lampaua-libmpv-unpackaged-x64",
+      "lampaua-libmpv-unpackaged-x64-d3d11",
+      "lampaua-libmpv-unpackaged-x64-d3d11-next",
+    ),
+  );
+  const logs = uploads.find((step) => step.if === "always()");
+  assert.equal(
+    logs.with.name,
+    variantExpression(
+      "lampaua-libmpv-build-logs",
+      "lampaua-libmpv-d3d11-build-logs",
+      "lampaua-libmpv-d3d11-next-build-logs",
+    ),
+  );
   assert.match(
     recovery.if,
     /hashFiles\(format\('\{0\}\/build\/mpv-dev-x86_64-\*\/libmpv-2.dll', env.MPV_WORK\)\)/,
@@ -91,6 +128,10 @@ function verify(workflow) {
       step.uses,
       /^actions\/(?:checkout@v7\.0\.1|upload-artifact@v7\.0\.2)$/,
     );
+}
+
+function variantExpression(baseline, accepted, next) {
+  return `\${{ inputs.variant == 'd3d11-next' && '${next}' || inputs.variant == 'd3d11' && '${accepted}' || '${baseline}' }}`;
 }
 
 const root = path.resolve(__dirname, "..");
@@ -104,6 +145,15 @@ const candidateConfig = JSON.parse(
   ),
 );
 assert.notEqual(candidateConfig.container, baselineConfig.container);
+const nextConfig = JSON.parse(
+  fs.readFileSync(
+    path.join(root, "build/libmpv-source-build.d3d11-next.json"),
+    "utf8",
+  ),
+);
+assert.equal(nextConfig.container, candidateConfig.container);
+assert.equal(nextConfig.nativeD3d11, true);
+assert.deepEqual(nextConfig.sourcePatches, { mpv: [] });
 assert.match(
   candidateConfig.container,
   /^ghcr\.io\/shinchiro\/archlinux@sha256:[a-f0-9]{64}$/,

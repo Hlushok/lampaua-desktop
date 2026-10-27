@@ -17,6 +17,8 @@ def variant_paths(root, variant):
         return root / "build/libmpv-source-build.json", root / "dist/libmpv-own"
     if variant == "d3d11":
         return root / "build/libmpv-source-build.d3d11.json", root / "dist/libmpv-own-d3d11"
+    if variant == "d3d11-next":
+        return root / "build/libmpv-source-build.d3d11-next.json", root / "dist/libmpv-own-d3d11-next"
     raise ValueError(f"Unsupported build variant: {variant}")
 
 
@@ -77,7 +79,7 @@ def package(work, root, variant="baseline"):
             raise ValueError(f"Missing source receipt: {required}")
     downloaded = {p.name.removesuffix("-download") for p in (work / "build").rglob("*-download")}
     closure = validate_sources(sources, receipts, downloaded)
-    effective = verify_patches(sources, config) if variant == "d3d11" else None
+    effective = verify_patches(sources, config) if variant != "baseline" else None
     sdk_dirs = list((work / "build").glob("mpv-dev-x86_64-*-git-*"))
     if len(sdk_dirs) != 1:
         raise ValueError("Expected exactly one SDK")
@@ -110,6 +112,8 @@ def package(work, root, variant="baseline"):
     if effective:
         manifest.update(baseRevision=effective["baseRevision"], patches=effective["patches"],
                         effectiveTreeSha256=effective["effectiveTreeSha256"], clientApiVersion=api_version)
+        if config.get("nativeD3d11"):
+            manifest["nativeD3d11"] = True
     (sources / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     shutil.copytree(root / "scripts/mpv", sources / "build-scripts", ignore=shutil.ignore_patterns("__pycache__"))
     shutil.copytree(work / "recipes", sources / "configured-recipes", ignore=shutil.ignore_patterns(".git"))
@@ -133,6 +137,8 @@ def package(work, root, variant="baseline"):
         # Archive hashes live outside the source bundle to avoid self-hashing.
         candidate = {key: manifest[key] for key in ("dllSha256", "clientApiVersion", "baseRevision",
                      "patches", "effectiveTreeSha256", "repositoryCommit")}
+        if config.get("nativeD3d11"):
+            candidate["nativeD3d11"] = True
         candidate.update(sdkFile=sdk_archive.name, sdkSha256=digest(sdk_archive),
                          sourceFile=archive.name, sourceSha256=digest(archive))
         (destination / "candidate-sdk.json").write_text(json.dumps(candidate, indent=2) + "\n", encoding="utf-8")
@@ -146,7 +152,7 @@ if __name__ == "__main__":
     parser.add_argument("--work", type=Path, required=True)
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--check-repository", action="store_true")
-    parser.add_argument("--variant", choices=("baseline", "d3d11"), default="baseline")
+    parser.add_argument("--variant", choices=("baseline", "d3d11", "d3d11-next"), default="baseline")
     args = parser.parse_args()
     if args.check_repository:
         print(f"Build checkout revision: {repository_revision(args.root)}")

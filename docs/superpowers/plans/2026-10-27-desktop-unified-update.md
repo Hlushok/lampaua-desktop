@@ -33,7 +33,7 @@
 - [x] Add failing window-manager tests for macOS fullscreen, IINA routing/fallback and retained internal navigation.
 - [x] Run bounded sync against pinned `upstream/main` f834fec9; inspect and resolve only known conflicts.
 - [x] Preserve our package/build identity, current dependency floors, MPV attach/close and URL policy.
-- [ ] Run new donor/window tests, syntax, MPV isolation, external-player and upstream-sync contracts; commit the reviewed merge.
+- [x] Run new donor/window tests, syntax, MPV isolation, external-player and upstream-sync contracts; commit the reviewed merge.
 
 ### Task 2: Dependencies And Security
 
@@ -42,7 +42,7 @@
 - [x] Integrate PR #21 content: updater 6.8.11, builder 26.18.0, rolldown 1.2.15.
 - [x] Refresh compatible transitive branches for fast-uri/js-yaml and build-tool advisories, with no blanket major resolutions.
 - [x] Run immutable install, production/full audit, syntax/contracts and lint. Record any unsupported/deprecated dependency separately.
-- [ ] Verify actual staged/committed package versions and commit scoped changes.
+- [x] Verify actual staged/committed package versions and commit scoped changes.
 
 ### Task 3: CI Maintenance
 
@@ -51,15 +51,15 @@
 - [x] Read major release migration notes/action manifests and add/update failing workflow tests.
 - [x] Update checkout/setup/upload/download actions with hosted-runner compatibility; preserve project Node 24 and token/permission boundaries.
 - [x] Include new tests, production audit and existing D3D11 gates in validation/sync CI without weakening manual-review rules.
-- [ ] Validate YAML, workflow contracts and lint; commit.
+- [x] Validate YAML, workflow contracts and lint; commit.
 
 ### Task 4: New Core Candidate
 
 **Files:** candidate source-build config/lock, source provenance/patch tooling and tests, artifact-only workflow.
 
-- [ ] Inspect complete MPV/FFmpeg changes and source compatibility, pin MPV 82667e3c and FFmpeg 86444dd3 (or document a compatibility-driven bounded alternative).
-- [ ] Support unpatched upstream-native D3D11 provenance while preserving verification of the historical patched source bundle.
-- [ ] Run source/environment/preflight tests before the expensive compilation; commit candidate build inputs.
+- [x] Inspect pinned source snapshots, relevant MPV/FFmpeg changes, native D3D11/API and minimum dependency compatibility; pin MPV 82667e3c and FFmpeg 86444dd3. The GitHub FFmpeg compare is truncated, not a complete manual review of 879 commits.
+- [x] Support unpatched upstream-native D3D11 provenance while preserving verification of the historical patched source bundle.
+- [ ] Run source/environment/preflight tests before the expensive compilation; commit candidate build inputs. Local source/tooling tests and recipe preparation pass; CI must verify the actual captured source set and container before compilation.
 - [ ] Push only the update/candidate branch as needed for the artifact-only DLL build. No release or production-pin promotion in this step.
 - [ ] Verify the finished DLL/SDK/API/imports and independently audit complete sources/notices; preserve exact accepted inputs.
 
@@ -79,3 +79,5 @@
 - Local donor/window tests: 18 PASS, including RED-to-GREEN for the three new behaviors.
 - Production and full dependency audits: zero advisory after compatible lockfile refresh; deprecations remain visible through the ordinary audit command.
 - Existing player/updater/network/semantic-sync contracts and lint PASS. Candidate DLL work has not promoted or changed production runtime pins.
+- Merge dfb201f: GitHub validation 40554085686 and IINA/macOS build 40554086063 both PASS.
+- New-core tooling: 90 Python tests PASS, native metadata and workflow regression checks PASS, lint PASS. The pinned new recipe prepares successfully locally; actual Linux source/environment preflight remains a CI gate.

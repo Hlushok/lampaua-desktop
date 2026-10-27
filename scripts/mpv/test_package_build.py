@@ -79,7 +79,7 @@ class PackageBuildTests(unittest.TestCase):
                     self.assertIn("dubious ownership", unsafe.stderr)
                 with patch.object(package_build, "verify_patches", return_value=effective) as verify_effective:
                     package_build.package(self.work, self.root, variant)
-                    if variant == "d3d11":
+                    if variant != "baseline":
                         verify_effective.assert_called_once()
                     else:
                         verify_effective.assert_not_called()
@@ -90,11 +90,11 @@ class PackageBuildTests(unittest.TestCase):
                     self.assertNotEqual(unsafe.returncode, 0)
         finally:
             os.chdir(previous)
-        destination = self.root / ("dist/libmpv-own-d3d11" if variant == "d3d11" else "dist/libmpv-own")
+        _, destination = package_build.variant_paths(self.root, variant)
         manifest = json.loads((destination / "manifest.json").read_text())
         self.assertEqual(manifest["repositoryCommit"], self.revision)
         self.assertTrue((destination / "lampaua-libmpv-x64-sources.tar.gz").is_file())
-        if variant == "d3d11":
+        if variant != "baseline":
             candidate = json.loads((destination / "candidate-sdk.json").read_text())
             self.assertEqual(candidate["clientApiVersion"], (2 << 16) | 6)
             self.assertEqual(candidate["sdkSha256"], package_build.digest(destination / candidate["sdkFile"]))
@@ -145,6 +145,26 @@ class PackageBuildTests(unittest.TestCase):
         _, effective = self.candidate_fixture(api_minor=5)
         with self.assertRaisesRegex(ValueError, "API 2.6"):
             self.package_fixture(self.root, variant="d3d11", effective=effective)
+        self.assertFalse(list((self.root / "dist/libmpv-own-d3d11").iterdir()))
+
+    def test_native_candidate_keeps_empty_series_and_separate_outputs(self):
+        self.candidate_fixture()
+        old_config = self.root / "build/libmpv-source-build.d3d11.json"
+        before = old_config.read_bytes()
+        config = json.loads(before)
+        config.update(nativeD3d11=True, sourcePatches={"mpv": []})
+        (self.root / "build/libmpv-source-build.d3d11-next.json").write_text(json.dumps(config))
+        (self.root / "dist/libmpv-own-d3d11-next").mkdir()
+        effective = json.loads((self.sources / "mpv-effective.json").read_text())
+        effective.update(nativeD3d11=True, patches=[])
+        (self.sources / "mpv-effective.json").write_text(json.dumps(effective))
+        manifest = self.package_fixture(self.root, variant="d3d11-next", effective=effective)
+        self.assertTrue(manifest["nativeD3d11"])
+        self.assertEqual(manifest["patches"], [])
+        destination = self.root / "dist/libmpv-own-d3d11-next"
+        candidate = json.loads((destination / "candidate-sdk.json").read_text())
+        self.assertTrue(candidate["nativeD3d11"])
+        self.assertEqual(old_config.read_bytes(), before)
         self.assertFalse(list((self.root / "dist/libmpv-own-d3d11").iterdir()))
 
     def test_candidate_rejects_missing_effective_receipt_before_sdk_packaging(self):

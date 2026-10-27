@@ -48,7 +48,14 @@ def patch_series(component, config):
     if component != "mpv":
         raise ValueError("Only MPV source patches are supported")
     patches = config.get("sourcePatches", {}).get(component, [])
-    if not isinstance(patches, list) or not patches:
+    native = config.get("nativeD3d11", False)
+    if not isinstance(native, bool) or not isinstance(patches, list):
+        raise ValueError("Invalid native D3D11 or source patch configuration")
+    if native:
+        if component not in config.get("sourcePatches", {}) or patches:
+            raise ValueError("Native D3D11 requires an explicit empty patch series")
+        return patches
+    if not patches:
         raise ValueError("Missing pinned source patches")
     root = Path(config["_patchRoot"])
     for patch in patches:
@@ -146,9 +153,27 @@ def expected_identity(config, base, patches):
     suffix = config.get("sourceVersionSuffix", "")
     if suffix != "-lampaua-d3d11":
         raise ValueError("Unexpected candidate source version suffix")
-    return {"baseRevision": base["revision"], "baseArchiveSha256": base["sha256"],
+    identity = {"baseRevision": base["revision"], "baseArchiveSha256": base["sha256"],
             "patches": patches, "sourceVersionSuffix": suffix,
             "sourceVersion": base["sourceVersion"] + suffix}
+    if config.get("nativeD3d11"):
+        identity["nativeD3d11"] = True
+    return identity
+
+
+def verify_native_d3d11(source):
+    required = {
+        "include/mpv/render_d3d11.h": ("mpv_d3d11_init_params", "mpv_d3d11_fbo"),
+        "video/out/d3d11/libmpv_d3d11.c": ("libmpv_gpu_context_d3d11",),
+    }
+    for name, symbols in required.items():
+        path = source / name
+        if not path.is_file() or not all(symbol in path.read_text(encoding="utf-8") for symbol in symbols):
+            raise ValueError(f"Missing upstream D3D11 implementation: {name}")
+    client = source / "include/mpv/client.h"
+    text = client.read_text(encoding="utf-8") if client.is_file() else ""
+    if not re.search(r"(?m)^#define\s+MPV_CLIENT_API_VERSION\s+MPV_MAKE_VERSION\(\s*2\s*,\s*6\s*\)", text):
+        raise ValueError("Native D3D11 requires client API 2.6")
 
 
 def verify_patches(receipts, config):
@@ -170,6 +195,8 @@ def verify_patches(receipts, config):
 
 
 def apply_tree(source, component, config, receipts, patches):
+    if config.get("nativeD3d11"):
+        verify_native_d3d11(source)
     for patch in patches:
         path = within(Path(config["_patchRoot"]), patch["file"])
         git(source, "apply", "--check", str(path))
