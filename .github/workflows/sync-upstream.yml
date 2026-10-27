@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout fork
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           ref: main
@@ -39,7 +39,7 @@ jobs:
           git fetch upstream main
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7.1.0
         with:
           node-version: "24"
 
@@ -54,6 +54,9 @@ jobs:
       - name: Validate merged fork before pushing
         run: |
           corepack yarn install --immutable
+          corepack yarn test
+          corepack yarn audit:production
+          node scripts/verify-ci-maintenance.cjs
           node node_modules/typescript/bin/tsc -p third_party/electron-mpv-video/tsconfig.lib.json --outDir .cache/mpv-desktop-test/lib
           node --check src/main.js
           node --check src/preload.js
@@ -86,7 +89,7 @@ jobs:
 
       - name: Preserve sync diagnostic report
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: upstream-sync-report-${{ github.run_id }}
           path: .cache/upstream-sync-report.json

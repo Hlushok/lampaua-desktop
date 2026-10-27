@@ -21,6 +21,9 @@
     "build-win": "node scripts/build-win-mpv-test.cjs --release",
     "build-win-arm64": "electron-builder --config build/windows-arm64.cjs --win --publish=never",
     "build-win-ac3": "\"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" -NoProfile -ExecutionPolicy Bypass -File scripts/build-win-ac3.ps1",
+    "test": "node --test tests/*.test.js",
+    "audit:production": "yarn npm audit --all --recursive --environment production --no-deprecations",
+    "audit:all": "yarn npm audit --all --recursive --no-deprecations",
     "lint": "yarn lint:eslint && yarn lint:prettier",
     "lint:eslint": "eslint .",
     "lint:prettier": "prettier . --check",
@@ -42,7 +45,7 @@
   },
   "dependencies": {
     "electron-store": "12.0.0",
-    "electron-updater": "6.8.9",
+    "electron-updater": "6.8.11",
     "which": "7.0.0"
   },
   "devDependencies": {
@@ -50,7 +53,7 @@
     "@types/node": "24.19.2",
     "commit-and-tag-version": "13.3.0",
     "electron": "45.0.0",
-    "electron-builder": "26.15.3",
+    "electron-builder": "26.18.0",
     "eslint": "10.13.0",
     "eslint-config-prettier": "10.1.8",
     "globals": "17.13.0",
@@ -58,7 +61,7 @@
     "node-gyp": "13.1.0",
     "prettier": "3.9.10",
     "rcedit": "5.0.2",
-    "rolldown": "1.2.14",
+    "rolldown": "1.2.15",
     "typescript": "7.0.2",
     "yaml": "2.9.1"
   },

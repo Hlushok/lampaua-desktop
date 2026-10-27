@@ -87,7 +87,10 @@ function verify(workflow) {
     /hashFiles\(format\('\{0\}\/build\/mpv-dev-x86_64-\*\/libmpv-2.dll', env.MPV_WORK\)\)/,
   );
   for (const step of job.steps.filter((item) => item.uses))
-    assert.match(step.uses, /^actions\/(?:checkout|upload-artifact)@v6$/);
+    assert.match(
+      step.uses,
+      /^actions\/(?:checkout@v7\.0\.1|upload-artifact@v7\.0\.2)$/,
+    );
 }
 
 const root = path.resolve(__dirname, "..");

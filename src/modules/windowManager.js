@@ -4,6 +4,10 @@ const store = require("./storeManager");
 const { setupPluginHandler } = require("./pluginHandler");
 const { DEFAULT_LAMPA_URL, LEGACY_LAMPA_URL } = require("./lampaUrls");
 const { isMpvEnabled } = require("./mpv/testMode");
+const {
+  buildIinaAutoplayUrl,
+  resolveIinaAutoplayUrl,
+} = require("./iinaAutoplay");
 
 let mainWindow = null;
 
@@ -77,7 +81,13 @@ function createWindow() {
     },
     show: false,
     titleBarStyle: "default",
-    fullscreen: fullscreenConfig.fullscreen,
+    // macOS must not receive fullscreen:false, which disables its native button.
+    ...(process.platform === "darwin"
+      ? {
+          fullscreenable: true,
+          ...(fullscreenConfig.fullscreen ? { fullscreen: true } : {}),
+        }
+      : { fullscreen: fullscreenConfig.fullscreen }),
   };
 
   let targetDisplay;
@@ -226,12 +236,51 @@ function createWindow() {
   setupNavigationHandlers(mainWindow);
   setupErrorHandler(mainWindow);
   setupWindowOpenHandler(mainWindow);
+  setupNativeFullscreenShortcut(mainWindow);
 
   if (process.argv.includes("--dev")) {
     mainWindow.webContents.openDevTools();
   }
 
   return mainWindow;
+}
+
+// Use Lampa's built-in "Next episode" setting (playlist_next). It defaults
+// to true in Lampa; there is no separate IINA-specific preference.
+async function getIinaAutoplayUrl(mainWindow, externalUrl) {
+  if (process.platform !== "darwin") return null;
+
+  return resolveIinaAutoplayUrl(externalUrl, () =>
+    mainWindow.webContents.executeJavaScript(
+      "window.Lampa?.Storage?.field?.('playlist_next') ?? (localStorage.getItem('playlist_next') !== 'false')",
+    ),
+  );
+}
+
+async function openExternalPlayer(mainWindow, externalUrl) {
+  let autoplayUrl = null;
+
+  try {
+    autoplayUrl = await getIinaAutoplayUrl(mainWindow, externalUrl);
+  } catch (error) {
+    console.warn("Could not read Lampa next-episode setting:", error);
+  }
+
+  try {
+    await shell.openExternal(autoplayUrl || externalUrl);
+  } catch (error) {
+    console.error("Failed to open external player:", error);
+    if (autoplayUrl) {
+      try {
+        await shell.openExternal(externalUrl);
+      } catch (fallbackError) {
+        console.error(
+          "Failed to restore single-episode playback:",
+          fallbackError,
+        );
+      }
+    }
+  }
 }
 
 function setupNavigationHandlers(mainWindow) {
@@ -266,6 +315,14 @@ function setupNavigationHandlers(mainWindow) {
     const currentUrl = mainWindow.webContents.getURL();
 
     if (isInternalNavigation(parsedUrl, currentUrl)) {
+      return;
+    }
+
+    // Keep single-episode playback unless this is a convertible IINA torrent.
+    // The currently selected Lampa setting is read before opening the player.
+    if (process.platform === "darwin" && buildIinaAutoplayUrl(navigationUrl)) {
+      event.preventDefault();
+      void openExternalPlayer(mainWindow, navigationUrl);
       return;
     }
 
@@ -402,8 +459,29 @@ function setupWindowOpenHandler(mainWindow) {
       console.warn("Cannot parse window open URL:", error);
     }
 
-    shell.openExternal(url);
+    void openExternalPlayer(mainWindow, url);
     return { action: "deny" };
+  });
+}
+
+// Lampa's page key handlers can swallow ⌃⌘F before the menu accelerator runs.
+// Handle it in before-input-event so native fullscreen still toggles.
+// https://www.electronjs.org/docs/latest/api/web-contents#event-before-input-event
+function setupNativeFullscreenShortcut(mainWindow) {
+  if (process.platform !== "darwin") return;
+
+  mainWindow.webContents.on("before-input-event", (event, input) => {
+    if (
+      input.type === "keyDown" &&
+      input.key.toLowerCase() === "f" &&
+      input.control &&
+      input.meta &&
+      !input.alt &&
+      !input.shift
+    ) {
+      event.preventDefault();
+      mainWindow.setFullScreen(!mainWindow.isFullScreen());
+    }
   });
 }
 
