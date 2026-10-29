@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.7.0](https://github.com/Kolovatoff/lampa-desktop/compare/v1.6.1...v1.7.0) (2026-10-29)
+
+### ✨ Новые возможности
+
+- **macOS:** добавлена горячая клавиша полноэкранного режима для macOS при помощи @pavelpikta [#17](https://github.com/Kolovatoff/lampa-desktop/pull/17) ([341f11f](https://github.com/Kolovatoff/lampa-desktop/commit/341f11f5da01f1cb0732144fa274cbfc757ff17b))
+- **macOS:** автовоспроизведение следующего эпизода IINA через Lampa playlist_next при помощи @rvetlyakov [#16](https://github.com/Kolovatoff/lampa-desktop/pull/16) ([07d8eae](https://github.com/Kolovatoff/lampa-desktop/commit/07d8eaea8e18d684281e05dd8f373cd564945270))
+
+### 🐛 Исправления
+
+- **macOS:** исправлен полноэкранный режим для macOS при помощи @pavelpikta [#17](https://github.com/Kolovatoff/lampa-desktop/pull/17) ([38e6a33](https://github.com/Kolovatoff/lampa-desktop/commit/38e6a33e7dd05830ac12c7ca8c6620fb1dad1ffd))
+
+### Новые участники
+
+- @rvetlyakov внёс свой первый вклад в [#16](https://github.com/Kolovatoff/lampa-desktop/pull/16)
+
 ## [1.6.1](https://github.com/Kolovatoff/lampa-desktop/compare/v1.6.0...v1.6.1) (2026-10-07)
 
 ### ✨ Новые возможности
@@ -29,8 +44,8 @@ All notable changes to this project will be documented in this file. See [commit
 
 ### Новые участники
 
-- @EugeneK32 внёс свой первый вклад в [#8](https://github.com/Kolovatoff/lampa-desktop/commit/8)
-- @pavelpikta внёс свой первый вклад в [#11](https://github.com/Kolovatoff/lampa-desktop/commit/11)
+- @EugeneK32 внёс свой первый вклад в [#8](https://github.com/Kolovatoff/lampa-desktop/pull/8)
+- @pavelpikta внёс свой первый вклад в [#11](https://github.com/Kolovatoff/lampa-desktop/pull/11)
 
 ## [1.5.1](https://github.com/Kolovatoff/lampa-desktop/compare/v1.5.0...v1.5.1) (2026-06-06)
 
