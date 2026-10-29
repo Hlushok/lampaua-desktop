@@ -26,6 +26,23 @@
 - Dependency updates must preserve Node 24, release identity, updater architecture selection and full-download behavior.
 - Upstream-native D3D11 must not receive a duplicate backport; historical accepted runtime provenance must remain reproducible.
 
+## Deferred Follow-Up
+
+The user selected a separate stage AFTER the new core's acceptance for two ideas
+from Notme-SI/mpv-plus b4944849fa32f2c078ac6e5c20a1ca9518551d53:
+
+- Add read-only TorrServer cache statistics, clearly separate from the existing
+  MPV demuxer-buffer indication. No server setting changes.
+- Add mouse drag-to-seek with preview while dragging and one seek on release.
+  Current Lampa mouse movement only previews time, clicks seek, and touch already
+  seeks on release; do not present these existing behaviors as missing.
+
+Do not add these features to this unified update. Their detailed design and tests
+belong to that later stage. Intro skipping already exists in Lampa; retain it
+without a second Lua implementation. Track selection is transferred between
+playlist items in the current session; persistent per-series preference matching
+is a separate feature, not assumed missing or selected for implementation.
+
 ### Task 1: Donor Integration
 
 **Files:** `src/modules/windowManager.js`, new donor `src/modules/iinaAutoplay.js`, `tests/iinaAutoplay.test.js`, new `tests/windowManager.test.js`, `package.json`, `yarn.lock`, donor documentation/CI.
