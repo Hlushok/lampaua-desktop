@@ -8,7 +8,13 @@ const { spawn, execFileSync } = require("node:child_process");
 const { parse } = require("acorn");
 const root = path.resolve(__dirname, "..");
 const qualityOnly = process.argv.includes("--quality-only");
-const d3d11 = process.argv.includes("--d3d11");
+const d3d11Next = process.argv.includes("--d3d11-next");
+assert.equal(
+  d3d11Next && process.argv.includes("--d3d11"),
+  false,
+  "Select one D3D11 candidate variant",
+);
+const d3d11 = process.argv.includes("--d3d11") || d3d11Next;
 const reuseTestProfile = process.argv.includes("--reuse-test-profile");
 assert.ok(
   !reuseTestProfile || (d3d11 && !process.argv.includes("--release")),
@@ -20,7 +26,7 @@ assert.ok(
   exe && fs.existsSync(exe),
   "Pass --exe pointing to the full desktop build",
 );
-if (reuseTestProfile) {
+if (reuseTestProfile || d3d11Next) {
   const packageFile = path.join(
     path.dirname(path.resolve(exe)),
     "resources/app/package.json",
@@ -30,6 +36,12 @@ if (reuseTestProfile) {
     "Persistent profile requires the isolated D3D11 test package",
   );
   const pkg = JSON.parse(fs.readFileSync(packageFile, "utf8"));
+  if (d3d11Next)
+    assert.equal(
+      pkg.lampauaMpvD3d11NextTest,
+      true,
+      "Pass the upstream-native D3D11 test package",
+    );
   assert.ok(
     pkg.lampauaMpvTest === true &&
       pkg.lampauaMpvD3d11Test === true &&
@@ -40,9 +52,11 @@ if (reuseTestProfile) {
 const runId = `run-${Date.now()}`;
 const output = path.join(
   root,
-  d3d11
-    ? ".cache/mpv-desktop-d3d11-test/evidence"
-    : ".cache/mpv-desktop-test/evidence",
+  d3d11Next
+    ? ".cache/mpv-desktop-d3d11-next-test/evidence"
+    : d3d11
+      ? ".cache/mpv-desktop-d3d11-test/evidence"
+      : ".cache/mpv-desktop-test/evidence",
   runId,
 );
 fs.mkdirSync(output, { recursive: true });

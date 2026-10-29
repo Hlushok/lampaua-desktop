@@ -46,6 +46,15 @@ async function main() {
       [["--release", "--d3d11"], /forbidden/],
       [["--d3d11"], /requires --candidate-sdk/],
       [["--candidate-sdk", "unused"], /requires --d3d11/],
+      [["--release", "--d3d11-next", "--candidate-sdk", "unused"], /forbidden/],
+      [
+        ["--d3d11-next", "--candidate-sdk", "--stage-only"],
+        /requires --candidate-sdk/,
+      ],
+      [
+        ["--d3d11", "--d3d11-next", "--candidate-sdk", "unused"],
+        /Select one D3D11 candidate/,
+      ],
     ]) {
       const invalid = spawnSync(
         process.execPath,

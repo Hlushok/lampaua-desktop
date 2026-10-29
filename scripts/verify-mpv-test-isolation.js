@@ -64,6 +64,42 @@ async function main() {
     foreignPackage.stderr,
     /Persistent profile requires the isolated D3D11 test package/,
   );
+  const fixtureRoot = path.join(root, ".cache");
+  fs.mkdirSync(fixtureRoot, { recursive: true });
+  const fixture = fs.mkdtempSync(path.join(fixtureRoot, "mpv-next-package-"));
+  try {
+    const executable = path.join(fixture, "test.exe");
+    fs.writeFileSync(executable, "fixture, never executed");
+    fs.mkdirSync(path.join(fixture, "resources/app"), { recursive: true });
+    fs.writeFileSync(
+      path.join(fixture, "resources/app/package.json"),
+      JSON.stringify({
+        lampauaMpvTest: true,
+        lampauaMpvD3d11Test: true,
+        main: "src/mpv-test-main.js",
+      }),
+    );
+    const oldPackage = spawnSync(
+      process.execPath,
+      [
+        path.join(root, "scripts/verify-mpv-desktop.cjs"),
+        "--d3d11-next",
+        "--exe",
+        executable,
+      ],
+      { encoding: "utf8", windowsHide: true, timeout: 5000 },
+    );
+    assert.notEqual(oldPackage.status, 0);
+    assert.match(
+      oldPackage.stderr,
+      /Pass the upstream-native D3D11 test package/,
+    );
+  } finally {
+    assert.ok(
+      path.resolve(fixture).startsWith(path.resolve(fixtureRoot) + path.sep),
+    );
+    fs.rmSync(fixture, { recursive: true, force: true });
+  }
   assert.ok(
     fs.existsSync(path.join(root, "src/modules/mpv/testMode.js")),
     "test-mode bootstrap is missing",
@@ -87,6 +123,47 @@ async function main() {
   );
   assert.equal(mode.isMpvTest(), true);
   assert.equal(mode.isMpvEnabled(), true);
+  const nextPaths = [];
+  const nextMode = load(
+    "src/modules/mpv/testMode.js",
+    {
+      "../../../package.json": {
+        lampauaMpvTest: true,
+        lampauaMpvD3d11Test: true,
+        lampauaMpvD3d11NextTest: true,
+      },
+    },
+    { process: { platform: "win32", arch: "x64", argv: [] } },
+  );
+  nextMode.bootstrapMpvTest({
+    ...app,
+    setPath: (key, value) => nextPaths.push([key, value]),
+  });
+  assert.deepEqual(nextPaths, [
+    ["userData", path.join("D:/AppData", "LampaUaDesktopMpvD3d11NextTest")],
+    ["sessionData", path.join("D:/AppData", "LampaUaDesktopMpvD3d11NextTest")],
+  ]);
+  assert.equal(nextMode.isMpvD3d11Enabled(), true);
+  for (const [arch, d3d11Flag] of [
+    ["arm64", true],
+    ["x64", false],
+  ]) {
+    const invalidNext = load(
+      "src/modules/mpv/testMode.js",
+      {
+        "../../../package.json": {
+          lampauaMpvTest: true,
+          lampauaMpvD3d11Test: d3d11Flag,
+          lampauaMpvD3d11NextTest: true,
+        },
+      },
+      { process: { platform: "win32", arch, argv: [] } },
+    );
+    assert.throws(
+      () => invalidNext.bootstrapMpvTest(app),
+      /Windows x64 D3D11 test package/,
+    );
+  }
   for (const [pkg, platform, arch, expected] of [
     [{ lampauaMpv: true, lampauaMpvD3d11: true }, "win32", "x64", true],
     [{ lampauaMpv: true, lampauaMpvD3d11: true }, "win32", "arm64", false],
