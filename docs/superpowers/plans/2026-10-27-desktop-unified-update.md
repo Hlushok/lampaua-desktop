@@ -59,8 +59,10 @@
 
 - [x] Inspect pinned source snapshots, relevant MPV/FFmpeg changes, native D3D11/API and minimum dependency compatibility; pin MPV 82667e3c and FFmpeg 86444dd3. The GitHub FFmpeg compare is truncated, not a complete manual review of 879 commits.
 - [x] Support unpatched upstream-native D3D11 provenance while preserving verification of the historical patched source bundle.
-- [ ] Run source/environment/preflight tests before the expensive compilation; commit candidate build inputs. Local source/tooling tests and recipe preparation pass; CI must verify the actual captured source set and container before compilation.
-- [ ] Push only the update/candidate branch as needed for the artifact-only DLL build. No release or production-pin promotion in this step.
+- [x] Run source/environment/preflight tests before the expensive compilation; commit candidate build inputs. Run 40556592535 passed the container, 94 source/tooling tests and captured-source preflight before compilation.
+- [x] Push only the update/candidate branch as needed for the artifact-only DLL build. No release or production-pin promotion in this step.
+- [x] Repair the confirmed FFmpeg configure incompatibility: remove only the obsolete `--enable-opengl` from the new candidate recipe. Capture the actual CMake configure argument vector and validate it with pinned FFmpeg's own parser (`--help` last) in a disposable directory before GCC; add negative option/early-exit and recipe-isolation tests.
+- [ ] Rerun artifact-only CI after all local checks; verify the new argument preflight is reached before compilation.
 - [ ] Verify the finished DLL/SDK/API/imports and independently audit complete sources/notices; preserve exact accepted inputs.
 
 ### Task 5: Application Acceptance
@@ -82,3 +84,6 @@
 - Merge dfb201f: GitHub validation 40554085686 and IINA/macOS build 40554086063 both PASS.
 - New-core tooling: 90 Python tests PASS, native metadata and workflow regression checks PASS, lint PASS. The pinned new recipe prepares successfully locally; actual Linux source/environment preflight remains a CI gate.
 - First DLL run 40555733449 stopped before compilation because the upstream registry removed the old container digest. Candidate-only container refresh and a tested pre-container registry gate added; no floating-image fallback or historical pin rewrites.
+- 29 October reconciliation: branch b05c234 is clean and pushed. Latest donor still f834fec. Validation 40556594250 and IINA/macOS 40556594500 PASS. The old-runtime Windows portable was packaged (SHA-256 2a95c3ce8930e71782483ffc774068e2e481995155def5cbed75abd2a4701a39); it is NOT new-DLL acceptance. New DLL run 40556592535 failed at FFmpeg configure after dependency compilation: `Unknown option "--enable-opengl"`. Source and environment preflight had passed.
+- Scheduled sync 40667554836 still runs main e9acfed and correctly requests manual review of donor package/window-manager changes already merged into this candidate branch. Do not weaken the sync policy or push an unaccepted core to main to silence that notification.
+- Configure repair RED/GREEN: exact pinned FFmpeg rejected the old recipe, then accepted all 64 options after the single flag removal. Full local checks: 99 Python tests, 18 donor/navigation tests, lint, workflow contracts and production audit PASS. Packaged old-runtime app's 42-package dependency graph is complete; new-runtime playback is still pending.

@@ -141,7 +141,7 @@ class SourcePreflightTests(unittest.TestCase):
             '  URL https://example.invalid/input.tar.gz URL_HASH SHA256=' + "b" * 64 + '\n'
             f'  SOURCE_DIR "{source}"\n'
             f'  DOWNLOAD_COMMAND ${{CMAKE_COMMAND}} -E copy_directory "{fixture.as_posix()}" "{source}"\n'
-            '  UPDATE_COMMAND "" CONFIGURE_COMMAND ${CMAKE_COMMAND} -E false\n'
+            '  UPDATE_COMMAND "" CONFIGURE_COMMAND ${CMAKE_COMMAND} -E false [=[two "words" \\slash]=]\n'
             '  BUILD_COMMAND ${CMAKE_COMMAND} -E false INSTALL_COMMAND "")\n'
             'lampaua_capture_source(example)\n')
         env = {**os.environ, "LAMPAUA_MPV_SCRIPTS": scripts.as_posix(),
@@ -157,6 +157,8 @@ class SourcePreflightTests(unittest.TestCase):
                                env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         self.assertEqual(built.returncode, 0, built.stdout)
         self.assertTrue((self.root / "archives/example.json").is_file())
+        captured = json.loads((self.root / "archives/projects/example.json").read_text())
+        self.assertEqual(captured["configureCommand"][-3:], ["-E", "false", 'two "words" \\slash'])
         self.assertFalse(list((self.root / "build").rglob("compiler-configure")))
 
     def test_compile_phase_rejects_conflicting_core_pin_before_cmake(self):
