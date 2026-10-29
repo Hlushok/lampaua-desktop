@@ -62,14 +62,16 @@
 - [x] Run source/environment/preflight tests before the expensive compilation; commit candidate build inputs. Run 40556592535 passed the container, 94 source/tooling tests and captured-source preflight before compilation.
 - [x] Push only the update/candidate branch as needed for the artifact-only DLL build. No release or production-pin promotion in this step.
 - [x] Repair the confirmed FFmpeg configure incompatibility: remove only the obsolete `--enable-opengl` from the new candidate recipe. Capture the actual CMake configure argument vector and validate it with pinned FFmpeg's own parser (`--help` last) in a disposable directory before GCC; add negative option/early-exit and recipe-isolation tests.
-- [ ] Rerun artifact-only CI after all local checks; verify the new argument preflight is reached before compilation.
+- [x] Rerun artifact-only CI after all local checks: run 40929887820, commit 3761a32. Candidate-only, no production promotion.
+- [ ] Verify the new argument preflight is reached before compilation and the DLL build completes.
 - [ ] Verify the finished DLL/SDK/API/imports and independently audit complete sources/notices; preserve exact accepted inputs.
 
 ### Task 5: Application Acceptance
 
 **Files:** runtime pins only after candidate acceptance, build/package contracts, maintenance/user-facing release notes.
 
-- [ ] Build the full Windows Desktop candidate, not a standalone player; retain isolated test profile/updater-off.
+- [x] Intermediate dependency acceptance: full isolated Windows Desktop with the previously accepted D3D11 DLL; 4K HEVC/H264, AC3/EAC3, AVI/Xvid, controls and browser/native DASH pass. This does not accept the new DLL.
+- [ ] Build the full Windows Desktop candidate with the NEW DLL, not a standalone player; retain isolated test profile/updater-off.
 - [ ] Run native/transport/lifecycle and full packaged playback, controls/orientation/GPU-recovery tests.
 - [ ] Repeat sustained H264/HEVC/Main10 and real 80+ GB 4K scene acceptance; no CPU-copy or UI-freeze regression.
 - [ ] Obtain one independent final review, resolve findings and record exact evidence/limits.
@@ -87,3 +89,4 @@
 - 29 October reconciliation: branch b05c234 is clean and pushed. Latest donor still f834fec. Validation 40556594250 and IINA/macOS 40556594500 PASS. The old-runtime Windows portable was packaged (SHA-256 2a95c3ce8930e71782483ffc774068e2e481995155def5cbed75abd2a4701a39); it is NOT new-DLL acceptance. New DLL run 40556592535 failed at FFmpeg configure after dependency compilation: `Unknown option "--enable-opengl"`. Source and environment preflight had passed.
 - Scheduled sync 40667554836 still runs main e9acfed and correctly requests manual review of donor package/window-manager changes already merged into this candidate branch. Do not weaken the sync policy or push an unaccepted core to main to silence that notification.
 - Configure repair RED/GREEN: exact pinned FFmpeg rejected the old recipe, then accepted all 64 options after the single flag removal. Full local checks: 99 Python tests, 18 donor/navigation tests, lint, workflow contracts and production audit PASS. Packaged old-runtime app's 42-package dependency graph is complete; new-runtime playback is still pending.
+- Run 40929887735 (validation) and 40929887774 (IINA/macOS) PASS for 3761a32. Full old-runtime packaged quality QA PASS: `.cache/mpv-desktop-d3d11-test/evidence/run-1793298077484/results.json`; D3D11 playback and browser/native DASH without video errors, pause/seek/volume/speed, changing pixels, profile isolation, clean app exit 848 ms. Screenshots inspected. These are synthetic local streams, not a live authenticated YouTube/TorrServer acceptance test.
