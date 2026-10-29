@@ -76,7 +76,7 @@
 - [ ] Build the full Windows Desktop candidate with the NEW DLL, not a standalone player; retain isolated test profile/updater-off.
 - [ ] Run native/transport/lifecycle and full packaged playback, controls/orientation/GPU-recovery tests.
 - [ ] Repeat sustained H264/HEVC/Main10 and real 80+ GB 4K scene acceptance; no CPU-copy or UI-freeze regression.
-- [ ] Obtain one independent final review, resolve findings and record exact evidence/limits.
+- [x] Obtain one independent code review, resolve findings and record exact evidence/limits. Binary/playback acceptance remains separate and pending the new DLL.
 - [ ] Prepare one release only after acceptance; verify tag/package version, cross-platform CI, source assets and anonymous update metadata before publication.
 
 ## Progress
@@ -93,3 +93,4 @@
 - Configure repair RED/GREEN: exact pinned FFmpeg rejected the old recipe, then accepted all 64 options after the single flag removal. Full local checks: 99 Python tests, 18 donor/navigation tests, lint, workflow contracts and production audit PASS. Packaged old-runtime app's 42-package dependency graph is complete; new-runtime playback is still pending.
 - Run 40929887735 (validation) and 40929887774 (IINA/macOS) PASS for 3761a32. Full old-runtime packaged quality QA PASS: `.cache/mpv-desktop-d3d11-test/evidence/run-1793298077484/results.json`; D3D11 playback and browser/native DASH without video errors, pause/seek/volume/speed, changing pixels, profile isolation, clean app exit 848 ms. Screenshots inspected. These are synthetic local streams, not a live authenticated YouTube/TorrServer acceptance test.
 - Native-candidate packaging preparation: CLI/profile RED-to-GREEN, D3D11 service/isolation/release/renderer contracts and lint PASS. Full old-SDK stage-only build also PASS, including real Electron network checks, native rebuild, staging hashes and native lifecycle. Cache `.cache/mpv-desktop-d3d11-test/package-1793298707838` is still OLD-runtime evidence, not a next-candidate build.
+- Independent review of main e9acfed through 5f730f3 found one P2 in QA only: navigation recovery read the old D3D11 profile for `--d3d11-next`. Fixed the diagnostic path; regression executes the actual read expression across old/next, persistent/run-id and release profiles (8 combinations). RED with the original expression, GREEN after the fix, confirmed independently. No other confirmed code defects found; lint, D3D11 integration and release contracts PASS. Validation 40931989759 and IINA/macOS 40931989753 PASS for 5f730f3. New DLL run 40929887820 remains a separate acceptance gate.

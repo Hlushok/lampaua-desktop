@@ -1041,7 +1041,7 @@ async function main() {
             ? path.join(output, "profile")
             : path.join(
                 process.env.APPDATA,
-                `LampaUaDesktopMpvD3d11Test${reuseTestProfile ? "" : `-${runId}`}`,
+                `LampaUaDesktopMpv${d3d11Next ? "D3d11Next" : "D3d11"}Test${reuseTestProfile ? "" : `-${runId}`}`,
               ),
           "logs/mpv-test.jsonl",
         ),

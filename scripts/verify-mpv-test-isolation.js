@@ -22,6 +22,55 @@ function load(file, requires, extra = {}) {
   return module.exports;
 }
 async function main() {
+  const desktopQa = fs.readFileSync(
+    path.join(root, "scripts/verify-mpv-desktop.cjs"),
+    "utf8",
+  );
+  const diagnosticStart = desktopQa.indexOf(
+    "const diagnostics = fs.readFileSync(",
+  );
+  const diagnosticEnd = desktopQa.indexOf(
+    "const originCapabilities =",
+    diagnosticStart,
+  );
+  assert.ok(diagnosticStart >= 0 && diagnosticEnd > diagnosticStart);
+  const diagnosticRead = desktopQa.slice(diagnosticStart, diagnosticEnd);
+  for (const d3d11Next of [false, true]) {
+    for (const reuseTestProfile of [false, true]) {
+      for (const release of [false, true]) {
+        const output = path.join(root, ".cache", "qa-profile-fixture");
+        const appData = path.join(root, ".cache", "qa-appdata-fixture");
+        const runId = "run-regression";
+        const profile = `LampaUaDesktopMpv${d3d11Next ? "D3d11Next" : "D3d11"}Test${reuseTestProfile ? "" : `-${runId}`}`;
+        const expected = path.join(
+          release ? path.join(output, "profile") : path.join(appData, profile),
+          "logs/mpv-test.jsonl",
+        );
+        const diagnostic = vm.runInNewContext(
+          `${diagnosticRead}\ndiagnostics`,
+          {
+            fs: {
+              readFileSync(file, encoding) {
+                assert.equal(file, expected, "Recovery read another profile");
+                assert.equal(encoding, "utf8");
+                return '{"type":"d3d11-retired-fallback"}';
+              },
+            },
+            path,
+            process: {
+              argv: release ? ["--release"] : [],
+              env: { APPDATA: appData },
+            },
+            d3d11Next,
+            reuseTestProfile,
+            runId,
+            output,
+          },
+        );
+        assert.equal(diagnostic, '{"type":"d3d11-retired-fallback"}');
+      }
+    }
+  }
   for (const args of [[], ["--d3d11", "--release"]]) {
     const rejected = spawnSync(
       process.execPath,
