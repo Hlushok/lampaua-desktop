@@ -41,7 +41,12 @@ function bootstrapMpvTest(app) {
   if (run && !/^[a-z0-9-]{1,64}$/.test(id)) {
     throw new Error("Invalid MPV test run id");
   }
-  const profile = `LampaUaDesktopMpv${isMpvD3d11Test() ? "D3d11" : ""}Test${id ? `-${id}` : ""}`;
+  const next = pkg.lampauaMpvD3d11NextTest === true;
+  if (next && !isMpvD3d11Test())
+    throw new Error(
+      "D3D11 next test requires the Windows x64 D3D11 test package",
+    );
+  const profile = `LampaUaDesktopMpv${next ? "D3d11Next" : isMpvD3d11Test() ? "D3d11" : ""}Test${id ? `-${id}` : ""}`;
   app.setName("LampaUa Desktop MPV Test");
   app.setAppUserModelId("com.lampaua.desktop.mpvtest");
   app.setPath("userData", path.join(app.getPath("appData"), profile));

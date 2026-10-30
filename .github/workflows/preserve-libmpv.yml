@@ -6,7 +6,7 @@ on:
       variant:
         description: Exact variant of the completed build
         type: choice
-        options: [baseline, d3d11]
+        options: [baseline, d3d11, d3d11-next]
         required: true
         default: d3d11
       source_run:
@@ -47,11 +47,11 @@ jobs:
       DLL_SHA256: ${{ inputs.dll_sha256 }}
       VARIANT: ${{ inputs.variant }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: "3.12"
 
@@ -81,9 +81,10 @@ jobs:
           [[ "$(gh release view "$tag" --repo Hlushok/lampaua-desktop --json isDraft --jq .isDraft)" == true ]]
 
       - name: Download the finished SDK and sources without compiling
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8.0.2
         with:
-          name: ${{ inputs.variant == 'd3d11' && 'lampaua-libmpv-own-x64-d3d11' || 'lampaua-libmpv-own-x64' }}
+          digest-mismatch: error
+          name: ${{ inputs.variant == 'd3d11-next' && 'lampaua-libmpv-own-x64-d3d11-next' || inputs.variant == 'd3d11' && 'lampaua-libmpv-own-x64-d3d11' || 'lampaua-libmpv-own-x64' }}
           path: .cache/libmpv-preservation/artifact
           run-id: ${{ inputs.source_run }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -153,7 +154,7 @@ jobs:
           PY
 
       - name: Preserve audit evidence for independent acceptance
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: lampaua-libmpv-preservation-evidence
           retention-days: 30

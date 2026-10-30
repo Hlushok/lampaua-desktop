@@ -6,6 +6,7 @@ variant="${LAMPAUA_MPV_VARIANT:-baseline}"
 case "$variant" in
   baseline) config="$root/build/libmpv-source-build.json"; suffix="" ;;
   d3d11) config="$root/build/libmpv-source-build.d3d11.json"; suffix="-d3d11" ;;
+  d3d11-next) config="$root/build/libmpv-source-build.d3d11-next.json"; suffix="-d3d11-next" ;;
   *) printf 'Unsupported build variant: %s\n' "$variant" >&2; exit 1 ;;
 esac
 export LAMPAUA_MPV_CONFIG="$config"
@@ -83,7 +84,7 @@ if [ "$phase" != compile ]; then
   python3 "$LAMPAUA_MPV_SCRIPTS/preflight_sources.py" --sources "$LAMPAUA_MPV_SOURCES" \
     --lock "$root/build/${pins[4]}" --plan > "$work/preflight-targets.txt"
   readarray -t source_targets < "$work/preflight-targets.txt"
-  if [ "$variant" = d3d11 ]; then
+  if [ "$variant" != baseline ]; then
     python3 "$LAMPAUA_MPV_SCRIPTS/seed_source_download.py" --work "$work" --lock "$root/build/${pins[4]}"
   fi
   cmake --build "$work/build" --target "${source_targets[@]}" --parallel 2

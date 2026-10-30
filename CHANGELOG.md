@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.0.4](https://github.com/Hlushok/lampaua-desktop/compare/v2.0.3...v2.0.4) (2026-10-30)
+
+### Оновлення Ядра І Компонентів
+
+- Оновлено власну MPV/FFmpeg DLL із вбудованим upstream D3D11 API; збережено прямий GPU-шлях, базову сумісність x64 і точні джерела та ліцензії.
+- Перенесено macOS IINA autoplay і повноекранні виправлення донора зі збереженням налаштування наступної серії та резервного відкриття одного епізоду.
+- Оновлено сумісні залежності та GitHub Actions, додано перевірки безпеки й цілісності artifacts. Production та full dependency audits не містять advisory.
+- На новому ядрі перевірено тривале 4К H264/HEVC/Main10, реальний 80+ ГБ BDRemux, керування, субтитри й відновлення GPU. YouTube прийнятий користувачем; зафіксовані окремі upstream 502/503 не приховуються в maintenance-звіті.
+- Профіль, вибір плеєра, адреси HTTPS/HTTP і зовнішній UA Player збережено. Показ буфера TorrServer та mouse drag-to-seek залишено для окремого етапу.
+
 ## [2.0.3](https://github.com/Hlushok/lampaua-desktop/compare/v2.0.2...v2.0.3) (2026-10-23)
 
 ### Плавність І Стабільність 4К

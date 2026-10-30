@@ -22,6 +22,110 @@ function load(file, requires, extra = {}) {
   return module.exports;
 }
 async function main() {
+  const builder = fs.readFileSync(
+    path.join(root, "scripts/build-win-mpv-test.cjs"),
+    "utf8",
+  );
+  const packageStart = builder.indexOf("  const pkg = {");
+  const packageEnd = builder.indexOf("  for (const key of [", packageStart);
+  assert.ok(packageStart >= 0 && packageEnd > packageStart);
+  for (const sourceVariant of ["d3d11", "d3d11-next", "baseline", undefined]) {
+    for (const release of [false, true]) {
+      const pkg = vm.runInNewContext(
+        `${builder.slice(packageStart, packageEnd)}\npkg`,
+        {
+          original: {
+            version: "2.0.4",
+            name: "lampaua-desktop",
+            main: "src/main.js",
+          },
+          release,
+          d3d11: false,
+          d3d11Next: false,
+          mpvRuntime: { sourceVariant },
+        },
+      );
+      assert.equal(
+        pkg.lampauaMpvD3d11 === true,
+        release && ["d3d11", "d3d11-next"].includes(sourceVariant),
+        `Production D3D11 flag: ${sourceVariant}, release=${release}`,
+      );
+      assert.equal(pkg.lampauaMpvD3d11Test, undefined);
+      assert.equal(pkg.lampauaMpvD3d11NextTest, undefined);
+    }
+  }
+  const desktopQa = fs.readFileSync(
+    path.join(root, "scripts/verify-mpv-desktop.cjs"),
+    "utf8",
+  );
+  const diagnosticStart = desktopQa.indexOf(
+    "const diagnostics = fs.readFileSync(",
+  );
+  const diagnosticEnd = desktopQa.indexOf(
+    "const originCapabilities =",
+    diagnosticStart,
+  );
+  assert.ok(diagnosticStart >= 0 && diagnosticEnd > diagnosticStart);
+  const diagnosticRead = desktopQa.slice(diagnosticStart, diagnosticEnd);
+  for (const d3d11Next of [false, true]) {
+    for (const reuseTestProfile of [false, true]) {
+      for (const release of [false, true]) {
+        const output = path.join(root, ".cache", "qa-profile-fixture");
+        const appData = path.join(root, ".cache", "qa-appdata-fixture");
+        const runId = "run-regression";
+        const profile = `LampaUaDesktopMpv${d3d11Next ? "D3d11Next" : "D3d11"}Test${reuseTestProfile ? "" : `-${runId}`}`;
+        const expected = path.join(
+          release ? path.join(output, "profile") : path.join(appData, profile),
+          "logs/mpv-test.jsonl",
+        );
+        const diagnostic = vm.runInNewContext(
+          `${diagnosticRead}\ndiagnostics`,
+          {
+            fs: {
+              readFileSync(file, encoding) {
+                assert.equal(file, expected, "Recovery read another profile");
+                assert.equal(encoding, "utf8");
+                return '{"type":"d3d11-retired-fallback"}';
+              },
+            },
+            path,
+            process: {
+              argv: release ? ["--release"] : [],
+              env: { APPDATA: appData },
+            },
+            d3d11Next,
+            reuseTestProfile,
+            runId,
+            output,
+          },
+        );
+        assert.equal(diagnostic, '{"type":"d3d11-retired-fallback"}');
+      }
+    }
+  }
+  const offlineWait = desktopQa.indexOf('"offline recovery initialization"');
+  const offlineStart = desktopQa.indexOf("  await instrument();", offlineWait);
+  const offlineEnd = desktopQa.indexOf("  await evaluate(", offlineStart);
+  assert.ok(
+    offlineWait >= 0 && offlineStart > offlineWait && offlineEnd > offlineStart,
+  );
+  let instrumented = false;
+  let recovered = false;
+  await vm.runInNewContext(
+    `(async () => {${desktopQa.slice(offlineStart, offlineEnd)}})()`,
+    {
+      instrument: async () => {
+        instrumented = true;
+      },
+      play: async (name, params, data, expectedEngine) => {
+        assert.equal(instrumented, true);
+        assert.equal(name, "xvid-mp3.avi");
+        assert.equal(expectedEngine, "navigation-recovery");
+        recovered = true;
+      },
+    },
+  );
+  assert.equal(recovered, true);
   for (const args of [[], ["--d3d11", "--release"]]) {
     const rejected = spawnSync(
       process.execPath,
@@ -64,6 +168,42 @@ async function main() {
     foreignPackage.stderr,
     /Persistent profile requires the isolated D3D11 test package/,
   );
+  const fixtureRoot = path.join(root, ".cache");
+  fs.mkdirSync(fixtureRoot, { recursive: true });
+  const fixture = fs.mkdtempSync(path.join(fixtureRoot, "mpv-next-package-"));
+  try {
+    const executable = path.join(fixture, "test.exe");
+    fs.writeFileSync(executable, "fixture, never executed");
+    fs.mkdirSync(path.join(fixture, "resources/app"), { recursive: true });
+    fs.writeFileSync(
+      path.join(fixture, "resources/app/package.json"),
+      JSON.stringify({
+        lampauaMpvTest: true,
+        lampauaMpvD3d11Test: true,
+        main: "src/mpv-test-main.js",
+      }),
+    );
+    const oldPackage = spawnSync(
+      process.execPath,
+      [
+        path.join(root, "scripts/verify-mpv-desktop.cjs"),
+        "--d3d11-next",
+        "--exe",
+        executable,
+      ],
+      { encoding: "utf8", windowsHide: true, timeout: 5000 },
+    );
+    assert.notEqual(oldPackage.status, 0);
+    assert.match(
+      oldPackage.stderr,
+      /Pass the upstream-native D3D11 test package/,
+    );
+  } finally {
+    assert.ok(
+      path.resolve(fixture).startsWith(path.resolve(fixtureRoot) + path.sep),
+    );
+    fs.rmSync(fixture, { recursive: true, force: true });
+  }
   assert.ok(
     fs.existsSync(path.join(root, "src/modules/mpv/testMode.js")),
     "test-mode bootstrap is missing",
@@ -87,6 +227,47 @@ async function main() {
   );
   assert.equal(mode.isMpvTest(), true);
   assert.equal(mode.isMpvEnabled(), true);
+  const nextPaths = [];
+  const nextMode = load(
+    "src/modules/mpv/testMode.js",
+    {
+      "../../../package.json": {
+        lampauaMpvTest: true,
+        lampauaMpvD3d11Test: true,
+        lampauaMpvD3d11NextTest: true,
+      },
+    },
+    { process: { platform: "win32", arch: "x64", argv: [] } },
+  );
+  nextMode.bootstrapMpvTest({
+    ...app,
+    setPath: (key, value) => nextPaths.push([key, value]),
+  });
+  assert.deepEqual(nextPaths, [
+    ["userData", path.join("D:/AppData", "LampaUaDesktopMpvD3d11NextTest")],
+    ["sessionData", path.join("D:/AppData", "LampaUaDesktopMpvD3d11NextTest")],
+  ]);
+  assert.equal(nextMode.isMpvD3d11Enabled(), true);
+  for (const [arch, d3d11Flag] of [
+    ["arm64", true],
+    ["x64", false],
+  ]) {
+    const invalidNext = load(
+      "src/modules/mpv/testMode.js",
+      {
+        "../../../package.json": {
+          lampauaMpvTest: true,
+          lampauaMpvD3d11Test: d3d11Flag,
+          lampauaMpvD3d11NextTest: true,
+        },
+      },
+      { process: { platform: "win32", arch, argv: [] } },
+    );
+    assert.throws(
+      () => invalidNext.bootstrapMpvTest(app),
+      /Windows x64 D3D11 test package/,
+    );
+  }
   for (const [pkg, platform, arch, expected] of [
     [{ lampauaMpv: true, lampauaMpvD3d11: true }, "win32", "x64", true],
     [{ lampauaMpv: true, lampauaMpvD3d11: true }, "win32", "arm64", false],

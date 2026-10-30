@@ -24,7 +24,11 @@ function digest(file) {
     fs.closeSync(fd);
   }
 }
-function verifyPackage(sdk, artifacts, commit) {
+function verifyPackage(sdk, artifacts, commit, variant = "d3d11") {
+  assert.ok(
+    ["d3d11", "d3d11-next"].includes(variant),
+    "Unsupported SDK variant",
+  );
   assert.match(
     commit ?? "",
     /^[a-f0-9]{40}$/,
@@ -32,7 +36,7 @@ function verifyPackage(sdk, artifacts, commit) {
   );
   const config = JSON.parse(
     fs.readFileSync(
-      path.join(root, "build/libmpv-source-build.d3d11.json"),
+      path.join(root, `build/libmpv-source-build.${variant}.json`),
       "utf8",
     ),
   );
@@ -50,6 +54,11 @@ function verifyPackage(sdk, artifacts, commit) {
   assert.equal(candidate.repositoryCommit, commit);
   assert.equal(candidate.baseRevision, config.mpvCommit);
   assert.deepEqual(candidate.patches, config.sourcePatches.mpv);
+  if (config.nativeD3d11) {
+    assert.equal(candidate.nativeD3d11, true);
+    assert.equal(manifest.nativeD3d11, true);
+    assert.deepEqual(candidate.patches, []);
+  }
   assert.match(candidate.effectiveTreeSha256, /^[a-f0-9]{64}$/);
   assert.deepEqual(manifest.configuration, config);
   for (const name of [
@@ -124,6 +133,7 @@ function unit() {
     );
   write(candidate);
   assert.deepEqual(verifyPackage(sdk, artifacts, commit), candidate);
+  assert.throws(() => verifyPackage(sdk, artifacts, commit, "../baseline"));
   for (const change of [
     (value) => {
       value.clientApiVersion--;
@@ -164,6 +174,27 @@ function unit() {
     fs.writeFileSync(file, original);
   }
   assert.deepEqual(verifyPackage(sdk, artifacts, commit), candidate);
+  const nextConfig = JSON.parse(
+    fs.readFileSync(
+      path.join(root, "build/libmpv-source-build.d3d11-next.json"),
+      "utf8",
+    ),
+  );
+  const next = {
+    ...candidate,
+    baseRevision: nextConfig.mpvCommit,
+    patches: [],
+    nativeD3d11: true,
+  };
+  fs.writeFileSync(
+    path.join(artifacts, "manifest.json"),
+    JSON.stringify({ ...next, configuration: nextConfig }),
+  );
+  write(next);
+  assert.deepEqual(verifyPackage(sdk, artifacts, commit, "d3d11-next"), next);
+  delete next.nativeD3d11;
+  write(next);
+  assert.throws(() => verifyPackage(sdk, artifacts, commit, "d3d11-next"));
   console.log(
     "Candidate metadata unit tests passed; this is not DLL/context acceptance",
   );
@@ -255,6 +286,7 @@ async function main() {
       sdk,
       path.resolve(option("--artifact", path.join(sdk, "../artifacts"))),
       option("--build-commit"),
+      option("--variant", "d3d11"),
     );
   const electron = path.resolve(
     option("--electron", "node_modules/electron/dist/electron.exe"),

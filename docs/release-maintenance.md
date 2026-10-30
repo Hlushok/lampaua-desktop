@@ -1,5 +1,11 @@
 # LampaUa Desktop 2.x: Release Maintenance
 
+Оновлене upstream-native ядро та докази приймання від 2.0.4:
+[2.0.4-maintenance.md](2.0.4-maintenance.md). Його `d3d11-next` config, lock і
+receipt тепер є зафіксованими production inputs: не перезаписувати їх для
+наступної DLL. Наступний кандидат потребує нового окремого variant/receipt.
+Історичні configs і опубліковані теги залишаються незмінними.
+
 Просування перевіреного D3D11 у Windows x64, точні runtime pins і порядок
 наступних оновлень від 2.0.3: [2.0.3-maintenance.md](2.0.3-maintenance.md).
 

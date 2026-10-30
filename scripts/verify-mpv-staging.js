@@ -3,12 +3,22 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const root = path.resolve(__dirname, "..");
-const d3d11 = process.argv.includes("--d3d11");
+const d3d11Next = process.argv.includes("--d3d11-next");
+assert.equal(
+  d3d11Next && process.argv.includes("--d3d11"),
+  false,
+  "Select one D3D11 candidate variant",
+);
+const d3d11 = process.argv.includes("--d3d11") || d3d11Next;
+const release = process.argv.includes("--release");
+assert.equal(d3d11 && release, false, "D3D11 candidate cannot be a release");
 const descriptor = path.join(
   root,
-  d3d11
-    ? ".cache/mpv-desktop-d3d11-test/stage-latest.json"
-    : ".cache/mpv-desktop-test/stage-latest.json",
+  d3d11Next
+    ? ".cache/mpv-desktop-d3d11-next-test/stage-latest.json"
+    : d3d11
+      ? ".cache/mpv-desktop-d3d11-test/stage-latest.json"
+      : ".cache/mpv-desktop-test/stage-latest.json",
 );
 assert.ok(
   fs.existsSync(descriptor),
@@ -16,13 +26,12 @@ assert.ok(
 );
 const { stage } = JSON.parse(fs.readFileSync(descriptor));
 const pkg = JSON.parse(fs.readFileSync(path.join(stage, "package.json")));
-const release = process.argv.includes("--release");
-assert.equal(d3d11 && release, false, "D3D11 candidate cannot be a release");
 assert.equal(pkg.lampauaMpvD3d11Test === true, d3d11);
+assert.equal(pkg.lampauaMpvD3d11NextTest === true, d3d11Next);
 const productionMpv = require("../build/libmpv-runtime.json");
 assert.equal(
   pkg.lampauaMpvD3d11 === true,
-  release && productionMpv.sourceVariant === "d3d11",
+  release && ["d3d11", "d3d11-next"].includes(productionMpv.sourceVariant),
 );
 assert.equal(pkg.main, release ? "src/main.js" : "src/mpv-test-main.js");
 assert.equal(
@@ -74,7 +83,25 @@ if (release) {
   );
 }
 if (d3d11) {
-  const accepted = require("../build/libmpv-d3d11-test.json");
+  const accepted = require(
+    d3d11Next
+      ? "../build/libmpv-d3d11-next-test.json"
+      : "../build/libmpv-d3d11-test.json",
+  );
+  if (d3d11Next) {
+    assert.equal(manifest.candidateVariant, "d3d11-next");
+    assert.equal(manifest.mpvSource.nativeD3d11, true);
+    assert.deepEqual(manifest.mpvSource.patches, []);
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          stage,
+          "src/mpv-runtime/candidate/4255130-d3d11-render.patch",
+        ),
+      ),
+      false,
+    );
+  }
   assert.equal(manifest.candidateD3d11, true);
   for (const key of [
     "repositoryCommit",

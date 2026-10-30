@@ -8,7 +8,13 @@ const { spawn, execFileSync } = require("node:child_process");
 const { parse } = require("acorn");
 const root = path.resolve(__dirname, "..");
 const qualityOnly = process.argv.includes("--quality-only");
-const d3d11 = process.argv.includes("--d3d11");
+const d3d11Next = process.argv.includes("--d3d11-next");
+assert.equal(
+  d3d11Next && process.argv.includes("--d3d11"),
+  false,
+  "Select one D3D11 candidate variant",
+);
+const d3d11 = process.argv.includes("--d3d11") || d3d11Next;
 const reuseTestProfile = process.argv.includes("--reuse-test-profile");
 assert.ok(
   !reuseTestProfile || (d3d11 && !process.argv.includes("--release")),
@@ -20,7 +26,7 @@ assert.ok(
   exe && fs.existsSync(exe),
   "Pass --exe pointing to the full desktop build",
 );
-if (reuseTestProfile) {
+if (reuseTestProfile || d3d11Next) {
   const packageFile = path.join(
     path.dirname(path.resolve(exe)),
     "resources/app/package.json",
@@ -30,6 +36,12 @@ if (reuseTestProfile) {
     "Persistent profile requires the isolated D3D11 test package",
   );
   const pkg = JSON.parse(fs.readFileSync(packageFile, "utf8"));
+  if (d3d11Next)
+    assert.equal(
+      pkg.lampauaMpvD3d11NextTest,
+      true,
+      "Pass the upstream-native D3D11 test package",
+    );
   assert.ok(
     pkg.lampauaMpvTest === true &&
       pkg.lampauaMpvD3d11Test === true &&
@@ -40,9 +52,11 @@ if (reuseTestProfile) {
 const runId = `run-${Date.now()}`;
 const output = path.join(
   root,
-  d3d11
-    ? ".cache/mpv-desktop-d3d11-test/evidence"
-    : ".cache/mpv-desktop-test/evidence",
+  d3d11Next
+    ? ".cache/mpv-desktop-d3d11-next-test/evidence"
+    : d3d11
+      ? ".cache/mpv-desktop-d3d11-test/evidence"
+      : ".cache/mpv-desktop-test/evidence",
   runId,
 );
 fs.mkdirSync(output, { recursive: true });
@@ -1027,7 +1041,7 @@ async function main() {
             ? path.join(output, "profile")
             : path.join(
                 process.env.APPDATA,
-                `LampaUaDesktopMpvD3d11Test${reuseTestProfile ? "" : `-${runId}`}`,
+                `LampaUaDesktopMpv${d3d11Next ? "D3d11Next" : "D3d11"}Test${reuseTestProfile ? "" : `-${runId}`}`,
               ),
           "logs/mpv-test.jsonl",
         ),
@@ -1566,6 +1580,26 @@ async function main() {
     await checkNetworkCancellation("stalled.mp4");
     await checkNetworkCancellation("stalled.m3u8", "stalled.ts");
     await checkNetworkCancellation("postload-stall.mp4", undefined, true);
+    const subtitlePackets = JSON.parse(
+      execFileSync(
+        "ffprobe",
+        [
+          "-v",
+          "error",
+          "-select_streams",
+          "s",
+          "-show_packets",
+          "-of",
+          "json",
+          files.get("tracks-subs.mkv"),
+        ],
+        { encoding: "utf8", windowsHide: true },
+      ),
+    ).packets;
+    assert.ok(
+      subtitlePackets?.length,
+      "Empty embedded subtitle fixture; run create-mpv-stream-fixtures.cjs --tracks-subs",
+    );
     await play("tracks-subs.mkv", { track: 1, sub: 0 });
     await wait(
       "Lampa.PlayerVideo.video().audioTracks.length===2 && Lampa.PlayerVideo.video().textTracks.length===1",
@@ -1587,6 +1621,12 @@ async function main() {
       `String(__native.aid)===String(${audioId}) && String(__native.sid)===String(${subId})`,
       "native track selection",
     );
+    await wait(
+      "Lampa.PlayerVideo.video().currentTime > 2",
+      "embedded subtitle display interval",
+    );
+    await evaluate("Lampa.PlayerPanel.hide()");
+    await sleep(500);
     await screenshot("subtitles-on");
     await evaluate(
       "Lampa.PlayerVideo.video().textTracks[0].mode='disabled';Lampa.PlayerVideo.subsview(false);Lampa.PlayerVideo.video().muted=true",
@@ -1764,7 +1804,7 @@ async function main() {
     45_000,
   );
   await instrument();
-  await play("xvid-mp3.avi");
+  await play("xvid-mp3.avi", null, {}, "navigation-recovery");
   await evaluate(
     `Lampa.Player.close();Lampa.Player.play({url:${JSON.stringify(`${base}/h264-aac.mp4`)},title:'Close during creation',launch_player:'inner'});`,
   );

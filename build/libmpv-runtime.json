@@ -1,37 +1,31 @@
 {
   "repository": "Hlushok/lampaua-desktop",
-  "tag": "v2.0.3",
+  "tag": "v2.0.4",
   "asset": "lampaua-libmpv-x64-sdk.7z",
-  "sha256": "f8e2958cc3210d5ba833bb101c34b713fbf4202a1f3516b60d099db29a54303f",
-  "dllSha256": "5371076ac7b2cc7ba92eda3dd16e2569e82ddf122204b18ad0c203eea467d0f1",
-  "mpvCommit": "36bf3d529059a947d6700adefeab3b421e537c19",
-  "ffmpegCommit": "5d4755f7dd03d84f006d5a0ef7e3c114f52b3d77",
-  "sourceBuildCommit": "530ed50499e4afeed19b8070f149dc5bb1818931",
-  "sourceVariant": "d3d11",
+  "sha256": "fbfcffda2f64a862fb2760915059f54426db642aeb79c711ea94146320770c51",
+  "dllSha256": "a216726fa333d92596d28382bcf5dc221d6fa48c31b4b524a21d01d26ee95fb1",
+  "mpvCommit": "82667e3cb116969ec930897a6bf22395e8cd2c36",
+  "ffmpegCommit": "86444dd36834875f274f57705762c5448379d644",
+  "sourceBuildCommit": "3761a32b9ebc448a3b9fc861bc21fa90409b7d08",
+  "sourceVariant": "d3d11-next",
+  "nativeD3d11": true,
   "clientApiVersion": 131078,
-  "effectiveTreeSha256": "b6347890843a7ec5753d631ff1283be2770d2d980d91febe5f8c3cfa856f9e09",
-  "patches": [
-    {
-      "file": "patches/mpv/4255130-d3d11-render.patch",
-      "sha256": "24c70218104aeae57ecf733b3ac6787314aaa8e7e1bf332f7bb4bec185ac4217",
-      "upstreamCommit": "4255130de410e0cbdab694b951085409d466b704",
-      "baseRevision": "36bf3d529059a947d6700adefeab3b421e537c19"
-    }
-  ],
+  "effectiveTreeSha256": "8ed1783079ea443e739c44e6f80dafc6aff32081127bd66153d46b3174e2a332",
+  "patches": [],
   "cpu": "x86-64",
-  "sourceRun": "https://github.com/Hlushok/lampaua-desktop/actions/runs/39726751671",
+  "sourceRun": "https://github.com/Hlushok/lampaua-desktop/actions/runs/40929887820",
   "sourceAsset": "lampaua-libmpv-x64-sources.tar.gz",
-  "sourceSha256": "de0002968ad9ef5fb1bc59f3800a95789d68257f2dc6bde08901ecdcc9d18c10",
+  "sourceSha256": "d7a704d8e6401cfa1da938a90129561d774296830bd9ec66b69cf3df46d9aee1",
   "sourceParts": [
     {
       "asset": "lampaua-libmpv-x64-sources.tar.gz.001",
-      "sha256": "609c2668fe0fe9672521548574e2203a31494ed2f0fa6db64a8cf7aea547088c",
+      "sha256": "d2fa36bcecc2d3ecbaca3087c2112403b68fdf1196b9699ff745c6230be21445",
       "size": 1610612736
     },
     {
       "asset": "lampaua-libmpv-x64-sources.tar.gz.002",
-      "sha256": "d04be403ccad09dbb06db0e9b4c5fc6ebca6dbc20d70088c1fd7a893f1105e05",
-      "size": 1231148609
+      "sha256": "8a0f368041a52db3d8d93f8c463f78883a000ef6f8b304c805cd528971f881d1",
+      "size": 1232296255
     }
   ]
 }

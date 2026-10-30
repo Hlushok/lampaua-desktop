@@ -171,8 +171,91 @@ class SourcePatchTests(unittest.TestCase):
             self.apply()
 
 
+    def native_config(self):
+        files = {
+            "include/mpv/client.h": "#define MPV_CLIENT_API_VERSION MPV_MAKE_VERSION(2, 6)\n",
+            "include/mpv/render_d3d11.h": "mpv_d3d11_init_params mpv_d3d11_fbo\n",
+            "video/out/d3d11/libmpv_d3d11.c": "libmpv_gpu_context_d3d11\n",
+        }
+        for name, text in files.items():
+            target = self.source / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8", newline="\n")
+        run("git", "-C", str(self.source), "add", ".")
+        run("git", "-C", str(self.source), "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
+            "commit", "--quiet", "-m", "upstream native D3D11")
+        self.base = run("git", "-C", str(self.source), "rev-parse", "HEAD")
+        with tarfile.open(self.archive, "w:gz") as bundle:
+            bundle.add(self.source, arcname="mpv")
+        self.record.update(revision=self.base, sha256=digest(self.archive))
+        (self.receipts / "mpv.json").write_text(json.dumps(self.record), encoding="utf-8")
+        config = copy.deepcopy(self.config)
+        config.update(mpvCommit=self.base, nativeD3d11=True, sourcePatches={"mpv": []})
+        return config
+
+    def test_upstream_native_d3d11_preserves_effective_sources_without_backport(self):
+        config = self.native_config()
+        result = self.apply(config=config)
+        self.assertTrue(result["nativeD3d11"])
+        self.assertEqual(result["patches"], [])
+        self.assertEqual((self.source / "code.c").read_text(), "int before;\n")
+        self.assertEqual(verify_patches(self.receipts, config), result)
+        self.assertEqual(self.apply(config=config), result)
+
+    def test_empty_series_requires_explicit_native_mode_and_native_mode_forbids_backport(self):
+        config = copy.deepcopy(self.config)
+        config["sourcePatches"]["mpv"] = []
+        with self.assertRaises(ValueError):
+            self.apply(config=config)
+        config["sourcePatches"] = self.config["sourcePatches"]
+        config["nativeD3d11"] = True
+        with self.assertRaises(ValueError):
+            self.apply(config=config)
+        self.assertEqual((self.source / "code.c").read_text(), "int before;\n")
+
+    def test_native_mode_requires_render_header_backend_and_api_26(self):
+        for name, value in (("include/mpv/render_d3d11.h", ""),
+                            ("video/out/d3d11/libmpv_d3d11.c", ""),
+                            ("include/mpv/client.h", "#define MPV_CLIENT_API_VERSION MPV_MAKE_VERSION(2, 5)\n")):
+            with self.subTest(name=name):
+                config = self.native_config()
+                # Commit and capture the invalid fixture so dirty-source rejection
+                # cannot hide a missing-backend/API validation bug.
+                (self.source / name).write_text(value, encoding="utf-8")
+                run("git", "-C", str(self.source), "add", ".")
+                run("git", "-C", str(self.source), "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
+                    "commit", "--quiet", "-m", "invalid native fixture")
+                config["mpvCommit"] = run("git", "-C", str(self.source), "rev-parse", "HEAD")
+                with tarfile.open(self.archive, "w:gz") as bundle:
+                    bundle.add(self.source, arcname="mpv")
+                self.record.update(revision=config["mpvCommit"], sha256=digest(self.archive))
+                (self.receipts / "mpv.json").write_text(json.dumps(self.record))
+                with self.assertRaises(ValueError):
+                    self.apply(config=config)
+                self.assertFalse((self.receipts / "mpv-effective.json").exists())
+
+
 class CandidateBuildContracts(unittest.TestCase):
     root = Path(__file__).resolve().parents[2]
+
+    def test_native_candidate_changes_only_reviewed_core_pins(self):
+        from apply_source_patches import load_config, patch_series
+        from preflight_sources import load_lock, validate_config
+        accepted = load_config(self.root / "build/libmpv-source-build.d3d11.json")
+        native = load_config(self.root / "build/libmpv-source-build.d3d11-next.json")
+        pins = load_lock(self.root / "build" / native["sourceLock"])
+        old_pins = load_lock(self.root / "build" / accepted["sourceLock"])
+        validate_config(native, pins)
+        self.assertEqual(set(pins), set(old_pins))
+        self.assertEqual({name for name in pins if pins[name] != old_pins[name]}, {"mpv", "ffmpeg"})
+        self.assertEqual(native["recipesCommit"], "1f8d2e76255abc48f0456d9be99b4cab9c6566e6")
+        self.assertEqual(native["mpvCommit"], "82667e3cb116969ec930897a6bf22395e8cd2c36")
+        self.assertEqual(native["ffmpegCommit"], "86444dd36834875f274f57705762c5448379d644")
+        self.assertEqual(patch_series("mpv", native), [])
+        self.assertEqual(native["container"],
+            "ghcr.io/shinchiro/archlinux@sha256:ce439d0f03419bd2c022dd3746a3a9a15b2f1f4a73b47f975a02734992ba1383")
+        for key in ("rustToolchain", "target", "cpu", "windowsMetadataCommit"):
+            self.assertEqual(native[key], accepted[key], key)
 
     def test_candidate_retains_source_pins_and_only_refreshes_approved_container(self):
         from apply_source_patches import load_config, patch_series
@@ -219,6 +302,8 @@ class CandidateBuildContracts(unittest.TestCase):
             (self.root / "build/libmpv-source-build.json", self.root / "dist/libmpv-own"))
         self.assertEqual(variant_paths(self.root, "d3d11"),
             (self.root / "build/libmpv-source-build.d3d11.json", self.root / "dist/libmpv-own-d3d11"))
+        self.assertEqual(variant_paths(self.root, "d3d11-next"),
+            (self.root / "build/libmpv-source-build.d3d11-next.json", self.root / "dist/libmpv-own-d3d11-next"))
         with self.assertRaises(ValueError):
             variant_paths(self.root, "../baseline")
 

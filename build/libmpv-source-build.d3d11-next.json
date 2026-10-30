@@ -1,0 +1,17 @@
+{
+  "recipesRepository": "https://github.com/shinchiro/mpv-winbuild-cmake.git",
+  "recipesCommit": "1f8d2e76255abc48f0456d9be99b4cab9c6566e6",
+  "mpvCommit": "82667e3cb116969ec930897a6bf22395e8cd2c36",
+  "ffmpegCommit": "86444dd36834875f274f57705762c5448379d644",
+  "container": "ghcr.io/shinchiro/archlinux@sha256:ce439d0f03419bd2c022dd3746a3a9a15b2f1f4a73b47f975a02734992ba1383",
+  "rustToolchain": "nightly-2026-10-08",
+  "target": "x86_64-w64-mingw32",
+  "cpu": "x86-64",
+  "sourceLock": "libmpv-source-lock.d3d11-next.json",
+  "windowsMetadataCommit": "642aca37075f2091a0950b4ea79f35a7ead43460",
+  "sourceVersionSuffix": "-lampaua-d3d11",
+  "nativeD3d11": true,
+  "sourcePatches": {
+    "mpv": []
+  }
+}

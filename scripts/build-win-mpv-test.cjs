@@ -6,10 +6,14 @@ const { pathToFileURL } = require("node:url");
 const { createRequire } = require("node:module");
 const root = path.resolve(__dirname, "..");
 const release = process.argv.includes("--release");
-const d3d11 = process.argv.includes("--d3d11");
+const d3d11Next = process.argv.includes("--d3d11-next");
+if (d3d11Next && process.argv.includes("--d3d11"))
+  throw new Error("Select one D3D11 candidate variant");
+const d3d11 = process.argv.includes("--d3d11") || d3d11Next;
+const candidateVariant = d3d11Next ? "d3d11-next" : "d3d11";
 const candidateIndex = process.argv.indexOf("--candidate-sdk");
 if (d3d11 && release)
-  throw new Error("D3D11 is candidate-only; --release --d3d11 is forbidden");
+  throw new Error("D3D11 candidates are test-only; --release is forbidden");
 if (
   d3d11 &&
   (candidateIndex < 0 ||
@@ -21,7 +25,11 @@ if (!d3d11 && candidateIndex >= 0)
   throw new Error("--candidate-sdk requires --d3d11");
 const cache = path.join(
   root,
-  d3d11 ? ".cache/mpv-desktop-d3d11-test" : ".cache/mpv-desktop-test",
+  d3d11Next
+    ? ".cache/mpv-desktop-d3d11-next-test"
+    : d3d11
+      ? ".cache/mpv-desktop-d3d11-test"
+      : ".cache/mpv-desktop-test",
 );
 const sdk = d3d11
   ? path.resolve(process.argv[candidateIndex + 1])
@@ -85,12 +93,21 @@ function stageDependencies(stage, dependencies) {
 async function main() {
   let candidate;
   if (d3d11) {
-    const expected = require("../build/libmpv-d3d11-test.json");
+    const receipt = path.join(
+      root,
+      `build/libmpv-${candidateVariant}-test.json`,
+    );
+    if (!fs.existsSync(receipt))
+      throw new Error(
+        `Source-audited candidate receipt missing: ${path.basename(receipt)}`,
+      );
+    const expected = JSON.parse(fs.readFileSync(receipt, "utf8"));
     const { verifyPackage, digest } = require("./verify-mpv-d3d11-native.cjs");
     candidate = verifyPackage(
       sdk,
       candidateArtifacts,
       expected.repositoryCommit,
+      candidateVariant,
     );
     for (const key of [
       "repositoryCommit",
@@ -110,6 +127,20 @@ async function main() {
     const inventory = JSON.parse(
       fs.readFileSync(path.join(candidateNotices, "inventory.json")),
     );
+    if (inventory.sourceVariant !== candidateVariant)
+      throw new Error("Candidate notices variant mismatch");
+    for (const key of [
+      "repositoryCommit",
+      "dllSha256",
+      "baseRevision",
+      "effectiveTreeSha256",
+    ])
+      if (inventory[key] !== candidate[key])
+        throw new Error(`Candidate notices provenance mismatch: ${key}`);
+    if (d3d11Next && inventory.nativeD3d11 !== true)
+      throw new Error(
+        "Candidate notices require upstream-native D3D11 provenance",
+      );
     for (const component of inventory.components)
       for (const notice of component.notices) {
         const file = path.resolve(candidateNotices, notice.file);
@@ -121,6 +152,7 @@ async function main() {
       }
   }
   if (release) {
+    require("./libmpv-release-inputs.cjs").verifyReleaseInputs(root);
     for (const script of ["prepare-electron-runtime.ps1", "prepare-libmpv.ps1"])
       run("powershell.exe", [
         "-NoProfile",
@@ -244,10 +276,11 @@ async function main() {
         path.join(candidateArtifacts, file),
         path.join(runtime, "candidate", file),
       );
-    copy(
-      path.join(root, "build/patches/mpv/4255130-d3d11-render.patch"),
-      path.join(runtime, "candidate/4255130-d3d11-render.patch"),
-    );
+    if (!d3d11Next)
+      copy(
+        path.join(root, "build/patches/mpv/4255130-d3d11-render.patch"),
+        path.join(runtime, "candidate/4255130-d3d11-render.patch"),
+      );
   }
   const original = require("../package.json");
   const pkg = {
@@ -258,7 +291,8 @@ async function main() {
     main: release ? original.main : "src/mpv-test-main.js",
     lampauaMpvTest: !release,
     ...(d3d11 ? { lampauaMpvD3d11Test: true } : {}),
-    ...(release && mpvRuntime.sourceVariant === "d3d11"
+    ...(d3d11Next ? { lampauaMpvD3d11NextTest: true } : {}),
+    ...(release && ["d3d11", "d3d11-next"].includes(mpvRuntime.sourceVariant)
       ? { lampauaMpvD3d11: true }
       : {}),
     lampauaMpv: true,
@@ -303,6 +337,7 @@ async function main() {
         sdkSha256: expectedSdk,
         mpvSource: mpvRuntime,
         ...(d3d11 ? { candidateD3d11: true } : {}),
+        ...(d3d11Next ? { candidateVariant } : {}),
         hashes,
       },
       null,
@@ -316,7 +351,7 @@ async function main() {
   run(process.execPath, [
     path.join(root, "scripts/verify-mpv-staging.js"),
     ...(release ? ["--release"] : []),
-    ...(d3d11 ? ["--d3d11"] : []),
+    ...(d3d11Next ? ["--d3d11-next"] : d3d11 ? ["--d3d11"] : []),
   ]);
   run(process.execPath, [
     path.join(root, "scripts/verify-mpv-native-lifecycle.cjs"),
@@ -327,11 +362,13 @@ async function main() {
   const { build, Platform, Arch } = require("electron-builder");
   const output = path.join(
     root,
-    d3d11
-      ? "dist/mpv-desktop-d3d11-test"
-      : release
-        ? "dist/release-x64"
-        : "dist/mpv-desktop-test",
+    d3d11Next
+      ? "dist/mpv-desktop-d3d11-next-test"
+      : d3d11
+        ? "dist/mpv-desktop-d3d11-test"
+        : release
+          ? "dist/release-x64"
+          : "dist/mpv-desktop-test",
   );
   const targets = Platform.WINDOWS.createTarget(
     process.argv.includes("--unpacked")

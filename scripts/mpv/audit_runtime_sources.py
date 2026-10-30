@@ -38,19 +38,21 @@ def collect_notices(archive, component, output):
     return notices
 
 
-def verify_candidate_inputs(sources, manifest, config_path):
+def verify_candidate_inputs(sources, manifest, config_path, variant="d3d11"):
     config = load_config(config_path)
     effective = verify_patches(sources, config)
     if manifest.get("clientApiVersion") != ((2 << 16) | 6):
         raise ValueError("Candidate source manifest requires client API 2.6")
     provenance = {key: effective[key] for key in ("baseRevision", "patches", "effectiveTreeSha256")}
+    if config.get("nativeD3d11"):
+        provenance["nativeD3d11"] = effective["nativeD3d11"]
     for key, value in provenance.items():
         if manifest.get(key) != value:
             raise ValueError(f"Candidate source provenance mismatch: {key}")
     for item in effective["patches"]:
         if digest(within(sources, item["file"])) != item["sha256"]:
             raise ValueError("Bundled patch differs from the pinned patch")
-    return {"sourceVariant": "d3d11", "clientApiVersion": manifest["clientApiVersion"],
+    return {"sourceVariant": variant, "clientApiVersion": manifest["clientApiVersion"],
             "container": config["container"], **provenance}
 
 
@@ -62,7 +64,7 @@ def audit(sources, manifest_path, root, output, variant="baseline"):
     config = json.loads(config_path.read_text(encoding="utf-8"))
     if manifest["configuration"] != config:
         raise ValueError("Source configuration differs from the app's pinned build")
-    candidate = verify_candidate_inputs(sources, manifest, config_path) if variant == "d3d11" else {}
+    candidate = verify_candidate_inputs(sources, manifest, config_path, variant) if variant != "baseline" else {}
     receipts = manifest["components"]
     by_name = {record["name"]: record for record in receipts}
     if len(by_name) != len(receipts):
@@ -121,7 +123,7 @@ if __name__ == "__main__":
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True, help="New directory for original notices and inventory")
-    parser.add_argument("--variant", choices=("baseline", "d3d11"), default="baseline")
+    parser.add_argument("--variant", choices=("baseline", "d3d11", "d3d11-next"), default="baseline")
     args = parser.parse_args()
     result = audit(args.sources, args.manifest, args.root, args.output, args.variant)
     print(json.dumps({key: value for key, value in result.items() if key != "components"}, indent=2))

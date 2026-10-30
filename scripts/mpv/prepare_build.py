@@ -27,6 +27,12 @@ def enable_d3d11_recipe(path):
     replace_once(path, lines[0], lines[0] + lines[0].replace("render_gl.h", "render_d3d11.h"))
 
 
+def update_native_ffmpeg_recipe(path):
+    # This FFmpeg revision removed its OpenGL output device/option. MPV's
+    # rendering backends and the accepted historical recipe are independent.
+    replace_once(path, "        --enable-opengl\n", "")
+
+
 def replace_once(path, old, new):
     text = path.read_text(encoding="utf-8")
     if text.count(old) != 1:
@@ -91,6 +97,8 @@ def prepare(recipes, scripts, config, lock):
                      f'    {source_patch_command(name, config)}\n    CONFIGURE_COMMAND')
     if config.get("sourcePatches"):
         enable_d3d11_recipe(recipes / "packages/mpv.cmake")
+    if config.get("nativeD3d11"):
+        update_native_ffmpeg_recipe(recipes / "packages/ffmpeg.cmake")
     # Do not perform an unrelated floating release lookup while configuring.
     replace_once(recipes / "packages" / "CMakeLists.txt", "    mpv-release\n", "")
     replace_once(recipes / "packages" / "CMakeLists.txt", "    mpv-packaging\n", "")

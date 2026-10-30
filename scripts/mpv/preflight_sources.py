@@ -10,6 +10,7 @@ from package_build import source_closure
 from patch_static_openssl import patch as patch_static_openssl
 from patch_curl_compat import patched_texts
 from apply_source_patches import load_config, preflight_patches, verify_patches
+from check_ffmpeg_configure import check_options
 
 
 def load_lock(path):
@@ -132,6 +133,8 @@ if __name__ == "__main__":
             raise ValueError("Build configuration is required for source verification")
         verify_extras(args.sources, projects, config)
         check_curl_layout(projects)
+        if config.get("nativeD3d11"):
+            check_options(projects["ffmpeg"])
         if config.get("sourcePatches"):
             if args.prepare_patches:
                 preflight_patches(args.sources, config)
