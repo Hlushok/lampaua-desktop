@@ -151,6 +151,12 @@ Before publishing:
 2. Run scripts/verify-mpv-desktop.cjs --release --exe ABSOLUTE_PORTABLE_PATH.
    It uses an explicit isolated user-data directory and compares the primary
    profile metadata. Never delete the user's profile to make a test pass.
+   Для cold-start self-extracting portable можна явно додати
+   `--startup-timeout-seconds 120`. Цей обмежений параметр змінює лише startup
+   CDP wait, не playback/close/error gates; unpacked app має стандартні 40 с.
+   Зберігайте початкові RED і точні flags повторного прогону. GPU diagnostics
+   потребують `--d3d11 --performance-only`; GPU recovery перевіряється окремо
+   через `--gpu-recovery-only`, без паралельних тестів і з видимим вікном.
 3. Verify real YouTube, IPTV and protected-stream behavior without committing
    credentials. Short fixture tests are not a claim of sustained 4K throughput.
 4. Check update metadata points to the x64 MPV installer and includes other

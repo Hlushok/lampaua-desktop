@@ -7,6 +7,40 @@ const crypto = require("node:crypto");
 const { spawn, execFileSync } = require("node:child_process");
 const { parse } = require("acorn");
 const root = path.resolve(__dirname, "..");
+function startupTimeout(args) {
+  const index = args.indexOf("--startup-timeout-seconds");
+  if (index < 0) return 40_000;
+  const value = args[index + 1];
+  assert.match(value || "", /^\d+$/);
+  const seconds = Number(value);
+  assert.ok(
+    seconds >= 1 && seconds <= 120,
+    "Startup timeout must be 1-120 seconds",
+  );
+  return seconds * 1000;
+}
+async function readDebugTargets(url, timeoutMs) {
+  const abort = new AbortController();
+  let timer;
+  try {
+    return await Promise.race([
+      (async () => {
+        const response = await fetch(url, { signal: abort.signal });
+        return response.json();
+      })(),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          abort.abort();
+          reject(new Error("Startup debugging request timed out"));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+    abort.abort();
+  }
+}
+const startupTimeoutMs = startupTimeout(process.argv);
 const qualityOnly = process.argv.includes("--quality-only");
 const d3d11Next = process.argv.includes("--d3d11-next");
 assert.equal(
@@ -318,18 +352,24 @@ async function main() {
   });
   deadline = setTimeout(terminate, 300_000);
   let target;
-  for (let i = 0; i < 160; i++) {
+  const startupDeadline = Date.now() + startupTimeoutMs;
+  while (Date.now() < startupDeadline) {
     if (appExited)
       throw new Error(`Application exited during startup: ${exitCode}`);
     try {
-      target = (
-        await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json()
-      ).find((entry) => entry.type === "page");
+      const remaining = startupDeadline - Date.now();
+      if (remaining <= 0) break;
+      const targets = await readDebugTargets(
+        `http://127.0.0.1:${debugPort}/json/list`,
+        remaining,
+      );
+      if (Date.now() >= startupDeadline) break;
+      target = targets.find((entry) => entry.type === "page");
     } catch {
       /* The endpoint is not available until Chromium starts. */
     }
     if (target) break;
-    await sleep(250);
+    await sleep(Math.min(250, Math.max(0, startupDeadline - Date.now())));
   }
   assert.ok(target, "Desktop debugging target not found");
   ws = new WebSocket(target.webSocketDebuggerUrl);
