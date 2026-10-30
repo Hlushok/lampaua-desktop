@@ -152,6 +152,7 @@ async function main() {
       }
   }
   if (release) {
+    require("./libmpv-release-inputs.cjs").verifyReleaseInputs(root);
     for (const script of ["prepare-electron-runtime.ps1", "prepare-libmpv.ps1"])
       run("powershell.exe", [
         "-NoProfile",
@@ -291,7 +292,7 @@ async function main() {
     lampauaMpvTest: !release,
     ...(d3d11 ? { lampauaMpvD3d11Test: true } : {}),
     ...(d3d11Next ? { lampauaMpvD3d11NextTest: true } : {}),
-    ...(release && mpvRuntime.sourceVariant === "d3d11"
+    ...(release && ["d3d11", "d3d11-next"].includes(mpvRuntime.sourceVariant)
       ? { lampauaMpvD3d11: true }
       : {}),
     lampauaMpv: true,

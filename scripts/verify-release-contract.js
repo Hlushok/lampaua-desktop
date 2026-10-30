@@ -6,24 +6,10 @@ const crypto = require("node:crypto");
 const { EventEmitter } = require("node:events");
 const root = path.resolve(__dirname, "..");
 const pkg = require("../package.json");
-const runtime = require("../build/libmpv-runtime.json");
-const inventory = require("../licenses/libmpv/inventory.json");
-const accepted = require("../build/libmpv-d3d11-test.json");
-assert.equal(runtime.sourceVariant, "d3d11");
-assert.equal(runtime.sha256, accepted.sdkSha256);
-assert.equal(runtime.dllSha256, accepted.dllSha256);
-assert.equal(runtime.sourceBuildCommit, accepted.repositoryCommit);
-assert.equal(runtime.sourceSha256, accepted.sourceSha256);
-assert.equal(runtime.effectiveTreeSha256, accepted.effectiveTreeSha256);
-assert.equal(inventory.sourceVariant, runtime.sourceVariant);
-assert.equal(inventory.effectiveTreeSha256, runtime.effectiveTreeSha256);
-assert.deepEqual(inventory.patches, runtime.patches);
-assert.equal(inventory.dllSha256, runtime.dllSha256);
-assert.equal(inventory.repositoryCommit, runtime.sourceBuildCommit);
-assert.equal(
-  inventory.pinnedInputs,
-  Object.keys(require("../build/libmpv-source-lock.json").components).length,
+const runtime = require("./libmpv-release-inputs.cjs").verifyReleaseInputs(
+  root,
 );
+const inventory = require("../licenses/libmpv/inventory.json");
 assert.equal(runtime.sourceParts.length, 2);
 runtime.sourceParts.forEach((part, index) => {
   assert.equal(

@@ -96,7 +96,7 @@ is a separate feature, not assumed missing or selected for implementation.
 - [x] Repeat the real 80+ GB 4K scene: user confirmed the NEW test package is smooth for at least 3 minutes from 25:10 and seeking works. This is manual acceptance, not per-frame torrent telemetry.
 - [x] Live authenticated YouTube accepted by the owner on 30 October: "ютуб вважаємо робочим". A real 1080p clip resumed after seeking; intermittent 4K upstream failures remain recorded, not claimed fixed by the Desktop update. No YouTube/server/proxy changes.
 - [x] Extend draft-only source preservation to the finished `d3d11-next` artifact; add RED/GREEN and negative workflow contract checks. No recompilation, default/old variants preserved.
-- [ ] Preserve the verified SDK and two source parts in the next release draft, independently compare the evidence, then promote production provenance/notices with contract coverage.
+- [x] Preserve the verified SDK and two source parts in the next release draft (run 41078485801), independently compare the evidence, then promote production provenance/notices with contract coverage. All 835 original notices match; inventory differs only CRLF/LF, production retains exact audited local receipt bytes.
 - [x] Obtain one independent code review, resolve findings and record exact evidence/limits. Fresh new-DLL acceptance is recorded separately above; physical macOS/IINA playback remains unverified.
 - [ ] Prepare one release only after acceptance; verify tag/package version, cross-platform CI, source assets and anonymous update metadata before publication.
 

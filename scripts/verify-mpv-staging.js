@@ -31,7 +31,7 @@ assert.equal(pkg.lampauaMpvD3d11NextTest === true, d3d11Next);
 const productionMpv = require("../build/libmpv-runtime.json");
 assert.equal(
   pkg.lampauaMpvD3d11 === true,
-  release && productionMpv.sourceVariant === "d3d11",
+  release && ["d3d11", "d3d11-next"].includes(productionMpv.sourceVariant),
 );
 assert.equal(pkg.main, release ? "src/main.js" : "src/mpv-test-main.js");
 assert.equal(

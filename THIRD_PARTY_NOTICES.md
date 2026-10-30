@@ -20,14 +20,14 @@ release of Lampa, Electron or mpv.
   AC3/EAC3 playback uses the bundled libmpv rather than a custom Electron build.
 - libmpv: own baseline-CPU x64 D3D11 build, SDK lampaua-libmpv-x64-sdk.7z.
 - Build recipes: https://github.com/shinchiro/mpv-winbuild-cmake,
-  commit b2856ee6deed6957380b32465f359e67f67fafd8.
+  commit 1f8d2e76255abc48f0456d9be99b4cab9c6566e6.
 - mpv source: https://github.com/mpv-player/mpv,
-  commit 36bf3d529059a947d6700adefeab3b421e537c19.
-  Includes the pinned D3D11 render API patch from upstream commit
-  4255130de410e0cbdab694b951085409d466b704. The patch and effective-source
-  receipt are preserved in the corresponding-source archive.
+  commit 82667e3cb116969ec930897a6bf22395e8cd2c36.
+  This revision includes the upstream-native D3D11 render API without a
+  backport patch. Its effective-source receipt is preserved in the
+  corresponding-source archive.
 - FFmpeg source: https://github.com/FFmpeg/FFmpeg,
-  commit 5d4755f7dd03d84f006d5a0ef7e3c114f52b3d77.
+  commit 86444dd36834875f274f57705762c5448379d644.
 
 The selected libmpv contains GPL components and FFmpeg configured with
 --enable-gpl and --enable-version3. Do not describe this binary as LGPL-only.

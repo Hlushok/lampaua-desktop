@@ -22,6 +22,38 @@ function load(file, requires, extra = {}) {
   return module.exports;
 }
 async function main() {
+  const builder = fs.readFileSync(
+    path.join(root, "scripts/build-win-mpv-test.cjs"),
+    "utf8",
+  );
+  const packageStart = builder.indexOf("  const pkg = {");
+  const packageEnd = builder.indexOf("  for (const key of [", packageStart);
+  assert.ok(packageStart >= 0 && packageEnd > packageStart);
+  for (const sourceVariant of ["d3d11", "d3d11-next", "baseline", undefined]) {
+    for (const release of [false, true]) {
+      const pkg = vm.runInNewContext(
+        `${builder.slice(packageStart, packageEnd)}\npkg`,
+        {
+          original: {
+            version: "2.0.4",
+            name: "lampaua-desktop",
+            main: "src/main.js",
+          },
+          release,
+          d3d11: false,
+          d3d11Next: false,
+          mpvRuntime: { sourceVariant },
+        },
+      );
+      assert.equal(
+        pkg.lampauaMpvD3d11 === true,
+        release && ["d3d11", "d3d11-next"].includes(sourceVariant),
+        `Production D3D11 flag: ${sourceVariant}, release=${release}`,
+      );
+      assert.equal(pkg.lampauaMpvD3d11Test, undefined);
+      assert.equal(pkg.lampauaMpvD3d11NextTest, undefined);
+    }
+  }
   const desktopQa = fs.readFileSync(
     path.join(root, "scripts/verify-mpv-desktop.cjs"),
     "utf8",
