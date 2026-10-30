@@ -1580,6 +1580,26 @@ async function main() {
     await checkNetworkCancellation("stalled.mp4");
     await checkNetworkCancellation("stalled.m3u8", "stalled.ts");
     await checkNetworkCancellation("postload-stall.mp4", undefined, true);
+    const subtitlePackets = JSON.parse(
+      execFileSync(
+        "ffprobe",
+        [
+          "-v",
+          "error",
+          "-select_streams",
+          "s",
+          "-show_packets",
+          "-of",
+          "json",
+          files.get("tracks-subs.mkv"),
+        ],
+        { encoding: "utf8", windowsHide: true },
+      ),
+    ).packets;
+    assert.ok(
+      subtitlePackets?.length,
+      "Empty embedded subtitle fixture; run create-mpv-stream-fixtures.cjs --tracks-subs",
+    );
     await play("tracks-subs.mkv", { track: 1, sub: 0 });
     await wait(
       "Lampa.PlayerVideo.video().audioTracks.length===2 && Lampa.PlayerVideo.video().textTracks.length===1",
@@ -1601,6 +1621,12 @@ async function main() {
       `String(__native.aid)===String(${audioId}) && String(__native.sid)===String(${subId})`,
       "native track selection",
     );
+    await wait(
+      "Lampa.PlayerVideo.video().currentTime > 2",
+      "embedded subtitle display interval",
+    );
+    await evaluate("Lampa.PlayerPanel.hide()");
+    await sleep(500);
     await screenshot("subtitles-on");
     await evaluate(
       "Lampa.PlayerVideo.video().textTracks[0].mode='disabled';Lampa.PlayerVideo.subsview(false);Lampa.PlayerVideo.video().muted=true",
@@ -1778,7 +1804,7 @@ async function main() {
     45_000,
   );
   await instrument();
-  await play("xvid-mp3.avi");
+  await play("xvid-mp3.avi", null, {}, "navigation-recovery");
   await evaluate(
     `Lampa.Player.close();Lampa.Player.play({url:${JSON.stringify(`${base}/h264-aac.mp4`)},title:'Close during creation',launch_player:'inner'});`,
   );

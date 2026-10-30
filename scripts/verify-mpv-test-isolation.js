@@ -71,6 +71,29 @@ async function main() {
       }
     }
   }
+  const offlineWait = desktopQa.indexOf('"offline recovery initialization"');
+  const offlineStart = desktopQa.indexOf("  await instrument();", offlineWait);
+  const offlineEnd = desktopQa.indexOf("  await evaluate(", offlineStart);
+  assert.ok(
+    offlineWait >= 0 && offlineStart > offlineWait && offlineEnd > offlineStart,
+  );
+  let instrumented = false;
+  let recovered = false;
+  await vm.runInNewContext(
+    `(async () => {${desktopQa.slice(offlineStart, offlineEnd)}})()`,
+    {
+      instrument: async () => {
+        instrumented = true;
+      },
+      play: async (name, params, data, expectedEngine) => {
+        assert.equal(instrumented, true);
+        assert.equal(name, "xvid-mp3.avi");
+        assert.equal(expectedEngine, "navigation-recovery");
+        recovered = true;
+      },
+    },
+  );
+  assert.equal(recovered, true);
   for (const args of [[], ["--d3d11", "--release"]]) {
     const rejected = spawnSync(
       process.execPath,

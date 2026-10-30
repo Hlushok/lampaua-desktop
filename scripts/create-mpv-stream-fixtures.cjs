@@ -4,6 +4,71 @@ const { execFileSync } = require("node:child_process");
 const folder = path.resolve(__dirname, "../.cache/mpv-prototype/fixtures");
 const output = path.join(folder, "streams");
 fs.mkdirSync(output, { recursive: true });
+if (process.argv.includes("--tracks-subs")) {
+  const assert = require("node:assert/strict");
+  const subtitle = path.join(folder, "tracks-subs.srt");
+  const media = path.join(folder, "tracks-subs.mkv");
+  fs.writeFileSync(
+    subtitle,
+    "1\n00:00:01,000 --> 00:00:10,000\nLampaUa embedded subtitle test\n",
+  );
+  execFileSync(
+    "ffmpeg",
+    [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-y",
+      "-i",
+      path.join(folder, "h264-aac.mp4"),
+      "-i",
+      path.join(folder, "h264-ac3.mkv"),
+      "-i",
+      subtitle,
+      "-map",
+      "0:v:0",
+      "-map",
+      "0:a:0",
+      "-map",
+      "1:a:0",
+      "-map",
+      "2:s:0",
+      "-c",
+      "copy",
+      "-metadata:s:s:0",
+      "language=eng",
+      "-t",
+      "14",
+      media,
+    ],
+    { stdio: "inherit", windowsHide: true },
+  );
+  const probe = JSON.parse(
+    execFileSync(
+      "ffprobe",
+      [
+        "-v",
+        "error",
+        "-select_streams",
+        "s",
+        "-show_packets",
+        "-of",
+        "json",
+        media,
+      ],
+      { encoding: "utf8", windowsHide: true },
+    ),
+  );
+  assert.ok(probe.packets?.length, "Embedded subtitle fixture is empty");
+  const text = execFileSync(
+    "ffmpeg",
+    ["-v", "error", "-i", media, "-map", "0:s:0", "-f", "srt", "-"],
+    { encoding: "utf8", windowsHide: true },
+  );
+  assert.ok(text.includes("LampaUa embedded subtitle test"));
+  console.log("Embedded subtitle fixture created and packet/text verified");
+  process.exit(0);
+}
 if (process.argv.includes("--d3d11-orientation")) {
   execFileSync(
     "ffmpeg",
