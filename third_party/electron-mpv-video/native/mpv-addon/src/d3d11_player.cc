@@ -15,6 +15,8 @@ struct D3d11PlayerState::Resources {
   int width = 0;
   int height = 0;
   bool closed = false;
+  bool preview = false;
+  uint64_t preview_generation = 1;
   void cleanup() {
     if (closed) return;
     closed = true;
@@ -43,13 +45,14 @@ mpv_handle* D3d11PlayerState::handle() const { return resources_->handle; }
 mpv_render_context* D3d11PlayerState::context() const { return resources_->context; }
 
 void D3d11PlayerState::initialize(int width, int height, void (*wakeup)(void*), void (*update)(void*),
-                                void* data, std::shared_ptr<void> callbacks) {
+                                void* data, std::shared_ptr<void> callbacks, std::optional<double> preview_start) {
   auto& r = *resources_;
   if (mpv_client_api_version() != MPV_MAKE_VERSION(2, 6)) { error_ = "MPV D3D11 requires runtime API 2.6"; return; }
 #if MPV_CLIENT_API_VERSION >= MPV_MAKE_VERSION(2, 6)
   if (!r.pool.initialize(width, height)) { error_ = r.pool.error(); return; }
   r.width = width;
   r.height = height;
+  r.preview = preview_start.has_value();
   r.callbacks = std::move(callbacks);
   r.handle = mpv_create();
   if (!r.handle) { error_ = "mpv_create failed"; return; }
@@ -74,6 +77,16 @@ void D3d11PlayerState::initialize(int width, int height, void (*wakeup)(void*), 
     node.u.list = &list;
     int status = mpv_set_option(r.handle, option, MPV_FORMAT_NODE, &node);
     if (status < 0) { error_ = std::string(option) + ": " + mpv_error_string(status); return; }
+  }
+  if (preview_start) {
+    const auto start = std::to_string(*preview_start);
+    for (const auto& item : std::vector<std::pair<const char*, const char*>>{
+        {"audio", "no"}, {"start", start.c_str()}, {"network-timeout", "5"},
+        {"demuxer-readahead-secs", "0"}, {"demuxer-max-bytes", "4194304"},
+        {"demuxer-max-back-bytes", "0"}, {"cache-pause", "no"}, {"vd-lavc-threads", "2"}}) {
+      const int result = mpv_set_option_string(r.handle, item.first, item.second);
+      if (result < 0) { error_ = std::string(item.first) + ": " + mpv_error_string(result); return; }
+    }
   }
   mpv_set_wakeup_callback(r.handle, wakeup, data);
   int status = mpv_initialize(r.handle);
@@ -157,6 +170,67 @@ std::optional<D3d11Frame> D3d11PlayerState::render(int width, int height, uint64
 #endif
 }
 bool D3d11PlayerState::release(GpuFrameKey key) { return resources_->pool.release(key); }
+std::optional<PreviewPixels> D3d11PlayerState::preview(int width, int height) {
+  auto& r = *resources_;
+  if (!r.preview || width < 2 || width > 320 || height < 2 || height > 180) {
+    return {};
+  }
+  // Decode/seek on the GPU. Read back only the final thumbnail, not every
+  // full-resolution frame preceding the requested time in a long GOP.
+  PreviewPixels pixels{width, height, std::vector<uint8_t>(static_cast<size_t>(width) * height * 4)};
+  if (width != r.width || height != r.height) ++r.preview_generation;
+  auto frame = render(width, height, r.preview_generation);
+  if (!frame) return {};
+  if (frame->frame_flags & (MPV_RENDER_FRAME_INFO_REDRAW | MPV_RENDER_FRAME_INFO_REPEAT)) {
+    r.pool.release(frame->key);
+    return {};
+  }
+  auto* texture = r.pool.texture(frame->key);
+  auto release = [&] { r.pool.release(frame->key); };
+  if (!texture) { release(); error_ = "Preview texture missing"; return {}; }
+  Microsoft::WRL::ComPtr<IDXGIKeyedMutex> mutex;
+  if (FAILED(texture->QueryInterface(IID_PPV_ARGS(&mutex))) || mutex->AcquireSync(0, 0) != S_OK) {
+    release(); error_ = "Preview texture mutex unavailable"; return {};
+  }
+  auto unlock = [&] { mutex->ReleaseSync(0); release(); };
+  D3D11_TEXTURE2D_DESC desc{};
+  texture->GetDesc(&desc);
+  if (desc.Format != DXGI_FORMAT_B8G8R8A8_UNORM || desc.Width != static_cast<UINT>(width) ||
+      desc.Height != static_cast<UINT>(height)) {
+    unlock(); error_ = "Unexpected preview texture format"; return {};
+  }
+  desc.Usage = D3D11_USAGE_STAGING;
+  desc.BindFlags = 0;
+  desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+  desc.MiscFlags = 0;
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> staging;
+  if (FAILED(r.pool.device()->CreateTexture2D(&desc, nullptr, &staging))) {
+    unlock(); error_ = "Preview staging allocation failed"; return {};
+  }
+  r.pool.context()->CopyResource(staging.Get(), texture);
+  D3D11_MAPPED_SUBRESOURCE mapped{};
+  if (FAILED(r.pool.context()->Map(staging.Get(), 0, D3D11_MAP_READ, 0, &mapped))) {
+    unlock(); error_ = "Preview readback failed"; return {};
+  }
+  if (!mapped.pData || mapped.RowPitch < static_cast<UINT>(width * 4)) {
+    r.pool.context()->Unmap(staging.Get(), 0);
+    unlock(); error_ = "Invalid preview row pitch"; return {};
+  }
+  const auto* data = static_cast<const uint8_t*>(mapped.pData);
+  for (int y = 0; y < height; ++y) {
+    const auto* row = data + static_cast<size_t>(y) * mapped.RowPitch;
+    auto* output = pixels.rgba.data() + static_cast<size_t>(y) * width * 4;
+    for (int x = 0; x < width; ++x) {
+      output[x * 4] = row[x * 4 + 2];
+      output[x * 4 + 1] = row[x * 4 + 1];
+      output[x * 4 + 2] = row[x * 4];
+      output[x * 4 + 3] = row[x * 4 + 3];
+    }
+  }
+  r.pool.context()->Unmap(staging.Get(), 0);
+  unlock();
+  return pixels;
+}
 std::future<void> D3d11PlayerState::close() {
   auto r = resources_;
   return thread.submit_final([r] { r->cleanup(); });

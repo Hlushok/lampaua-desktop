@@ -57,6 +57,7 @@ async function main() {
     removeHandler: (name) => handlers.delete(name),
   };
   const controls = [];
+  const previewCalls = [];
   const instances = [];
   let restoring = false;
   let loaded = false;
@@ -75,6 +76,8 @@ async function main() {
       this.events = source.endsWith("empty")
         ? []
         : [
+            { type: "property-change", name: "duration", data: 120 },
+            { type: "property-change", name: "seekable", data: true },
             {
               type: "property-change",
               name: "track-list",
@@ -165,6 +168,15 @@ async function main() {
     addonPath: "fake",
     authorize: policy.authorize,
     normalizeSource: policy.normalizeSource,
+    createPreview: () => ({
+      open: (...args) => previewCalls.push(["open", ...args]),
+      request: async (seconds) => {
+        previewCalls.push(["request", seconds]);
+        return null;
+      },
+      cancel: () => previewCalls.push(["cancel"]),
+      destroy: () => previewCalls.push(["destroy"]),
+    }),
   });
   const windows = [1, 2].map((id) => {
     const win = new EventEmitter();
@@ -198,6 +210,19 @@ async function main() {
   await new Promise((resolve) => setImmediate(resolve));
   await assert.rejects(call("create", e), /active|session/i);
   await assert.rejects(call("play", event(windows[1]), id), /belong/i);
+  for (const name of ["preview", "preview-cancel"]) {
+    await assert.rejects(call(name, event(windows[1]), id, 5), /belong/i);
+    await assert.rejects(
+      call(name, { ...e, senderFrame: { url: "https://kinohub.uk/" } }, id, 5),
+      /authoriz|frame/i,
+    );
+  }
+  assert.equal(await call("preview", e, id, 5), null);
+  assert.equal(
+    previewCalls.length,
+    0,
+    "Unopened media must not launch preview reads",
+  );
   await assert.rejects(call("open", e, id, "file:///C:/secret"));
   for (const [source, expected] of [
     ["https://example.org/ytdl/manifest?token=keep", "dash"],
@@ -238,6 +263,27 @@ async function main() {
     Referer: "https://example.org/",
     "User-Agent": "LampaUa-Test",
   });
+  assert.equal(
+    JSON.stringify(previewCalls.at(-1)),
+    JSON.stringify([
+      "open",
+      "https://example.org/protected",
+      ["Referer: https://example.org/", "User-Agent: LampaUa-Test"],
+      "auto",
+    ]),
+  );
+  await call("preview", e, id, 5);
+  assert.equal(
+    JSON.stringify(previewCalls.at(-1)),
+    JSON.stringify(["request", 5]),
+  );
+  await assert.rejects(call("preview", e, id, -1));
+  await assert.rejects(call("preview", e, id, NaN));
+  const beforeOutOfRange = previewCalls.length;
+  assert.equal(await call("preview", e, id, 121), null);
+  assert.equal(previewCalls.length, beforeOutOfRange);
+  await call("preview-cancel", e, id);
+  assert.equal(previewCalls.at(-1)[0], "cancel");
   assert.equal(
     JSON.stringify(controls.at(-1)),
     JSON.stringify([
@@ -283,6 +329,11 @@ async function main() {
     "Commands must wait for a pipeline switch",
   );
   const destroying = call("destroy", e, id);
+  assert.equal(
+    previewCalls.at(-1)[0],
+    "destroy",
+    "Preview must stop before playback drain",
+  );
   await assert.rejects(call("create", e), /active|session/i);
   loaded = true;
   await assert.rejects(switching, /destroy/i);

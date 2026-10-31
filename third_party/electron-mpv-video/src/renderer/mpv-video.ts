@@ -475,6 +475,15 @@ export class MpvVideoElement extends HTMLElement {
     await this.player?.seek(seconds);
   }
 
+  async requestPreview(seconds: number) {
+    if (!this.player || this.disposed) return null;
+    return this.player.requestPreview(seconds);
+  }
+
+  cancelPreview() {
+    void this.player?.cancelPreview().catch(() => {});
+  }
+
   async setVolume(value: number) {
     await this.ensureReady();
     const volume = Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 80;

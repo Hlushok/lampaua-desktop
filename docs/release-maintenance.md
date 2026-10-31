@@ -1,5 +1,9 @@
 # LampaUa Desktop 2.x: Release Maintenance
 
+Мініатюри, mouse release seeking і буфер TorrServer у 2.0.5:
+[2.0.5-maintenance.md](2.0.5-maintenance.md). Runtime inputs із 2.0.4 збережені;
+після нового UI-коду перевіряється саме фінальний релізний пакет.
+
 Оновлене upstream-native ядро та докази приймання від 2.0.4:
 [2.0.4-maintenance.md](2.0.4-maintenance.md). Його `d3d11-next` config, lock і
 receipt тепер є зафіксованими production inputs: не перезаписувати їх для

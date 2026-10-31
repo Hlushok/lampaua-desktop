@@ -496,6 +496,40 @@ async function main() {
       "window.__native={};window.__lifecycle=[];for(const name of ['create','start','destroy'])Lampa.Player.listener.follow(name,()=>__lifecycle.push({name,stack:new Error().stack})); document.addEventListener('mpv-event', e=>{if(e.detail.name)__native[e.detail.name]=e.detail.data},true); Lampa.Storage.set('player_normalization',false); Lampa.Storage.set('player','inner'); Lampa.Storage.set('player_torrent','inner')",
     );
   await instrument();
+  if (
+    d3d11 &&
+    ["--performance-only", "--timeline-only", "--orientation-only"].some(
+      (flag) => process.argv.includes(flag),
+    )
+  ) {
+    const initialContext = await evaluate(
+      "({origin:location.origin,secure:isSecureContext,gpu:Boolean(navigator.gpu)})",
+    );
+    if (!initialContext.secure) {
+      // Restore only the isolated test profile after legacy HTTP QA. Never
+      // weaken Chromium security to make an insecure origin pass a GPU gate.
+      const configured = await evaluate("electronAPI.store.get('lampaUrl')");
+      if (reuseTestProfile && configured !== "https://kinohub.uk/")
+        await evaluate(
+          "void electronAPI.store.set('lampaUrl','https://kinohub.uk/')",
+        );
+      else await cdp("Page.navigate", { url: "https://kinohub.uk/" });
+      await wait(
+        "location.origin==='https://kinohub.uk' && Boolean(window.appready && Lampa?.__mpvInstalled && window.plugin_app_ready && document.querySelector('.card'))",
+        "secure GPU test origin",
+        45000,
+      );
+      await instrument();
+    }
+    const secureGpuContext = await evaluate(
+      "({origin:location.origin,secure:isSecureContext,gpu:Boolean(navigator.gpu)})",
+    );
+    results.push({ secureGpuContext, initialContext });
+    assert.ok(
+      secureGpuContext.secure && secureGpuContext.gpu,
+      "D3D11 QA requires a secure WebGPU context",
+    );
+  }
   if (d3d11 && process.argv.includes("--gpu-info-only")) {
     const adapters = await evaluate(`(async()=>{
       const result=[];for(const preference of ['default','low-power','high-performance']){
@@ -562,6 +596,11 @@ async function main() {
     const { summarizeFrameCadence } = require("./mpv/performance-metrics.cjs");
     const tracePerformance = process.argv.includes("--trace-performance");
     const gpuRecovery = process.argv.includes("--gpu-recovery-only");
+    const previewStress = process.argv.includes("--preview-stress");
+    assert.ok(
+      !previewStress || !gpuRecovery,
+      "Preview throughput and GPU recovery are separate tests",
+    );
     assert.ok(
       !gpuRecovery || !tracePerformance,
       "GPU recovery and cadence tracing are separate tests",
@@ -735,6 +774,9 @@ async function main() {
     await sleep(tracePerformance ? 6000 : 4000);
     if (tracePerformance)
       await evaluate(`console.timeStamp(${JSON.stringify(traceMarker)})`);
+    if (previewStress) await cdp("Page.bringToFront");
+    if (previewStress)
+      await require("./verify-mpv-timeline.cjs").startStress(evaluate);
     await evaluate(`(()=>{
       const surface=document.querySelector('mpv-video');
       if(typeof surface.drawGpuFrame!=='function')throw new Error('Rebuild the D3D11 test package for per-frame telemetry');
@@ -779,6 +821,11 @@ async function main() {
           fps:__native['container-fps'],hwdec:__native['hwdec-current'],pixelFormat:__native['video-params/pixelformat'],
           hardwarePixelFormat:__native['video-params/hw-pixelformat'],error:Lampa.PlayerVideo.video()?.error||null}};
     })()`);
+    let preview;
+    if (previewStress) {
+      preview = await require("./verify-mpv-timeline.cjs").stopStress(evaluate);
+      results.push({ previewStress: preview });
+    }
     fs.writeFileSync(
       path.join(output, "frames.json"),
       JSON.stringify(measured.samples),
@@ -989,6 +1036,16 @@ async function main() {
         2,
       ),
     );
+    if (previewStress) {
+      assert.ok(
+        preview.requests >= Math.floor(sampleSeconds / 3),
+        "Insufficient preview work during throughput measurement",
+      );
+      assert.ok(
+        preview.frames >= Math.floor(preview.requests * 0.8),
+        "Most preview requests did not decode frames",
+      );
+    }
     if (process.argv.includes("--assert-performance")) {
       assert.equal(
         measured.state.mode,
@@ -1102,6 +1159,29 @@ async function main() {
       });
     }
     results.push({ media: name, ...info });
+  }
+  if (process.argv.includes("--timeline-only")) {
+    await require("./verify-mpv-timeline.cjs")({
+      debugPort,
+      play,
+      evaluate,
+      cdp,
+      sleep,
+      output,
+      results,
+    });
+    results.push({ shutdown: await closeApplication() });
+    assert.deepEqual(
+      profileSnapshot(),
+      productionBefore,
+      "Production profile metadata changed",
+    );
+    fs.writeFileSync(
+      path.join(output, "results.json"),
+      JSON.stringify({ exe, runId, ok: true, results }, null, 2),
+    );
+    console.log("Desktop timeline QA passed", output);
+    return;
   }
   if (process.argv.includes("--visual-only")) {
     await sleep(10_000);
@@ -1745,6 +1825,7 @@ async function main() {
     await instrument();
     await play("h264-aac.mp4", null, {}, "navigation-recovery");
     results.push({ reload: true, savedSettings: true });
+    const urlBeforeLegacy = await evaluate("electronAPI.store.get('lampaUrl')");
     await evaluate(
       "Lampa.__mpvInstalled=false;void electronAPI.store.set('lampaUrl','http://lampaua.mooo.com/')",
     );
@@ -1791,6 +1872,17 @@ async function main() {
       stressLatencies.push(elapsed);
     }
     results.push({ nativeCallbackStressCycles: 20, stressLatencies });
+    if (urlBeforeLegacy !== "http://lampaua.mooo.com/") {
+      await evaluate(
+        `void electronAPI.store.set('lampaUrl',${JSON.stringify(urlBeforeLegacy)})`,
+      );
+      await wait(
+        `location.origin===${JSON.stringify(new URL(urlBeforeLegacy).origin)} && Boolean(window.appready && Lampa?.__mpvInstalled && window.plugin_app_ready && document.querySelector('.card'))`,
+        "restore test origin after legacy QA",
+        45000,
+      );
+      await instrument();
+    }
   }
   await cdp("Network.enable");
   await cdp("Network.setCacheDisabled", { cacheDisabled: true });
