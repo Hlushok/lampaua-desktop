@@ -1,6 +1,7 @@
 export type RenderMode = 'shared-texture' | 'webgl' | 'canvas2d' | 'd3d11'
 export type RenderPipeline = 'shared-texture' | 'software' | 'd3d11'
 export type PlayerCapabilities = { defaultRenderMode: RenderMode; supportsD3d11: boolean }
+export type PreviewFrame = { width: number; height: number; seconds: number; rgba: ArrayBuffer }
 
 export type PlayerFrame = {
   playerId: string
@@ -34,6 +35,8 @@ export type MpvPlayerSession = {
   pause(): Promise<void>
   stop(): Promise<void>
   seek(seconds: number): Promise<void>
+  requestPreview(seconds: number): Promise<PreviewFrame | null>
+  cancelPreview(): Promise<void>
   setVolume(value: number): Promise<void>
   setSpeed(value: number): Promise<void>
   setAudioTrack(id: number | 'no'): Promise<void>

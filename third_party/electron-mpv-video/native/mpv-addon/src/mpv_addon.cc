@@ -154,6 +154,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
       InstanceMethod("destroy", &MpvPlayer::Destroy),
 #ifdef _WIN32
       InstanceMethod("renderD3d11Frame", &MpvPlayer::RenderD3d11Frame),
+      InstanceMethod("renderPreviewFrame", &MpvPlayer::RenderPreviewFrame),
       InstanceMethod("releaseD3d11Frame", &MpvPlayer::ReleaseD3d11Frame),
       InstanceMethod("retireD3d11Playback", &MpvPlayer::RetireD3d11Playback),
 #ifdef LAMPAUA_GPU_TEST
@@ -178,10 +179,25 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
   explicit MpvPlayer(const Napi::CallbackInfo& info)
       : Napi::ObjectWrap<MpvPlayer>(info) {
     Napi::Env env = info.Env();
+    bool preview = false;
+    double preview_start = 0;
     if (info.Length() >= 1 && info[0].IsObject()) {
       Napi::Object options = info[0].As<Napi::Object>();
       if (options.Has("mode") && options.Get("mode").IsString()) {
         mode_ = options.Get("mode").As<Napi::String>().Utf8Value();
+      }
+      preview = options.Has("preview") && options.Get("preview").IsBoolean() &&
+          options.Get("preview").As<Napi::Boolean>().Value();
+      if (preview) {
+        if (!options.Has("start") || !options.Get("start").IsNumber()) {
+          Napi::TypeError::New(env, "Preview requires a start time").ThrowAsJavaScriptException();
+          return;
+        }
+        preview_start = options.Get("start").As<Napi::Number>().DoubleValue();
+        if (!(preview_start >= 0 && preview_start <= 9007199254740991.0) || mode_ != "software") {
+          Napi::TypeError::New(env, "Invalid preview options").ThrowAsJavaScriptException();
+          return;
+        }
       }
     }
 
@@ -218,6 +234,17 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
     set_option("sid", "no");
     set_option("pause", "yes");
     set_option("keep-open", "yes");
+    if (preview) {
+      // Used only inside the expendable preview utility process, never playback.
+      set_option("audio", "no");
+      set_option("start", std::to_string(preview_start).c_str());
+      set_option("network-timeout", "5");
+      set_option("demuxer-readahead-secs", "0");
+      set_option("demuxer-max-bytes", "4194304");
+      set_option("demuxer-max-back-bytes", "0");
+      set_option("cache-pause", "no");
+      set_option("vd-lavc-threads", "2");
+    }
     const char* hwdec = std::getenv("MPV_HWDEC");
 #ifdef _WIN32
     // The software render API needs CPU-visible frames, not zero-copy GPU frames.
@@ -242,6 +269,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
 
     observe("time-pos", MPV_FORMAT_DOUBLE);
     observe("duration", MPV_FORMAT_DOUBLE);
+    observe("seekable", MPV_FORMAT_FLAG);
     observe("file-format", MPV_FORMAT_STRING);
     observe("pause", MPV_FORMAT_FLAG);
     observe("eof-reached", MPV_FORMAT_FLAG);
@@ -332,7 +360,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
  private:
 #ifdef _WIN32
   inline static int d3d11_factory_token_ = 0;
-  enum class D3d11Operation { Initialize, Render, Release, Close
+  enum class D3d11Operation { Initialize, Render, Preview, Release, Close
 #ifdef LAMPAUA_GPU_TEST
     , Marker, Fault
 #endif
@@ -344,9 +372,11 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
     uint64_t generation = 0;
     lampaua::GpuFrameKey key;
     std::string fault;
+    std::optional<double> preview_start;
   };
   struct D3d11Result {
     std::optional<lampaua::D3d11Frame> frame;
+    std::optional<lampaua::PreviewPixels> preview;
     bool released = false;
     std::optional<uint32_t> marker;
     std::string error;
@@ -379,6 +409,15 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
         deferred_.Resolve(owner_->Value());
       } else if (operation_ == D3d11Operation::Render) {
         deferred_.Resolve(result_->frame && !owner_->cleanup_requested_ ? lampaua::gpu_frame(Env(), *result_->frame) : Env().Null());
+      } else if (operation_ == D3d11Operation::Preview) {
+        if (result_->preview && !owner_->cleanup_requested_) {
+          const auto& pixels = *result_->preview;
+          auto frame = Napi::Object::New(Env());
+          frame.Set("width", pixels.width);
+          frame.Set("height", pixels.height);
+          frame.Set("rgba", Napi::Buffer<uint8_t>::Copy(Env(), pixels.rgba.data(), pixels.rgba.size()));
+          deferred_.Resolve(frame);
+        } else deferred_.Resolve(Env().Null());
       } else if (operation_ == D3d11Operation::Release) {
         deferred_.Resolve(Napi::Boolean::New(Env(), result_->released));
 #ifdef LAMPAUA_GPU_TEST
@@ -400,7 +439,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
     }
    private:
     void finish() {
-      if (operation_ == D3d11Operation::Render) {
+      if (operation_ == D3d11Operation::Render || operation_ == D3d11Operation::Preview) {
         owner_->frame_active_ = false;
         if (owner_->cleanup_requested_) owner_->cleanup(true);
       }
@@ -425,6 +464,16 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
         !lampaua::gpu_integer(info[0].As<Napi::Object>().Get("height"), height, 2160) || !height)
       return D3d11Reject(env, "Invalid D3D11 dimensions");
     auto api = mpv_client_api_version();
+    std::optional<double> preview_start;
+    auto input = info[0].As<Napi::Object>();
+    if (input.Has("previewStart")) {
+      auto value = input.Get("previewStart");
+      if (!value.IsNumber()) return D3d11Reject(env, "Invalid preview start");
+      const auto seconds = value.As<Napi::Number>().DoubleValue();
+      if (!(seconds >= 0 && seconds <= 9007199254740991.0) || width > 320 || height > 180)
+        return D3d11Reject(env, "Invalid preview start or dimensions");
+      preview_start = seconds;
+    }
     if (api != MPV_MAKE_VERSION(2, 6)) {
       auto promise = Napi::Promise::Deferred::New(env);
       auto error = Napi::Error::New(env, "MPV D3D11 requires runtime API 2.6");
@@ -441,6 +490,8 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
     D3d11Request request{D3d11Operation::Initialize};
     request.width = static_cast<int>(width);
     request.height = static_cast<int>(height);
+    request.preview_start = preview_start;
+    owner->d3d11_preview_ = preview_start.has_value();
     return owner->QueueD3d11(request);
   }
   Napi::Value QueueD3d11(D3d11Request request) {
@@ -450,9 +501,10 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
       switch (request.operation) {
         case D3d11Operation::Initialize:
           state->initialize(request.width, request.height, lampaua::D3d11Callbacks::wakeup,
-            lampaua::D3d11Callbacks::render_update, callbacks.get(), callbacks);
+            lampaua::D3d11Callbacks::render_update, callbacks.get(), callbacks, request.preview_start);
           break;
         case D3d11Operation::Render: result->frame = state->render(request.width, request.height, request.generation); break;
+        case D3d11Operation::Preview: result->preview = state->preview(request.width, request.height); break;
         case D3d11Operation::Release: result->released = state->release(request.key); break;
         case D3d11Operation::Close: break;
 #ifdef LAMPAUA_GPU_TEST
@@ -460,12 +512,12 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
         case D3d11Operation::Fault: state->fault(request.fault); break;
 #endif
       }
-      if (request.operation == D3d11Operation::Initialize || request.operation == D3d11Operation::Render)
+      if (request.operation == D3d11Operation::Initialize || request.operation == D3d11Operation::Render || request.operation == D3d11Operation::Preview)
         result->error = state->error();
     };
     auto completion = request.operation == D3d11Operation::Close ? d3d11_state_->close() : d3d11_state_->thread.submit(std::move(job));
     if (!completion.valid()) {
-      if (request.operation == D3d11Operation::Render) frame_active_ = false;
+      if (request.operation == D3d11Operation::Render || request.operation == D3d11Operation::Preview) frame_active_ = false;
       return D3d11Reject(Env(), "D3D11 queue is closed or full");
     }
     auto* worker = new D3d11Worker(this, request.operation, result, std::move(completion));
@@ -490,6 +542,21 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
   Napi::Value ReleaseD3d11Frame(const Napi::CallbackInfo& info) {
     D3d11Request request{D3d11Operation::Release};
     if (!info.Length() || !lampaua::gpu_key(info[0], request.key)) return D3d11Reject(Env(), "Invalid D3D11 frame key");
+    return QueueD3d11(request);
+  }
+  Napi::Value RenderPreviewFrame(const Napi::CallbackInfo& info) {
+    if (!d3d11_preview_)
+      return D3d11Reject(Env(), "CPU readback requires an isolated preview decoder");
+    uint64_t width, height;
+    if (info.Length() != 2 || !lampaua::gpu_integer(info[0], width, 320) || width < 2 ||
+        !lampaua::gpu_integer(info[1], height, 180) || height < 2)
+      return D3d11Reject(Env(), "Invalid preview dimensions");
+    if (frame_active_ || cleanup_requested_ || retirement_requested_ || !d3d11_state_)
+      return D3d11Reject(Env(), "Preview decoder busy or closing");
+    D3d11Request request{D3d11Operation::Preview};
+    request.width = static_cast<int>(width);
+    request.height = static_cast<int>(height);
+    frame_active_ = true;
     return QueueD3d11(request);
   }
   class RetirementWorker : public Napi::AsyncWorker {
@@ -1810,6 +1877,7 @@ class MpvPlayer : public Napi::ObjectWrap<MpvPlayer> {
   int http_error_ = 0;
   mpv_render_context* render_context_ = nullptr;
   bool frame_active_ = false;
+  bool d3d11_preview_ = false;
   bool cleanup_requested_ = false;
   bool retirement_requested_ = false;
   bool retirement_active_ = false;

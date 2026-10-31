@@ -92,7 +92,11 @@
       "src",
       () => source,
       (value) => {
-        source = String(value || "");
+        const next = String(value || "");
+        if (next !== source) {
+          source = next;
+          emit("emptied");
+        }
       },
     );
     property(
@@ -156,6 +160,7 @@
     video.load = () =>
       queue(async () => {
         if (!source) return;
+        emit("emptied");
         loaded = false;
         metadataReady = false;
         announced = false;
@@ -184,8 +189,12 @@
       });
     video.flush = () => commands;
     video.canPlayType = () => "probably";
+    video.requestPreview = (seconds) =>
+      !dead && loaded ? surface.requestPreview(seconds) : Promise.resolve(null);
+    video.cancelPreview = () => surface.cancelPreview?.();
     video.destroy = () => {
       if (destroyPromise) return destroyPromise;
+      emit("emptied");
       dead = true;
       surface.removeEventListener("mpv-event", onEvent);
       surface.removeEventListener("mpv-error", onError);

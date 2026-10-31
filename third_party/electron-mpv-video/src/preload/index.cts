@@ -77,6 +77,8 @@ function createPlayerSession(id: string, initialPipeline: RenderPipeline): MpvPl
     pause: () => electron.ipcRenderer.invoke(channel('player:pause'), id),
     stop: () => electron.ipcRenderer.invoke(channel('player:stop'), id),
     seek: (seconds: number) => electron.ipcRenderer.invoke(channel('player:seek'), id, seconds),
+    requestPreview: (seconds: number) => electron.ipcRenderer.invoke(channel('player:preview'), id, seconds),
+    cancelPreview: () => electron.ipcRenderer.invoke(channel('player:preview-cancel'), id),
     setVolume: (value: number) => electron.ipcRenderer.invoke(channel('player:set-volume'), id, value),
     setSpeed: (value: number) => electron.ipcRenderer.invoke(channel('player:set-speed'), id, value),
     setAudioTrack: (value: number | 'no') => electron.ipcRenderer.invoke(channel('player:set-audio-track'), id, value),

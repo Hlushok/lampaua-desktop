@@ -1,6 +1,7 @@
 const path = require("node:path");
 const fs = require("node:fs");
-const { app } = require("electron");
+const { app, utilityProcess } = require("electron");
+const { FramePreview } = require("./framePreview");
 const { pathToFileURL } = require("node:url");
 const { isMpvEnabled, isMpvD3d11Enabled } = require("./testMode");
 const policy = require("./policy");
@@ -47,6 +48,25 @@ function getService() {
       createMpvMain({
         preferredPipeline: isMpvD3d11Enabled() ? "d3d11" : "software",
         addonPath: path.join(runtime, "native/mpv_addon.node"),
+        createPreview: () =>
+          new FramePreview({
+            launch: () =>
+              utilityProcess.fork(
+                path.join(__dirname, "frame-preview-worker.cjs"),
+                [path.join(runtime, "native/mpv_addon.node")],
+                {
+                  stdio: "ignore",
+                  serviceName: "LampaUa Frame Preview",
+                  env: {
+                    ...process.env,
+                    PATH:
+                      path.join(runtime, "native") +
+                      path.delimiter +
+                      (process.env.PATH || ""),
+                  },
+                },
+              ),
+          }),
         authorize: policy.authorize,
         normalizeSource: policy.normalizeSource,
         diagnostic,

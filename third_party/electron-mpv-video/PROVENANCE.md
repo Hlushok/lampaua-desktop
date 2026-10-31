@@ -1,5 +1,15 @@
 # Vendored electron-mpv-video
 
+The 2.0.5 timeline integration adds owned-session preview/cancel IPC and a
+private, video-only preview decoder in an expendable Electron utility process.
+It uses the unchanged accepted DLL/source inputs from 2.0.4. D3D11 decoding
+stays on the GPU; only the final bounded thumbnail is copied to RGBA. Readback
+is rejected on regular playback instances without changing their state. One
+warm decoder, bounded cache/deadlines and retirement quarantine prevent stale
+frames or process accumulation. URLs/options are never renderer-supplied;
+source and headers come from the authorized active session. See
+docs/timeline-preview-maintenance.md for local changes and acceptance limits.
+
 Production promotion in 2.0.3 retains the accepted D3D11 native/transport/player
 implementation and DLL, selects it only in the Windows x64 release package,
 and keeps the normal profile and updater separate from test packages.

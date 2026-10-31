@@ -4,7 +4,7 @@ import { D3d11Transport, canCreateD3d11Transport } from './d3d11-transport.js'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { createRequire } from 'node:module'
-import type { RenderPipeline } from '../shared/types.js'
+import type { RenderPipeline, PreviewFrame } from '../shared/types.js'
 import type { GpuFrameKey, NativeGpuFrame } from '../shared/gpu-frame.js'
 
 const CHANNEL_PREFIX = 'electron-mpv-video:v1'
@@ -17,6 +17,8 @@ const IPC_CHANNELS = [
   'player:pause',
   'player:stop',
   'player:seek',
+  'player:preview',
+  'player:preview-cancel',
   'player:set-volume',
   'player:set-speed',
   'player:set-audio-track',
@@ -88,9 +90,17 @@ type AttachedWindow = {
 export type MpvMainOptions = {
   preferredPipeline?: 'software' | 'd3d11'
   addonPath?: string
+  createPreview?: () => PreviewProvider
   authorize?: (event: IpcMainInvokeEvent) => boolean
   normalizeSource?: (source: unknown) => string
   diagnostic?: (type: string, data: { playerId?: string; error?: string; format?: string; code?: string }) => void
+}
+
+type PreviewProvider = {
+  open(source: string, headers: string[], format: 'auto' | 'dash' | 'hls'): void
+  request(seconds: number): Promise<PreviewFrame | null>
+  cancel(): void
+  destroy(): void
 }
 
 export type MpvMain = {
@@ -241,6 +251,7 @@ class PlayerSession {
     options: { pipeline: RenderPipeline; renderSize: RenderSize },
     private readonly diagnostic: NonNullable<MpvMainOptions['diagnostic']> = () => {},
     player: SessionNativePlayer,
+    private readonly preview?: PreviewProvider,
   ) {
     this.pipeline = options.pipeline
     if (this.pipeline === 'shared-texture' && !supportsSharedTexturePipeline()) {
@@ -252,7 +263,8 @@ class PlayerSession {
 
   static async create(window: BrowserWindow, ownerId: number, nativeModule: NativeModule,
     onDestroyed: (id: string) => void, options: { pipeline: RenderPipeline; renderSize: RenderSize },
-    diagnostic: NonNullable<MpvMainOptions['diagnostic']> = () => {}) {
+    diagnostic: NonNullable<MpvMainOptions['diagnostic']> = () => {},
+    createPreview?: () => PreviewProvider) {
     let pipeline = options.pipeline
     if (pipeline === 'd3d11' && !canCreateD3d11Transport(window.webContents)) {
       diagnostic('d3d11-retired-fallback', { code: 'GPU_TRANSPORT_RETIRED' })
@@ -271,7 +283,7 @@ class PlayerSession {
       }
     } else player = new nativeModule.MpvPlayer({ mode: pipeline })
     return new PlayerSession(window, ownerId, nativeModule, onDestroyed,
-      { ...options, pipeline }, diagnostic, player)
+      { ...options, pipeline }, diagnostic, player, createPreview?.())
   }
 
   get actualPipeline() { return this.pipeline }
@@ -336,6 +348,7 @@ class PlayerSession {
     const format = manifestFormat(source)
     this.diagnostic('open', {playerId: this.id, format})
     this.player.open(source, headers, format)
+    this.preview?.open(source, headers, format)
     this.source = source
     this.headers = headers
     this.currentTime = 0
@@ -364,6 +377,7 @@ class PlayerSession {
 
   stop() {
     this.assertAlive()
+    this.preview?.destroy()
     this.invalidateGpu()
     this.player.stop()
     this.currentTime = 0
@@ -378,6 +392,15 @@ class PlayerSession {
     this.player.seek(nextTime)
     this.currentTime = nextTime
   }
+
+  requestPreview(seconds: number) {
+    this.assertAlive()
+    bounded(seconds, 'seconds', 0, Number.MAX_SAFE_INTEGER)
+    if (!this.source || this.stopped || !this.seekable || this.duration <= 0 || seconds >= this.duration) return Promise.resolve(null)
+    return this.preview?.request(seconds) ?? Promise.resolve(null)
+  }
+
+  cancelPreview() { this.preview?.cancel() }
 
   setVolume(value: number) {
     this.assertAlive()
@@ -495,6 +518,7 @@ class PlayerSession {
   destroy() {
     if (this.destroyPromise) return this.destroyPromise
     this.destroyed = true
+    this.preview?.destroy()
     this.diagnostic('destroy-start', {playerId: this.id})
     this.stopCallbacks()
     this.destroyPromise = this.operations.then(async () => {
@@ -862,6 +886,7 @@ class MpvMainService implements MpvMain {
           renderSize,
         },
         this.options.diagnostic,
+        this.options.createPreview,
       )
       if (token.cancelled || this.disposed || this.windows.get(event.sender.id)?.ready !== true || owner.isDestroyed()) {
         await session.destroy()
@@ -897,6 +922,11 @@ class MpvMainService implements MpvMain {
       command(event, id, session => session.stop()))
     electron.ipcMain.handle(channel('player:seek'), async (event, id, seconds) =>
       command(event, id, session => session.seek(finiteNumber(seconds, 'seconds'))))
+    // Preview work has its own cancellable process, not the playback command queue.
+    electron.ipcMain.handle(channel('player:preview'), async (event, id, seconds) =>
+      this.getOwnedSession(event, id).requestPreview(finiteNumber(seconds, 'seconds')))
+    electron.ipcMain.handle(channel('player:preview-cancel'), async (event, id) =>
+      this.getOwnedSession(event, id).cancelPreview())
     electron.ipcMain.handle(channel('player:set-volume'), async (event, id, value) =>
       command(event, id, session => session.setVolume(finiteNumber(value, 'volume'))))
     electron.ipcMain.handle(channel('player:set-speed'), async (event, id, value) =>

@@ -30,6 +30,8 @@ vm.runInNewContext(source + "\nmodule.exports.diagnostic = diagnostic;", {
       return { app: { getPath: () => "C:/Contract/MpvTest" } };
     if (name === "./testMode") return { isMpvEnabled: () => true };
     if (name === "./policy") return {};
+    if (name === "./framePreview")
+      return require("../src/modules/mpv/framePreview");
     return require(name);
   },
 });

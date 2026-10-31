@@ -37,6 +37,43 @@ from Notme-SI/mpv-plus b4944849fa32f2c078ac6e5c20a1ca9518551d53:
   Current Lampa mouse movement only previews time, clicks seek, and touch already
   seeks on release; do not present these existing behaviors as missing.
 
+On 30 October, the owner added frame-thumbnail preview to this SAME follow-up
+stage, using the UA Player screenshot and current Windows implementation as the
+behavior reference (not another feature taken from mpv-plus):
+
+- Show a frame for the hovered/dragged target time, with its timestamp below,
+  above the timeline. This is not the poster or a screenshot of the current
+  playback position. Keep the bubble inside the player at both timeline edges.
+- Hover and dragging must not seek the visible player. Commit one seek on
+  pointer release; cancellation/capture loss must not accidentally commit it.
+- Keep extraction asynchronous and separate from the active playback clock,
+  queues and D3D11 rendering. Bound work/cache, cancel superseded requests and
+  reject stale results after a source/episode/quality change or player close.
+- Preserve authorized source headers and existing URL/access restrictions.
+  Do not generate previews on the VPS or change Lampac/TorrServer settings.
+  Separate preview reads can use network bandwidth: do not prefetch the whole
+  timeline or let pending previews accumulate during fast pointer movement.
+- On unsupported/non-seekable live streams, extraction failure or timeout,
+  keep the time-only hint where seeking is supported; never block playback,
+  controls or closing the application for a thumbnail.
+- Acceptance must include hovered-frame correctness, timestamp, edge placement,
+  rapid drag/cancel/source changes, bounded memory/work, and the accepted 80+ GB
+  4K scene with previews active. Preserve keyboard/remote and browser YouTube
+  behavior; verify preview support per playback path rather than assuming the
+  Windows MPV implementation covers every platform/player.
+
+Windows reference inspected read-only: `D:/opt/lampaua-player-windows/src/`
+`LampaUA.Player.App/Controls/TimelineControl.xaml.cs`,
+`LampaUA.Player.App/Views/PlayerPage.xaml.cs`, and
+`LampaUA.Player.Flyleaf/Engine/FlyleafFramePreviewService.cs`.
+It uses a lazy video-only decoder independent of playback, a 250 ms settled-
+pointer delay, one-second cache buckets, at most 48 JPEGs (up to 320x180 and
+256 KiB each), cancellation and source generations. Reuse the behavior and
+safety boundaries, not WinUI/Flyleaf-specific code in Electron. The exact
+Desktop extraction mechanism still needs a bounded design/prototype before
+product implementation; the accepted production DLL is not changed by this
+requirements update.
+
 Do not add these features to this unified update. Their detailed design and tests
 belong to that later stage. Intro skipping already exists in Lampa; retain it
 without a second Lua implementation. Track selection is transferred between
