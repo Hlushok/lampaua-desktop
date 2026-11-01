@@ -140,3 +140,11 @@ Owner then confirmed stationary hover, auto-hide after leave and finally
 authorized by the standing publication request. No runtime/dependency upgrade
 is included. Keep release CI, final-artifact QA and public updater verification
 as separate unfinished gates in docs/2.0.5-maintenance.md.
+
+Publication complete: PR #24, merge/tag `890c9c7`, release CI `41232608767`
+SUCCESS. Exact CI timeline `1793512790309`, Portable full QA `1793512885555`
+and 30s HDR/preview throughput `1793513029732` PASS. Published v2.0.5 as latest
+on 2026-11-01 06:05:37 UTC; all 20 public assets and updater metadata verified,
+plus a full anonymous installer download. Historical REDs and platform/VM
+validation limits remain in docs/2.0.5-maintenance.md. No tag or binary changes
+are included in this documentation-only postpublication receipt.
