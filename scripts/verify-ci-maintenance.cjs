@@ -71,6 +71,7 @@ function verifyPreservation(workflow) {
 
 const root = path.resolve(__dirname, "..");
 const versions = {
+  "actions/cache": "v6.1.0",
   "actions/checkout": "v7.0.1",
   "actions/setup-node": "v7.1.0",
   "actions/setup-python": "v7.1.0",
@@ -130,6 +131,14 @@ for (const name of ["build.yml", "validate.yml", "sync-upstream.yml"]) {
   );
 }
 const pkg = require("../package.json");
+for (const name of ["sync-upstream.yml", "validate.yml"])
+  for (const job of Object.values(workflows.get(name).jobs))
+    for (const value of Object.values(job.env || {}))
+      assert.doesNotMatch(
+        value,
+        /\$\{\{\s*runner\./,
+        `${name}: runner context is unavailable in job-level env`,
+      );
 const dependabot = YAML.parse(
   fs.readFileSync(path.join(root, ".github/dependabot.yml"), "utf8"),
 );

@@ -17,6 +17,8 @@ jobs:
   sync:
     runs-on: windows-latest
     timeout-minutes: 20
+    env:
+      electron_config_cache: ${{ github.workspace }}/.cache/electron-download-cache
     defaults:
       run:
         shell: bash
@@ -48,8 +50,18 @@ jobs:
           corepack enable
           corepack yarn install --immutable
 
+      - name: Cache official Electron downloads
+        uses: actions/cache@v6.1.0
+        with:
+          path: ${{ env.electron_config_cache }}
+          key: ${{ runner.os }}-${{ runner.arch }}-electron-v1-${{ hashFiles('yarn.lock') }}
+
       - name: Merge upstream with bounded fork rules
         run: node scripts/sync-upstream.cjs
+
+      - name: Prepare Electron with bounded download retries
+        timeout-minutes: 10
+        run: node scripts/ensure-electron.cjs
 
       - name: Validate merged fork before pushing
         run: |
