@@ -11,6 +11,8 @@ permissions:
 jobs:
   contracts:
     runs-on: windows-latest
+    env:
+      electron_config_cache: ${{ runner.temp }}/electron-download-cache
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-node@v7.1.0
@@ -20,6 +22,14 @@ jobs:
         run: |
           corepack enable
           corepack yarn install --immutable
+      - name: Cache official Electron downloads
+        uses: actions/cache@v6.1.0
+        with:
+          path: ${{ env.electron_config_cache }}
+          key: ${{ runner.os }}-${{ runner.arch }}-electron-v1-${{ hashFiles('yarn.lock') }}
+      - name: Prepare Electron with bounded download retries
+        timeout-minutes: 10
+        run: node scripts/ensure-electron.cjs
       - name: Compile MPV service for contract tests
         run: node node_modules/typescript/bin/tsc -p third_party/electron-mpv-video/tsconfig.lib.json --outDir .cache/mpv-desktop-test/lib
       - name: Verify pinned libmpv input contract

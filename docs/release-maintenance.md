@@ -203,6 +203,26 @@ Anonymous checks confirmed the update metadata and SDK/source download access.
 These steps complete the 2.0.0 publication gate; repeat them for a new runtime
 or release rather than assuming the old acceptance covers changed binaries.
 
+## Стійкість CI До Мережевих Збоїв
+
+У `sync-upstream.yml` та `validate.yml` офіційний Electron готується окремим
+кроком `node scripts/ensure-electron.cjs` перед контрактними перевірками.
+Використовується штатний `electron/install.js` без заміни джерела чи вимкнення
+перевірки контрольних сум. Завантажені архіви кешуються через
+`electron_config_cache`; ключ розділяє ОС, архітектуру й точний `yarn.lock`.
+Інші версії кешу навмисно не відновлюються через загальний `restore-keys`.
+
+Для HTTP 408/429/5xx, тимчасових DNS/мережевих помилок і тайм-аутів дозволено
+до чотирьох спроб із паузами 10/30/60 секунд. Кожна спроба обмежена 120 секундами.
+Під час встановлення `undici:request:error` передає лише коди початкових помилок
+`fetch`, без адрес запитів чи заголовків. Це дозволяє відрізнити обрив мережі
+від TLS-помилки навіть коли штатний installer друкує лише `fetch failed`.
+Помилки контрольних сум, сертифікатів, прав доступу, відсутніх модулів та HTTP 404
+не приховуються повторними спробами. Після вичерпання ліміту крок завершується
+помилкою; тести, аудит, перевірки MPV і заборона push неперевірених змін збережені.
+Регресійна перевірка: `node --test tests/electronDownload.test.js`.
+Це зміна лише CI, без нового релізу або заміни встановленої програми.
+
 ## After Publication
 
 Verify release tag SHA, every job, asset sizes/hashes, latest.yml version and

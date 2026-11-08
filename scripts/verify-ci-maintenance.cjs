@@ -71,6 +71,7 @@ function verifyPreservation(workflow) {
 
 const root = path.resolve(__dirname, "..");
 const versions = {
+  "actions/cache": "v6.1.0",
   "actions/checkout": "v7.0.1",
   "actions/setup-node": "v7.1.0",
   "actions/setup-python": "v7.1.0",
