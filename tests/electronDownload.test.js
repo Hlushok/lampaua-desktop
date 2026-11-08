@@ -197,7 +197,7 @@ for (const name of ["sync-upstream.yml", "validate.yml"])
       workflow.jobs[name === "sync-upstream.yml" ? "sync" : "contracts"];
     assert.equal(
       job.env.electron_config_cache,
-      "${{ runner.temp }}/electron-download-cache",
+      "${{ github.workspace }}/.cache/electron-download-cache",
     );
     const cache = job.steps.find((step) =>
       step.uses?.startsWith("actions/cache@"),

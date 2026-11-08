@@ -12,7 +12,7 @@ jobs:
   contracts:
     runs-on: windows-latest
     env:
-      electron_config_cache: ${{ runner.temp }}/electron-download-cache
+      electron_config_cache: ${{ github.workspace }}/.cache/electron-download-cache
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-node@v7.1.0

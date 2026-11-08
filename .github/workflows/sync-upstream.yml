@@ -18,7 +18,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 20
     env:
-      electron_config_cache: ${{ runner.temp }}/electron-download-cache
+      electron_config_cache: ${{ github.workspace }}/.cache/electron-download-cache
     defaults:
       run:
         shell: bash
