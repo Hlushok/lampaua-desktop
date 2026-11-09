@@ -400,7 +400,7 @@ jobs:
           cat release_body.md
 
       - name: Publish to GitHub Release
-        uses: softprops/action-gh-release@v3.0.3
+        uses: softprops/action-gh-release@v3.0.4
         with:
           # Keep binary distribution closed until corresponding third-party sources
           # have been preserved and the release-maintenance checklist is complete.
