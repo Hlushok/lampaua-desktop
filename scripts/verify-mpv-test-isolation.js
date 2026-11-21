@@ -539,6 +539,7 @@ async function main() {
     "Slow frame kept the window open",
   );
 
+  const switches = new Map();
   const lifecycle = new Map();
   const exited = [];
   closeTimers.length = 0;
@@ -547,6 +548,9 @@ async function main() {
     {
       electron: {
         app: {
+          commandLine: {
+            appendSwitch: (name, value) => switches.set(name, value),
+          },
           on: (name, fn) => lifecycle.set(name, fn),
           whenReady: () => ({ then() {} }),
           exit: (code) => exited.push(code),
@@ -564,6 +568,11 @@ async function main() {
     },
     { setTimeout: timeout, clearTimeout() {} },
   );
+  assert.equal(
+    switches.get("enable-features"),
+    "PlatformHEVCDecoderSupport,FFmpegAllowLists,PlatformEncryptedDolbyVision",
+  );
+  assert.equal(switches.has("disable-gpu-sandbox"), false);
   void lifecycle.get("will-quit")({ preventDefault() {} });
   assert.equal(closeTimers[0].ms, 6000);
   closeTimers[0].fn();
