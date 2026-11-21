@@ -78,7 +78,9 @@ function createWindow() {
       sandbox: false,
       contextMenu: false,
       webSecurity: Boolean(store.get("webSecurity")),
+      backgroundThrottling: false,
     },
+    backgroundColor: "#1d1f20",
     show: false,
     titleBarStyle: "default",
     // macOS must not receive fullscreen:false, which disables its native button.

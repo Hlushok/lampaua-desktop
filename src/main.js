@@ -1,6 +1,14 @@
 const { app } = require("electron");
 const path = require("node:path");
 
+// Keep the fork runtime and sandbox while requesting upstream HEVC features.
+if (["win32", "darwin", "linux"].includes(process.platform)) {
+  app.commandLine.appendSwitch(
+    "enable-features",
+    "PlatformHEVCDecoderSupport,FFmpegAllowLists,PlatformEncryptedDolbyVision",
+  );
+}
+
 // Apply an explicit QA/development profile before electron-store is imported.
 const profileArgument = process.argv.find((arg) =>
   arg.startsWith("--user-data-dir="),

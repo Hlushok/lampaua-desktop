@@ -1,9 +1,23 @@
 {
-  "forkOwnedFiles": ["README.md", "CHANGELOG.md"],
-  "retiredFiles": ["scripts/generate-icons.js"],
+  "forkOwnedFiles": [
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "retiredFiles": [
+    "scripts/generate-icons.js",
+    "electron-builder.linux.js",
+    "electron-builder.mac.js",
+    "electron-builder.win.js",
+    "scripts/with-electron-env.js"
+  ],
   "versionOnlyPackage": "package.json",
-  "formatOnlyFiles": ["src/plugin.js", "src/modules/torrServerManager.js"],
-  "ignoredFormatComments": ["eslint-disable-next-line no-unused-vars"],
+  "formatOnlyFiles": [
+    "src/plugin.js",
+    "src/modules/torrServerManager.js"
+  ],
+  "ignoredFormatComments": [
+    "eslint-disable-next-line no-unused-vars"
+  ],
   "manualOnlyFiles": [
     "LICENSE",
     "build/libmpv-runtime.json",
